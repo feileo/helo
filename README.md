@@ -1,5 +1,5 @@
 # ASORM
-####`ASORM`是一个我个人使用`Python3`开发和封装的简易异步ORM工具包，协程实现基于`asyncio`和`aiomysql`，目前只支持MySQL
+#### `ASORM`是一个我个人使用`Python3`开发和封装的简易异步ORM工具包，协程实现基于`asyncio`和`aiomysql`，目前只支持MySQL
 
 ### 目录结构
  - `base/`        基础任务模型
@@ -40,9 +40,9 @@
 `orm`包为本项目的核心，该模块以协程实现了一般orm应具有的常用功能，所有涉及对数据库的连接及读写操作的方法均`async`声明为协程，用户需要使用`await`来调用；除此之外其他操作非常简单，下面进行简单介绍。
 #### 数据类型
 <table>
-<tr><td>ASORM</td> <td>MySQL </td>  <td>说明 </td> </tr>
+<tr><td>ASORM</td> <td>MySQL </td> <td>说明 </td> </tr>
 <tr><td>StringField</td><td>VARCHAR和CHAR</td>
-<td>通过属性varchar来选择，默认varchar=False，即StringField默认为VARCHAR</td></tr>
+<td>通过属性varchar选择，默认varchar=False，即StringField默认为VARCHAR</td></tr>
 <tr><td>IntegerField </td><td> BIGINT和INT</td> 
 <td>通过属性bigint来选择，默认bigint=False，即IntegerField默认为INT</td></tr>
 <tr><td>DecimalField </td><td> DECIMAL</td> 
