@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
 import os
-EVENT_DIR = 'usertask'
+
+EVENT_DIR = 'usertasks'
 
 FULL_EVENT_DIR = os.path.sep.join([os.getcwd(),EVENT_DIR])
 

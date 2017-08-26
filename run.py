@@ -1,17 +1,16 @@
-#!/test_objsr/bin/env python3
+#!/usr/bin/env python3
 # -*- coding:utf-8 -*-
 from usertasks.test import TestTask
+from logger import EventLogger
 import asyncio
 
-def Run():
-	# 建立事件循环
+def run():
+	EventLogger.log(task='usertask', message='started')
 	loop = asyncio.get_event_loop()
-	# 定义事件列表
-	tasks = [TestTask.test_task(loop),Con_TestTask.test_task(loop)]
-	# run
-	loop.run_until_complete(asyncio.wait(tasks))
-	# close
+	TestTask.tasks_list.append(TestTask.test_task(loop))
+	loop.run_until_complete(asyncio.wait(TestTask.tasks_list))
 	loop.close()
+	EventLogger.log(task='usertask', message='finished')
 
 if __name__ == '__main__':
-    Run()
+    run()

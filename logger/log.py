@@ -19,16 +19,22 @@ class EventLogger(BaseLog):
     __lock = threading.Lock()
 
     @staticmethod
-    def log(message):
-        event_name = find_eventname(EVENT_PATH)
+    def log(message,task=None):
+        if task is None:
+            event_name = find_eventname(EVENT_PATH)
+        else:
+            event_name = task
         EventLogger.__lock.acquire()
         log_str = EventLogger.info_partten.format(event_name, BaseLog.now_time(), message)
         BaseLog.log(log_str)
         EventLogger.__lock.release()
 
     @staticmethod
-    def error(message=None,error=None):
-        event_name = find_eventname(EVENT_PATH)
+    def error(message=None,error=None,task=None):
+        if task is None:
+            event_name = find_eventname(EVENT_PATH)
+        else:
+            event_name = task
         error_str = '%s:%s' % (error.__class__.__name__,error.message) if error else ''
         real_message = '%s %s' % (message if message else '',error_str)
         EventLogger.__lock.acquire()
@@ -37,8 +43,11 @@ class EventLogger(BaseLog):
         EventLogger.__lock.release()
 
     @staticmethod
-    def warning(message):
-        event_name = find_eventname(EVENT_PATH)
+    def warning(message,task=None):
+        if task is None:
+            event_name = find_eventname(EVENT_PATH)
+        else:
+            event_name = task
         EventLogger.__lock.acquire()
         log_str = EventLogger.warning_partten.format(event_name, BaseLog.now_time(), message)
         BaseLog.log(log_str)

@@ -1,4 +1,4 @@
-#!/test_objsr/bin/env python3
+#!/usr/bin/env python3
 # -*- coding:utf-8 -*-
 import asyncio
 
@@ -83,9 +83,9 @@ class SelectGenerator(SQLGenerator):
         self.has_where = False
         self.has_order = False
         self.has_limit = False
-        self.render_data['fields'] = ','.join([each_field.join('``') for each_field in fields])
-        self.render_data['table'] = model.__table__.join('``')
         self.fields = fields
+        self.render_data['fields'] = ','.join([each_field.join('``') for each_field in self.fields])
+        self.render_data['table'] = model.__table__.join('``')
 
     def _set_where(self,where):
         if not self.has_where:
@@ -106,7 +106,8 @@ class SelectGenerator(SQLGenerator):
 
     def order_by(self,field=None, desc=False):
         if field is not None and field not in self.model.__fields__:
-            raise Exception('model %s don\'t have field %s' % (self.model.__name__, field))
+            if field != self.model.__primary_key__:
+                raise Exception('model %s don\'t have field %s' % (self.model.__name__, field))
         if field is None and self.model.__primary_key__ is None:
             raise Exception('must have a field to order by')
         if field is None:
@@ -128,17 +129,18 @@ class SelectGenerator(SQLGenerator):
     async def select(self,rows=None):
         execute_sql, values = self.render()
         result_list = await self.model.select(execute_sql,values,rows)
+        tmp_obj = self.model()
         if len(result_list)>1:
             all_objs = []
             for each_dict in result_list:
-                tmp_obj = self.model()
                 for each_field in self.fields:
-                    tmp_obj.set_value(each_field,each_dict[each_field])
+                    if each_field is not None:
+                        tmp_obj.set_value(each_field,each_dict[each_field])
                 all_objs.append(tmp_obj)
             return all_objs
         elif len(result_list)==1:
-            tmp_obj = self.model()
             for each_field in self.fields:
+                 if each_field is not None:
                     tmp_obj.set_value(each_field,result_list[0][each_field])
             return tmp_obj
         else:

@@ -4,7 +4,7 @@ import orm
 
 class Student(orm.Model):
 	__table__ = 'student'
-	__name__  = '测试用表,无实际意义'
+	__name__  = '测试用表1,无实际意义'
 
 
 	id = orm.IntegerField(name='id',comment='主键',length=20,unsigned=True,auto_increase=True,primary_key=True)
@@ -25,7 +25,7 @@ class Student(orm.Model):
 
 class Teacher(orm.Model):
 	__table__ = 'teacher'
-	__name__  = '测试用表,无实际意义'
+	__name__  = '测试用表2,无实际意义'
 
 
 	id = orm.IntegerField(name='id',comment='主键',length=20,unsigned=True,auto_increase=True,primary_key=True)

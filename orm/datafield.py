@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
-from logger import EventLogger
 from datetime import datetime
 
 class BaseField(object):
@@ -104,6 +103,7 @@ class StringField(BaseField):
         self.primary_key = primary_key
         if primary_key is True:
             self.blank = False
+            self.default = None
         self.id_count = self._get_id_count()
 
 
@@ -133,6 +133,7 @@ class IntegerField(BaseField):
         self.primary_key = primary_key
         if primary_key is True:
             self.blank = False
+            self.default = None
         self.id_count = self._get_id_count()
 
 class DecimalField(BaseField):
@@ -159,6 +160,7 @@ class DecimalField(BaseField):
         self.primary_key = primary_key
         if primary_key is True:
             self.blank = False
+            self.default = None
         self.id_count = self._get_id_count()
 
 
@@ -190,6 +192,7 @@ class FloatField(BaseField):
         self.primary_key = primary_key
         if primary_key is True:
             self.blank = False
+            self.default = None
         self.id_count = self._get_id_count()
 
 
