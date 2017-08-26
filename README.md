@@ -1,5 +1,5 @@
 # ASORM
-### ASORM是一个我个人使用`Python3`开发和封装的简易异步ORM工具包，协程实现基于`asyncio`和`aiomysql`，目前只支持`MySQL`
+####`ASORM`是一个我个人使用`Python3`开发和封装的简易异步ORM工具包，协程实现基于`asyncio`和`aiomysql`，目前只支持MySQL
 
 ### 目录结构
  - `base/`        基础任务模型
@@ -42,15 +42,27 @@
 <table>
 <tr><td>ASORM</td> <td>MySQL </td>  <td>说明 </td> </tr>
 <tr><td>StringField</td><td>VARCHAR和CHAR</td>
-<td>通过属性varchar来选择，默认varchar=False，即StringField默认为VARCHAR</td><tr>
+<td>通过属性varchar来选择，默认varchar=False，即StringField默认为VARCHAR</td></tr>
 <tr><td>IntegerField </td><td> BIGINT和INT</td> 
-<td>通过属性bigint来选择，默认bigint=False，即IntegerField默认为INT</td><tr>
+<td>通过属性bigint来选择，默认bigint=False，即IntegerField默认为INT</td></tr>
 <tr><td>DecimalField </td><td> DECIMAL</td> 
-<td>通过属性length和float_length来设置DECIMAL的(M,D)值</td><tr>
+<td>通过属性length和float_length来设置DECIMAL的(M,D)值</td></tr>
 <tr><td>FloatField </td><td> DOUBLE和FLOAT</td> 
-<td>通过属性double来选择，默认double=False，即FloatField默认为FLOAT</td><tr>
+<td>通过属性double来选择，默认double=False，即FloatField默认为FLOAT</td></tr>
 <tr><td>TimestampField </td><td> TIMESTAMP</td> 
-<td>通过属性auto可设置是on_create还是on_update</td><tr>
+<td>通过属性auto可设置是on_create还是on_update</td></tr>
 <tr><td>DatetimeField </td><td> DATETIME</td> 
-<td>DATETIME类型，对应与Python的datetime类型</td><tr>
+<td>DATETIME类型，对应与Python的datetime类型</td></tr>
+</table>
+#### 索引类型
 <table>
+<tr><td>`ASORM`</td> <td>`MySQL` </td>  <td>说明 </td> </tr>
+<tr><td>Key </td><td> KEY</td> 
+<td>可通过属性col_name列表来设置索引列</td></tr>
+<tr><td>UniqueKey </td><td> UNIQUE KEY</td> 
+<td>可通过属性col_name列表来设置索引列</td></tr>
+<tr><td>ForeignKey </td><td> FOREIGN KEY</td> 
+<td>关系目前还在开发中</td></tr>
+</table>
+#### 其他常用属性
+
