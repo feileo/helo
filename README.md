@@ -54,9 +54,9 @@
 <tr><td>DatetimeField </td><td> DATETIME</td> 
 <td>DATETIME类型，对应与Python的datetime类型</td></tr>
 </table>
-####  索引类型
+#### 索引类型
 <table>
-<tr><td>`ASORM`</td> <td>`MySQL` </td>  <td>说明 </td> </tr>
+<tr><td>ASORM</td> <td>MySQL </td>  <td>说明 </td> </tr>
 <tr><td>Key </td><td> KEY</td> 
 <td>可通过属性col_name列表来设置索引列</td></tr>
 <tr><td>UniqueKey </td><td> UNIQUE KEY</td> 
@@ -64,5 +64,17 @@
 <tr><td>ForeignKey </td><td> FOREIGN KEY</td> 
 <td>关系目前还在开发中</td></tr>
 </table>
-####  其他常用属性
+#### 其他常用属性
+<table>
+<tr><td>常用属性</td> <td>说明 </td></tr>
+<tr><td>name </td><td> 名称</td></tr>
+<tr><td>comment </td><td>备注，说明</td></tr>
+<tr><td>default </td><td>默认值</td></tr>
+<tr><td>length </td><td>指定长度</td></tr>
+<tr><td>blank </td><td>能为空否</td></tr>
+<tr><td>primary_key </td><td>是否主键</td></tr>
+<tr><td>auto_increase </td><td>是否自增</td></tr>
+<tr><td>unsigned</td><td>是否无符号</td></tr>
+</table>
+
 
