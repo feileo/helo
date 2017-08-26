@@ -1,5 +1,5 @@
 # ASORM
-#### `ASORM`是一个我个人使用`Python3`开发和封装的简易异步ORM工具包，协程实现基于`asyncio`和`aiomysql`，目前只支持MySQL
+#### ASORM是一个我个人使用`Python3`开发和封装的简易异步ORM工具包，协程实现基于`asyncio`和`aiomysql`，目前只支持`MySQL`
 
 ### 目录结构
  - `base/`        基础任务模型
@@ -54,7 +54,7 @@
 <tr><td>DatetimeField </td><td> DATETIME</td> 
 <td>DATETIME类型，对应与Python的datetime类型</td></tr>
 </table>
-#### 索引类型
+####  索引类型
 <table>
 <tr><td>`ASORM`</td> <td>`MySQL` </td>  <td>说明 </td> </tr>
 <tr><td>Key </td><td> KEY</td> 
@@ -64,5 +64,5 @@
 <tr><td>ForeignKey </td><td> FOREIGN KEY</td> 
 <td>关系目前还在开发中</td></tr>
 </table>
-#### 其他常用属性
+####  其他常用属性
 
