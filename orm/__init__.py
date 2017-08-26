@@ -14,7 +14,7 @@ async def create_all(module):
         if hasattr(value, '__base__') and value.__base__ is Model:
         	if not await value.status():
         		await value.create_table()
-        		EventLogger.log('created <Table \'{}\'> in <db: \'{}\'>'.format(key,DBconpool.get_db_name()))
+        		EventLogger.info('created <Table \'{}\'> in <db: \'{}\'>'.format(key,DBconpool.get_db_name()))
         	# else:
         	# 	EventLogger.warning('<Table \'{}>\' already exists"'.format(key))
 
@@ -24,6 +24,6 @@ async def drop_all(module):
     	if hasattr(value, '__base__') and value.__base__ is Model:
             if await value.status():
                 await value.drop_table()
-                EventLogger.log('dropped <Table \'{}\'> from <db: \'{}\'>'.format(key,DBconpool.get_db_name()))
+                EventLogger.info('dropped <Table \'{}\'> from <db: \'{}\'>'.format(key,DBconpool.get_db_name()))
 
         		

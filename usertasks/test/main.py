@@ -99,17 +99,17 @@ class TestTask(BaseTask):
         # await model.Student.remove_by_ids([1,2,3,4,5,6])
         ### 查询 ###
         # 主键查询 直接使用get
-        EventLogger.log('get: {}'.format(len(await model.Student.get(3))))
+        EventLogger.info('get: {}'.format(len(await model.Student.get(3))))
         # # 查询全部 
-        EventLogger.log('all: {}'.format(len(await model.Student.select_all())))
+        EventLogger.info('all: {}'.format(len(await model.Student.select_all())))
         # 等值查询 
-        EventLogger.log('eq: {}'.format(len(await model.Student.select_eq_filter(cppscore = 199.12,name='gjwdw'))))
+        EventLogger.info('eq: {}'.format(len(await model.Student.select_eq_filter(cppscore = 199.12,name='gjwdw'))))
         # like查询 
-        EventLogger.log('like: {}'.format(len(await model.Student.select_like_filter(name='gjw'))))
+        EventLogger.info('like: {}'.format(len(await model.Student.select_like_filter(name='gjw'))))
         # # 自定义filter查询 
-        # EventLogger.log('custom_filter: {}'.format(len(await model.Student.select_custom_filter(filter1='name=\'acths\'',filter2='id=17'))))
+        # EventLogger.info('custom_filter: {}'.format(len(await model.Student.select_custom_filter(filter1='name=\'acths\'',filter2='id=17'))))
         # # 自定义where查询
-        # EventLogger.log('custom_where: {}'.format(len(await model.Student.select_custom_where('WHERE id=1 and name=\'acths\''))))
+        # EventLogger.info('custom_where: {}'.format(len(await model.Student.select_custom_where('WHERE id=1 and name=\'acths\''))))
         # 综合条件查询  常用 推荐
         # 过滤器filter(id=1,name=test_stu_obj.name[,...]), limit(count,start_num=0), select(rows)
         query = await \
@@ -117,14 +117,14 @@ class TestTask(BaseTask):
             # model.Student.query_all().filter(name=test_stu_obj.name,cppscore=199.12).order_by('id').select()
         # print(query[[0]])
         if not isinstance(query,list) and query is not None:
-            EventLogger.log('query: 1 row')
-            EventLogger.log('({} {} {})'.format(query.id,query.name,query.cppscore))
+            EventLogger.info('query: 1 row')
+            EventLogger.info('({} {} {})'.format(query.id,query.name,query.cppscore))
         elif isinstance(query,list):
-            EventLogger.log('query: {} rows'.format(len(query)))
+            EventLogger.info('query: {} rows'.format(len(query)))
             for query_i in query:
-                EventLogger.log('({} {} {})'.format(query_i.name,query_i.id,query_i.cppscore))
+                EventLogger.info('({} {} {})'.format(query_i.name,query_i.id,query_i.cppscore))
         else:
-            EventLogger.log('query: Did not query the results')
+            EventLogger.info('query: Did not query the results')
 
         ############################# 删除表 ##########################
         # 删除表

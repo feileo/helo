@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
-from orm import toDict
+
+from orm.const import toDict
 
 TEMP_FILES_DIR = '../Tempfiles'
 

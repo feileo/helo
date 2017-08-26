@@ -17,7 +17,7 @@ class DBconpool(object):
 	@classmethod
 	async def create_dbcon_pool(cls,loop, **kwargs):
 		cls.__con_db_name = kwargs['db']
-		EventLogger.log('create database connection pool',task='building')
+		EventLogger.info('create database connection pool',task='building')
 		cls.db_con_pool = await aiomysql.create_pool(
 	        host=kwargs.get('host', 'localhost'),
 	        port=kwargs.get('port', 3306),
@@ -33,7 +33,7 @@ class DBconpool(object):
 
 	@classmethod
 	async def close_pool(cls):
-	    EventLogger.log('close database connection pool')
+	    EventLogger.info('close database connection pool')
 	    if cls.db_con_pool is not None:
 	        cls.db_con_pool.close()
 	        await cls.db_con_pool.wait_closed()

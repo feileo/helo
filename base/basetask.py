@@ -15,17 +15,17 @@ class BaseTask(object):
 			raise NoDbConnPathError('No \'conn_path\'')
 		await DBconpool.create_dbcon_pool(loop=loop, **cls.conn_path)
 		cls.log()
-		EventLogger.log('started')
+		EventLogger.info('started')
 
 	@classmethod
 	async def end(cls):
 		await DBconpool.close_pool()
-		EventLogger.log('finished')
+		EventLogger.info('finished')
 
 	@classmethod
 	def log(cls):
 		for each_model in MODEL_LIST:
-	   		EventLogger.log('{} linking model \'{}\' to conn_path \'{}\''.format(space,each_model,
+	   		EventLogger.info('{} linking model \'{}\' to conn_path \'{}\''.format(space,each_model,
 	   			DBconpool.get_db_name()),task='building')
 
 	# @classmethod

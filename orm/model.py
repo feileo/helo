@@ -16,26 +16,26 @@ class ModelMetaclass(type):
         MODEL_LIST.append(name)
         table_name = attrs.get('__table__', None) or name
         table_comment = attrs.get('__name__',None)
-        EventLogger.log('found model \'{}\', table_name [{}]'.format(name, table_name),task='scanning')
-        EventLogger.log('{} buliding model \'{}\'...'.format(space,name),task='omapping')
+        EventLogger.info('found model \'{}\', table_name [{}]'.format(name, table_name),task='scanning')
+        EventLogger.info('{} buliding model \'{}\'...'.format(space,name),task='omapping')
         fieldmap, build_info, build_id= dict(), dict(), dict()
         primaryKey,key,unique_key,build_key,build_unique_key = None,None,None,None,None
         for k, v in attrs.items():
             if isinstance(v, BaseField):
-                # EventLogger.log('{}found mapping {} --> {}'.format(space,k,v),task='omapping')
-                # EventLogger.log('{} {}'.format('    '+space,v.build()),task='omapping')
+                # EventLogger.info('{}found mapping {} --> {}'.format(space,k,v),task='omapping')
+                # EventLogger.info('{} {}'.format('    '+space,v.build()),task='omapping')
                 fieldmap[k] = v
                 build_info[k] = v.build() 
                 build_id[v.id_count] = k
                 if v.primary_key:
-                    # EventLogger.log('{}found primarykey {}'.format(space,k),task='omapping')
+                    # EventLogger.info('{}found primarykey {}'.format(space,k),task='omapping')
                     # 如果已经存在一个主键
                     if primaryKey:
                         raise RuntimeError('{}Duplicate primary key found for field : {}'.format(sapce,k))
                     primaryKey = k
             if isinstance(v,BaseIndexField):
-                # EventLogger.log('{}found mapping {} --> {}'.format(space,k,v),task='omapping')
-                # EventLogger.log('{} {}'.format('    '+space,v.build()),task='omapping')
+                # EventLogger.info('{}found mapping {} --> {}'.format(space,k,v),task='omapping')
+                # EventLogger.info('{} {}'.format('    '+space,v.build()),task='omapping')
                 fieldmap[k] = v
                 if v.__class__ is Key:
                     key = k

@@ -16,7 +16,7 @@ class BaseLog(object):
         return now_log_time()
 
     @staticmethod
-    def log(message):
+    def info(message):
         print(message)
 
     @staticmethod
