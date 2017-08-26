@@ -1,5 +1,5 @@
 # ASORM
-#### ASORM是一个我个人使用`Python3`开发和封装的简易异步ORM工具包，协程实现基于`asyncio`和`aiomysql`，目前只支持MySQL
+### ASORM是一个我个人使用`Python3`开发和封装的简易异步ORM工具包，协程实现基于`asyncio`和`aiomysql`，目前只支持`MySQL`
 
 ### 目录结构
  - `base/`        基础任务模型
@@ -45,8 +45,8 @@
 <td>通过属性varchar来选择，默认varchar=False，即StringField默认为VARCHAR</td><tr>
 <tr><td>IntegerField </td><td> BIGINT和INT</td> 
 <td>通过属性bigint来选择，默认bigint=False，即IntegerField默认为INT</td><tr>
-<tr><td>DecimalField </td><td> `DECIMAL`</td> 
-<td>通过属性length和float_length来设置`DECIMAL`的(M,D)值</td><tr>
+<tr><td>DecimalField </td><td> DECIMAL</td> 
+<td>通过属性length和float_length来设置DECIMAL的(M,D)值</td><tr>
 <tr><td>FloatField </td><td> DOUBLE和FLOAT</td> 
 <td>通过属性double来选择，默认double=False，即FloatField默认为FLOAT</td><tr>
 <tr><td>TimestampField </td><td> TIMESTAMP</td> 
