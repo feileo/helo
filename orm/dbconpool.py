@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
 
-from logger import EventLogger
+from component import EventLogger
 import asyncio
 import aiomysql
 
@@ -10,7 +10,7 @@ class DBconpool(object):
 	__con_db_name = None
 	
 	"""
-	我们创建一个db连接池，使用连接池的好处是不必频繁地打开和关闭数据库连接，能复用就尽量复用。
+	创建一个db连接池，使用连接池的好处是不必频繁地打开和关闭数据库连接，能复用就尽量复用。
 	连接池由db_con_pool存储，缺省情况下将编码设置为utf8，自动提交事务：
 	"""
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
-from logger import EventLogger
+from component import EventLogger
 from .table import Table
 from .sqlgenerator import SelectGenerator
 from .const import space

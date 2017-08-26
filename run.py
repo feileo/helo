@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
 from usertasks.test import TestTask
-from logger import EventLogger
+from component import EventLogger
 import asyncio
 
 def run():

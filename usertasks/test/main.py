@@ -3,7 +3,7 @@
 from orm import create_all,drop_all
 from . import model
 from config import DB_PATH
-from logger import EventLogger
+from component import EventLogger
 import asyncio
 from datetime import datetime,timedelta
 import random
@@ -17,12 +17,12 @@ def ran_password():
 def ran_score():
     return random.random()*100
 def ran_sex(i):
-    return 'm' if i%2==0  else 'f'
+    return 'm' if i%2==0 else 'f'
 def ran_date():
     return datetime.now()-timedelta(days=random.randint(0,100))
 
 # 本任务为简单测试任务，操作无实际意义
-# 
+
 class TestTask(BaseTask):
     # 配置连接数据库
     conn_path = DB_PATH.test1

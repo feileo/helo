@@ -2,8 +2,8 @@
 # -*- coding:utf-8 -*-
 import os
 from config import TEMP_FILES_DIR
-from logger.const import EVENT_DIR
-from logger.eventfinder import find_eventname
+from component.logger.const import EVENT_DIR
+from component.logger.eventfinder import find_eventname
 
 TASK_PATH = os.path.sep.join([os.getcwd(),EVENT_DIR])
 

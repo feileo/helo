@@ -4,7 +4,7 @@ from .dbconpool import DBconpool
 from .model import Model,MODEL_LIST
 from .datafield import IntegerField,StringField,DatetimeField,FloatField,DecimalField,TimestampField
 from .indexfield import UniqueKey,Key
-from logger import EventLogger
+from component import EventLogger
 from .const import toDict,space
 from .dbconpool import DBconpool
 from .error import NoDbConnPathError

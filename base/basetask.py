@@ -3,7 +3,7 @@
 from orm import DBconpool,space
 from orm import NoDbConnPathError
 from orm import MODEL_LIST
-from logger import EventLogger
+from component import EventLogger
 
 class BaseTask(object):
 	conn_path = None

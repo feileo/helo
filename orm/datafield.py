@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# -*- coding:utf-8 -*-
+# -*- coding:utf-8 -*
+-
 from datetime import datetime
 
 class BaseField(object):

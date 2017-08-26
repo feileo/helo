@@ -2,7 +2,7 @@
 # -*- coding:utf-8 -*-
 import qiniu,hashlib,time,os
 import urllib.parse as urlparse
-from logger import EventLogger
+from component.logger import EventLogger
 from .tempfile import TempFiles
 from .const import BUCKET_NAME,ACCESS_KEY,SECRET_KEY,DOMAIN
 

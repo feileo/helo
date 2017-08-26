@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
+
 class BaseIndexField(object):
     _type_sql = None
     _id_count = 0
