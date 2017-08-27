@@ -14,9 +14,9 @@
 `base`基础任务模型实现了`BaseTask`类，用户任务需继承`BaseTask`类并配置类属性`conn_path`，以指定此任务的数据库读写为`config.py`配置文件中`DB_SETING`字典中已有的数据库，该类实现了`start()`和`end()`类方法来启动和结束一个用户任务，其在内部维护了一个数据库连接池，尽量复用连接，用户必须在进行数据库读写前使用`start()`方法创建一个数据库连接池`db_con_pool`，全部完毕后使用`end()`方法关闭连接池；该基础任务模型现尚不完善，还在未来计划中，等待更新。
 
 ## component组件
-`component`组件提供了日志(`logger`)，七牛存储(`qiniustore`)和扫描器(`scanner`)。
+component组件提供了日志(`logger`)，七牛存储(`qiniustore`)和扫描器(`scanner`)。
 ### logger 
-`logger`日志模块提供了一个线程安全的用户日志功能，实现了对系统以及不同用户任务中打印的日志捕获的功能，打印出的日志格式为：
+logger日志模块提供了一个线程安全的用户日志功能，实现了对系统以及不同用户任务中打印的日志捕获的功能，打印出的日志格式为：
 ```
 [logtype taskname datetime] message
 ```
@@ -113,10 +113,10 @@ class Student(orm.Model)：
 ### API使用简介
 
 #### 1.建表/删除表
-建表和删除表分别提供两个方法。
-建表：`create_all(module)`和`create_table()`
-删表：`drop_all(module)`和`drop_table()`
-前者用以全部创建（全部删除），只需给出`module`，该方法会创建（删除）此模块的所有表，其会在创建前检查是否存在，已存在就跳过，删除时同理。
+建表和删除表分别提供两个方法。<br>
+建表：`create_all(module)`和`create_table()`<br>
+删表：`drop_all(module)`和`drop_table()`<br>
+前者用以全部创建（全部删除），只需给出`module`，该方法会创建（删除）此模块的所有表，其会在创建前检查是否存在，已存在就跳过，删除时同理。<br>
 后者由继承自`orm.Model`的子类或其实例调用，创建或删除类本身对应的表。
 #### 2.主键
 当设置主键`auto_increase=True`后，对象主键将由系统管理，在`test_stu_obj`对象未进行保存（成功提交到数据库）时，`test_obj.id`将返回`None`，保存后方可返回其id。
@@ -163,7 +163,7 @@ query_all(*query_fields).filter(**kwargs).order_by(field=None,desc=False).limit(
  4. `limit`方法可以指定返回的行偏移量和行数，此方法可选；
  5. `select`方法执行数据库查询并返回符合查询条件的所有对象（列表）。
 
-值得注意的是，该方法完成了一次双向的映射，即返回的是类对象，我们依然可以通过访问属性值方法来查看返回的值。
+该方法完成了一次双向的映射，即返回的是类对象，我们依然可以通过访问属性值方法来查看返回的值。
 
 #### 其他常用查询方法
  - 主键查询
