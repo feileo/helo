@@ -116,6 +116,7 @@ class Student(orm.Model)：
 建表和删除表分别提供两个方法。<br>
  - 建表：`create_all(module)`和`create_table()`<br>
  - 删表：`drop_all(module)`和`drop_table()`<br>
+ 
 前者用以全部创建（全部删除），只需给出`module`，该方法会创建（删除）此模块的所有表，其会在创建前检查是否存在，已存在就跳过，删除时同理。<br>
 后者由继承自`orm.Model`的子类或其实例调用，创建或删除类本身对应的表。
 #### 主键
