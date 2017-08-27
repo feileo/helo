@@ -138,8 +138,8 @@ class Student(orm.Model)：
 
 #### 5.删除行
  - 删除当前对象
-<br>
-从数据库删除当前对象的信息使用方法`delete()`，该方法也必须为实例方法，通过实例调用如`await test_stu_obj.delete()`。<br>
+
+从数据库删除当前对象的信息使用方法`delete()`，该方法也必须为实例方法，通过实例调用如`await test_stu_obj.delete()`。
 
  -  批量删除
  
