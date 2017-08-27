@@ -112,15 +112,15 @@ class Student(orm.Model)：
 ```
 ### API使用简介
 
-#### 1.建表/删除表
+#### 建表/删除表
 建表和删除表分别提供两个方法。<br>
 建表：`create_all(module)`和`create_table()`<br>
 删表：`drop_all(module)`和`drop_table()`<br>
 前者用以全部创建（全部删除），只需给出`module`，该方法会创建（删除）此模块的所有表，其会在创建前检查是否存在，已存在就跳过，删除时同理。<br>
 后者由继承自`orm.Model`的子类或其实例调用，创建或删除类本身对应的表。
-#### 2.主键
+#### 主键
 当设置主键`auto_increase=True`后，对象主键将由系统管理，在`test_stu_obj`对象未进行保存（成功提交到数据库）时，`test_obj.id`将返回`None`，保存后方可返回其id。
-#### 3.添加/插入行
+#### 添加/插入行
 
  - 保存当前对象
 
@@ -133,10 +133,10 @@ class Student(orm.Model)：
  - 条件插入
  
 类方法`conditional_insert(data,where)`为条件插入，其可根据传入的`where`参数进行查询，如果已经存在记录就更新数据，不存在就进行插入。
-#### 4.更新行
+#### 更新行
 更新行使用类方法`update(uid=None,where={},what={})`，当`uid`不为`None`时，查询条件使用`uid`，为`None`使用`where`条件。
 
-#### 5.删除行
+#### 删除行
  - 删除当前对象
 
 从数据库删除当前对象数据使用方法`delete()`，其也必须为实例方法，通过实例调用如`await test_stu_obj.delete()`。
@@ -145,10 +145,10 @@ class Student(orm.Model)：
  
 类方法`remove(uid=None,where={})`会根据所给查询条件进行删除，用法与`update()`类似，不在赘述。
 
- - 特例
+ - 特例·按主键列表批量删除
  
 类方法`remove_by_ids(uid=[])`提供一种特殊的删除方法，其可根据传入的主键列表进行批量删除。
-### 6.查询行
+### 查询行
 一般来说，查询应该是比较重要的了，所以我把这个标题都放大了一级，哈哈。
 
 #### 常用，推荐用法
