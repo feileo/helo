@@ -41,7 +41,7 @@ new_url = save_to_qiniu_by_url(file_url)
 ### scanner
 scanner扫描器会自动扫描usertasks目录下的继承自`BaseTask`类的用户任务并将其加入到事件列表，该功能目前还在开发中；
 
-## orm
+## orm模块
 orm包为本项目的核心，该模块使用协程实现了一般orm应具有的常用功能，所有涉及对数据库的连接及读写操作的方法均`async`声明为协程，用户需要在使用时将方法声明为`async`并使用`await`来调用；除此之外其他操作非常简单，下面简单介绍。
 ### 数据类型
 <table>
@@ -135,10 +135,11 @@ class Student(orm.Model)：
 类方法`conditional_insert(data,where)`为条件插入，其可根据传入的`where`参数进行查询，如果已经存在记录就更新数据，不存在就进行插入。
 #### 4.更新行
 更新行使用类方法`update(uid=None,where={},what={})`，当`uid`不为`None`时，查询条件使用`uid`，为`None`使用`where`条件。
+
 #### 5.删除行
  - 删除当前对象
-
-从数据库删除当前对象的信息使用方法`delete()`，该方法也必须为实例方法，通过实例调用如 `await test_stu_obj.delete()`。
+<br>
+从数据库删除当前对象的信息使用方法`delete()`，该方法也必须为实例方法，通过实例调用如`await test_stu_obj.delete()`。<br>
 
  -  批量删除
  
