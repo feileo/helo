@@ -90,7 +90,7 @@ orm包为本项目的核心，该模块使用协程实现了一般orm应具有�
 import orm 
 class Student(orm.Model)：
     __table__ = 'student'
-    __comment__  = '学生信息表'
+    __comment__ = '学生信息表'
 	
     id = orm.IntegerField(name='id',length=20,unsigned=True,auto_increase=True,primary_key=True，comment='主键')
     name = orm.StringField(name='name',length=50,varchar=True,blank=False,comment='姓名')
