@@ -91,7 +91,7 @@ class Student(orm.Model)：
 	name = orm.StringField(name='name',length=50,varchar=True,blank=False,comment='姓名')
 	...
 ```
-子类中使用类属性`__table__`来命名表名，如果没有指定，则默认使用类名，`__comment__`属性可以对表做简单说明；完成子类后便可使用该类创建数据对象实例，具体可参照usertasks目录下test任务中的示例 。
+子类中使用类属性`__table__`来命名表名，如果没有指定，则默认使用类名，`__comment__`属性可以对表做简单说明；完成子类后便可使用该类创建数据对象实例，如`test_stu_obj = Student()`，具体可参照usertasks目录下test任务中的示例 。
 继承自`orm.Model`的子类会被自动扫描进行 buliding model关系映射，并给出如下示例的log：
 
 ```
@@ -105,16 +105,79 @@ class Student(orm.Model)：
 [I building 20170827-12:43:19]    |=>  linking model 'Student' to conn_path 'test1'
 [I building 20170827-12:43:19]    |=>  linking model 'Teacher' to conn_path 'test1'
 ```
-
 ### API
 #### 1.建表/删除表
 建表和删除表分别提供两个方法。
 建表：`create_all(module)`和`create_table()`
 删表：`drop_all(module)`和`drop_table()`
 前者用以全部创建（全部删除），只需给出`module`，该方法会创建（删除）此模块的所有表，其会在创建前检查是否存在，已存在就跳过，删除时同理。
-后者由继承自`orm.Model`的子类调用，创建或删除类本身对应的表。
-#### 2.
+后者由继承自`orm.Model`的子类或其实例调用，创建或删除类本身对应的表。
+#### 2.主键
+当设置主键`auto_increase=True`后，对象主键将由系统管理，在`test_stu_obj`对象未进行保存（成功提交到数据库）时，`test_obj.id`将返回`None`，保存后方可返回其id。
+#### 3.添加/插入行
 
+ - 保存当前对象
 
+向数据库添加行使用`save()`方法，该方法必须为实例方法，通过实例调用如`await test_stu_obj.save()`，该方法会将调用对象的信息保存到数据库，其会判断是执行`_add()`进行插入，还是`_save_update()`做更新。
 
+ - 直接插入和批量插入
+ 
+还可以通过类方法`insert(data)`和`batch_insert(data)`进行直接插入和批量插入，前者传入`data`为插入的数据字典，后者为一个列表，每个元素为一个字典（即1行数据）。
+
+ - 条件插入
+ 
+类方法`conditional_insert(data,where)`为条件插入，其可根据传入的`where`参数进行查询，如果已经存在记录就更新数据，不存在就进行插入。
+#### 4.更新行
+更新行使用类方法`update(uid=None,where={},what={})`，当`uid`不为`None`时，查询条件使用`uid`，为`None`使用`where`条件。
+#### 5.删除行
+ - 删除当前对象
+
+从数据库删除当前对象的信息使用方法`delete()`，该方法也必须为实例方法，通过实例调用如`await test_stu_obj.delete()`。
+
+ -  批量删除
+ 
+类方法`remove(uid=None,where={})`会根据所给查询条件进行删除，用法与`update()`类似，不在赘述。
+
+ - 特例
+ 
+类方法`remove_by_ids(uid=[])`提供一种特殊的删除方法，其可根据传入的主键列表进行批量删除。
+### 查询行
+一般来说，查询应该是比较重要的了，所以我把这个标题都放大了一级，哈哈。
+
+#### 常用，推荐用法
+
+综合查询我推荐大家使用下面的方法，该方法为类方法，其可基本满足一般的数据库查询需要，其完整原型为：
+```
+query_all(*query_fields).filter(**kwargs).order_by(field=None,desc=False).limit(count,start_num=0).select()
+```
+
+ 1. 可在`query_all`方法的`*query_fields`参数给出想要查询的字段（列）；
+ 2. 过滤器`filter`可以给出数量不等的查询条件，例如`filter(name='gjw',age=24)`，还可包括like(`lk`)，小于(`lt`)，大于(`mt`)，小于等于(`leq`)，大于等于(`meq`)等查询;
+ 3. `order_by`方法可以指定按哪个字段排序，`DESC`还是`ASC`，默认为`DESC`，此方法可选；
+ 4. `limit`方法可以指定返回的行偏移量和行数，此方法可选；
+ 5. `select`方法执行数据库查询并返回符合查询条件的所有对象（列表）。
+
+值得注意的是，该方法完成了一次双向的映射，即返回的是类对象，我们依然可以通过访问属性值方法来查看返回的值。
+#### 其他常用查询方法
+ - 主键查询
+
+通过主键查询数据可直接使用类`get(uid)`方法，其会返回给定主键的行数据；
+
+ -  查询全部
+ 
+返回全部行数据使用类`select_all()`方法；
+
+ - 等值查询
+ 
+类方法`select_eq_filter(**kwargs)`提供等值过滤查询，只需给出查询条件（数量不等的等值条件或键值对）即可；
+
+ - like查询
+ 
+类方法`select_like_filter(**kwargs)`提供`LIKE`过滤查询，使用方法与上面的方法类似。
+
+ - 自定义查询
+
+orm包还提供了两种自定义查询的方法`select_custom_filter(**kwargs)`和`select_custom_where(where_clause)`
+
+查询就介绍到这里了，推荐使用上面第一种推荐的方法，合理的使用其完全可以涵盖下面介绍的所有功能。
 
