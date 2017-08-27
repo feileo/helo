@@ -20,7 +20,7 @@ logger日志模块提供了一个线程安全的用户日志功能，实现了�
 ```
 [logtype taskname datetime] message
 ```
-其中`logtype`是消息类型，分别是`[E、I、W]`之一，代表`error`、`info`和`warning`，`taskname`是当前运行的任务(可通过`task`参数指定详细方法名)，对用户而言在不指定`task`时默认为`ASORM/usertasks/`下的用户任务（即文件夹）名称，`datetime`是日志记录的时间，`message`为具体消息内容，使用：
+其中`logtype`是消息类型，分别是[E、I、W]之一，代表`error`、`info`和`warning`，`taskname`是当前运行的任务(可通过`task`参数指定详细方法名)，对用户而言在不指定`task`时默认为ASORM/usertasks/下的用户任务（即文件夹）名称，`datetime`是日志记录的时间，`message`为具体消息内容，使用：
 
 ```
 from component import EventLogger
@@ -114,8 +114,8 @@ class Student(orm.Model)：
 
 #### 建表/删除表
 建表和删除表分别提供两个方法。<br>
-建表：`create_all(module)`和`create_table()`<br>
-删表：`drop_all(module)`和`drop_table()`<br>
+ - 建表：`create_all(module)`和`create_table()`<br>
+ - 删表：`drop_all(module)`和`drop_table()`<br>
 前者用以全部创建（全部删除），只需给出`module`，该方法会创建（删除）此模块的所有表，其会在创建前检查是否存在，已存在就跳过，删除时同理。<br>
 后者由继承自`orm.Model`的子类或其实例调用，创建或删除类本身对应的表。
 #### 主键
