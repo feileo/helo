@@ -153,12 +153,12 @@ class Student(orm.Model)：
 
 #### 常用，推荐用法
 
-综合查询我推荐大家使用下面的方法，该方法为类方法，其可基本满足一般的数据库查询需要，其完整原型为：
+综合查询我会推荐大家使用下面的方法，其可基本满足一般的数据库查询需要，其完整原型为：
 ```
 query_all(*query_fields).filter(**kwargs).order_by(field=None,desc=False).limit(count,start_num=0).select()
 ```
 
- 1. 可在`query_all`方法的`*query_fields`参数给出想要查询的字段（列）；
+ 1. 可在`query_all`方法的`*query_fields`参数给出想要查询的字段（列），`query_all`方法为类方法，可通过类调用，别忘了`await`哦；
  2. 过滤器`filter`可以给出数量不等的查询条件，例如`filter(name='gjw',age=24)`，还可包括like(`lk`)，小于(`lt`)，大于(`mt`)，小于等于(`leq`)，大于等于(`meq`)等查询;
  3. `order_by`方法可以指定按哪个字段排序，`DESC`还是`ASC`，默认为`DESC`，此方法可选；
  4. `limit`方法可以指定返回的行偏移量和行数，此方法可选；
