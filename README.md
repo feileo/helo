@@ -11,7 +11,7 @@
  
 ## base模型
 
-`base`基础任务模型实现了`BaseTask`类，用户任务需继承`BaseTask`类并配置类属性`conn_path`，以指定此任务的数据库读写为`config.py`配置文件中`DB_SETING`字典中已有的数据库，该类实现了`start()`和`end()`类方法来启动和结束一个用户任务，其在内部维护了一个数据库连接池，尽量复用连接，用户必须在进行数据库读写前使用`start()`方法创建一个数据库连接池`db_con_pool`，全部完毕后使用`end()`方法关闭连接池；该基础任务模型现尚不完善，还在未来计划中，等待更新。
+base基础任务模型实现了`BaseTask`类，用户任务需继承`BaseTask`类并配置类属性`conn_path`，以指定此任务的数据库读写为`config.py`配置文件中`DB_SETING`字典中已有的数据库，该类实现了`start()`和`end()`类方法来启动和结束一个用户任务，其在内部维护了一个数据库连接池，尽量复用连接，用户必须在进行数据库读写前使用`start()`方法创建一个数据库连接池`db_con_pool`，全部完毕后使用`end()`方法关闭连接池；该基础任务模型现尚不完善，还在未来计划中，等待更新。
 
 ## component组件
 component组件提供了日志(`logger`)，七牛存储(`qiniustore`)和扫描器(`scanner`)。
@@ -138,7 +138,7 @@ class Student(orm.Model)：
 #### 5.删除行
  - 删除当前对象
 
-从数据库删除当前对象的信息使用方法`delete()`，该方法也必须为实例方法，通过实例调用如`await test_stu_obj.delete()`。
+从数据库删除当前对象的信息使用方法`delete()`，该方法也必须为实例方法，通过实例调用如 `await test_stu_obj.delete()`。
 
  -  批量删除
  
