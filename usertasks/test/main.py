@@ -37,9 +37,6 @@ class TestTask(BaseTask):
                                      dbscore = ran_score(),enscore = ran_score(),chscore = ran_score(),
                                      rgdate = ran_date())
         
-        # test_tea_obj = model.Teacher(name = ran_name(), password = ran_password(), 
-        #                              age = random.randint(20,100),sex = ran_sex(random.randint(0,10)),
-        #                              rgdate = datetime.now()-timedelta(days=random.randint(0,100)))
         test_tea_obj = model.Teacher()
         for i in range(len(name_list)):
             test_tea_obj.name = name_list[i]
@@ -54,7 +51,7 @@ class TestTask(BaseTask):
             await test_tea_obj.save()
 
         ############################# 主键 ##########################
-        # 当主键属性auto_increase(AI)设为true时,则主键由框架管理,此时test_stu_obj.id将返回None
+        # 当主键属性auto_increase(AI)设为true时,则主键由系统管理,此时test_stu_obj.id将返回None
         # print(test_stu_obj.id)
         # save之后可以正常返回id test_stu_obj.id
         ############################# 建表 ##########################
@@ -115,7 +112,6 @@ class TestTask(BaseTask):
         query = await \
             model.Student.query_all('id','name','cppscore').filter(name=test_stu_obj.name).order_by('id').select()
             # model.Student.query_all().filter(name=test_stu_obj.name,cppscore=199.12).order_by('id').select()
-        # print(query[[0]])
         if not isinstance(query,list) and query is not None:
             EventLogger.info('query: 1 row')
             EventLogger.info('({} {} {})'.format(query.id,query.name,query.cppscore))

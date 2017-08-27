@@ -2,4 +2,4 @@
 # -*- coding:utf-8 -*-
 
 from .logger import EventLogger
-from .qiniustore import qiniu_upload_file
+from .qiniustore import save_to_qiniu_by_url

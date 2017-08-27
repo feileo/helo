@@ -7,3 +7,6 @@ class DeleteNoneTypeError(Exception):
 	
 class NoDbConnPathError(Exception):
 	""" 没有为任务配置数据库连接"""
+
+class ArgTypeError(Exception):
+	""" 参数类型错误 """

@@ -15,7 +15,7 @@ class ModelMetaclass(type):
             return type.__new__(cls, name, bases, attrs)
         MODEL_LIST.append(name)
         table_name = attrs.get('__table__', None) or name
-        table_comment = attrs.get('__name__',None)
+        table_comment = attrs.get('__comment__',None)
         EventLogger.info('found model \'{}\', table_name [{}]'.format(name, table_name),task='scanning')
         EventLogger.info('{} buliding model \'{}\'...'.format(space,name),task='omapping')
         fieldmap, build_info, build_id= dict(), dict(), dict()

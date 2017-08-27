@@ -56,7 +56,6 @@ class BaseField(object):
             add_str.append('DEFAULT NULL')
         elif blank is False:
             add_str.append('NOT NULL')
-        # if hasattr(self, 'self.auto_increase'):
         try:
             auto_increment = self.auto_increase
             if auto_increment is True:

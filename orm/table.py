@@ -4,6 +4,7 @@ import asyncio
 import aiomysql
 import sys
 from .dbconpool import DBconpool
+from .error import ArgTypeError
 
 class Table(DBconpool):
     __affected__ = None
@@ -206,6 +207,8 @@ class Table(DBconpool):
 
     @classmethod
     async def insert(cls, data):
+        if not isinstance(data,dict):
+            raise ArgTypeError('type error')
         sql, values = cls._insert_sql(data)
         return await cls.submit(sql, values)
 
