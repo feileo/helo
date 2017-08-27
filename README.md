@@ -1,5 +1,5 @@
 # ASORM
-#### ASORM是本人使用`Python3`开发和封装的简易异步ORM工具包，协程实现基于`asyncio`和`aiomysql`，目前只支持`MySQL`
+#### ASORM是本人使用`Python3`开发和封装的简易异步ORM工具包，协程实现基于`asyncio`和`aiomysql`，目前只支持`MySQL`，不定期更新中
 
 ## 目录结构
  - `base/`        基础任务模型
@@ -9,11 +9,11 @@
  - `config.py` 配置文件
  - `run.py`      启动
  
-## base
+## base模型
 
 `base`基础任务模型实现了`BaseTask`类，用户任务需继承`BaseTask`类并配置类属性`conn_path`，以指定此任务的数据库读写为`config.py`配置文件中`DB_SETING`字典中已有的数据库，该类实现了`start()`和`end()`类方法来启动和结束一个用户任务，其在内部维护了一个数据库连接池，尽量复用连接，用户必须在进行数据库读写前使用`start()`方法创建一个数据库连接池`db_con_pool`，全部完毕后使用`end()`方法关闭连接池；该基础任务模型现尚不完善，还在未来计划中，等待更新。
 
-## component
+## component组件
 `component`组件提供了日志(`logger`)，七牛存储(`qiniustore`)和扫描器(`scanner`)。
 ### logger 
 `logger`日志模块提供了一个线程安全的用户日志功能，实现了对系统以及不同用户任务中打印的日志捕获的功能，打印出的日志格式为：
@@ -59,6 +59,7 @@ orm包为本项目的核心，该模块使用协程实现了一般orm应具有�
 <tr><td>DatetimeField </td><td> DATETIME</td> 
 <td>DATETIME类型，对应与Python的datetime类型</td></tr>
 </table>
+
 ### 索引类型
 
 <table>
@@ -70,6 +71,7 @@ orm包为本项目的核心，该模块使用协程实现了一般orm应具有�
 <tr><td>ForeignKey </td><td> FOREIGN KEY</td> 
 <td>关系目前还在更新计划中</td></tr>
 </table>
+
 ### 其他常用属性
 
 <table>
@@ -79,17 +81,20 @@ orm包为本项目的核心，该模块使用协程实现了一般orm应具有�
 <tr><td>default </td><td>默认值</td><td>auto_increase </td><td>是否自增</td></tr>
 <tr><td>length </td><td>指定长度</td><td>unsigned</td><td>是否无符号</td></tr>
 </table>
+
 ### 数据对象模型
+
 用户数据对象模型的建立只需继承`orm.Model`，如下示例：
 
 ```
 import orm 
 class Student(orm.Model)：
-	__table__ = 'student'
-	__comment__  = '学生信息表'
-	id = orm.IntegerField(name='id',length=20,unsigned=True,auto_increase=True,primary_key=True，comment='主键')
-	name = orm.StringField(name='name',length=50,varchar=True,blank=False,comment='姓名')
-	...
+    __table__ = 'student'
+    __comment__  = '学生信息表'
+	
+    id = orm.IntegerField(name='id',length=20,unsigned=True,auto_increase=True,primary_key=True，comment='主键')
+    name = orm.StringField(name='name',length=50,varchar=True,blank=False,comment='姓名')
+    ...
 ```
 子类中使用类属性`__table__`来命名表名，如果没有指定，则默认使用类名，`__comment__`属性可以对表做简单说明；完成子类后便可使用该类创建数据对象实例，如`test_stu_obj = Student()`，具体可参照usertasks目录下test任务中的示例 。
 继承自`orm.Model`的子类会被自动扫描进行 buliding model关系映射，并给出如下示例的log：
@@ -105,7 +110,8 @@ class Student(orm.Model)：
 [I building 20170827-12:43:19]    |=>  linking model 'Student' to conn_path 'test1'
 [I building 20170827-12:43:19]    |=>  linking model 'Teacher' to conn_path 'test1'
 ```
-### API
+### API使用简介
+
 #### 1.建表/删除表
 建表和删除表分别提供两个方法。
 建表：`create_all(module)`和`create_table()`
@@ -141,7 +147,7 @@ class Student(orm.Model)：
  - 特例
  
 类方法`remove_by_ids(uid=[])`提供一种特殊的删除方法，其可根据传入的主键列表进行批量删除。
-### 查询行
+### 6.查询行
 一般来说，查询应该是比较重要的了，所以我把这个标题都放大了一级，哈哈。
 
 #### 常用，推荐用法
@@ -158,6 +164,7 @@ query_all(*query_fields).filter(**kwargs).order_by(field=None,desc=False).limit(
  5. `select`方法执行数据库查询并返回符合查询条件的所有对象（列表）。
 
 值得注意的是，该方法完成了一次双向的映射，即返回的是类对象，我们依然可以通过访问属性值方法来查看返回的值。
+
 #### 其他常用查询方法
  - 主键查询
 
