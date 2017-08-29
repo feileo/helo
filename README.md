@@ -1,5 +1,5 @@
 # ASORM
-#### ASORM是本人使用`Python3`开发和封装的简易异步`ORM`工具包，协程实现基于`asyncio`和`aiomysql`，目前只支持`MySQL`，不定期更新中
+#### ASORM是本人使用`Python3`开发和封装的简易异步`ORM`工具，协程实现基于`asyncio`和`aiomysql`，目前只支持`MySQL`，不定期更新中
 
 ## 目录结构
  - `base/`        基础任务模型
