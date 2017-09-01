@@ -10,12 +10,12 @@ EVENT_PATH = os.path.sep.join([os.getcwd(),EVENT_DIR])
 class EventLogger(BaseLog):
     """
     生成如下格式log
-    [E event time] trace(filename->funcname) message
-    [I event time] message
-    [W event time] message
+    Bcolors [E event time] trace(filename->funcname) message
+    Bcolors [I event time] message
+    Bcolors [W event time] message
     """
     error_partten = Bcolors.ERROR + '[E {0} {1}] {2}' + Bcolors.ENDC
-    info_partten=  Bcolors.OKGREEN + '[I {0} {1}] {2}' + Bcolors.ENDC
+    info_partten=  '[I {0} {1}] {2}'# Bcolors.OKGREEN + + Bcolors.ENDC
     warning_partten = Bcolors.WARNING + '[W {0} {1}] {2}' + Bcolors.ENDC
     __lock = threading.Lock()
 

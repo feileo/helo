@@ -12,5 +12,6 @@ def run():
 	loop.close()
 	EventLogger.info(task='usertask', message='finished')
 
+
 if __name__ == '__main__':
     run()

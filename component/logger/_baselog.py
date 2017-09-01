@@ -4,9 +4,6 @@
 from datetime import datetime
 from .const import TIME_FORMAT
 
-# def log_imp(string):
-#     print string
-
 def now_log_time():
     return datetime.now().strftime(TIME_FORMAT)
 
@@ -26,6 +23,7 @@ class BaseLog(object):
     @staticmethod
     def warning(message):
         print(message)
+
 
 class Bcolors:
     HEADER = '\033[95m'
