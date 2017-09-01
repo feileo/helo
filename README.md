@@ -29,8 +29,8 @@ logger日志模块提供了一个线程安全的用户日志功能，实现了�
 ```
 Bcolors [logtype taskname datetime] message
 ```
-其中`Bcolors`不是真的显示的内容，其代表这条log的颜色；
-`logtype`是消息类型，分别是`E、I、W`之一，代表`error`、`info`和`warning`，其输出对应的log颜色分别为红色，绿色，黄色；
+其中`Bcolors`不是真的显示的内容，其代表这条log的颜色；<br>
+`logtype`是消息类型，分别是`E、I、W`之一，代表`error`、`info`和`warning`，其输出对应的log颜色分别为红色，绿色，黄色；<br>
 `taskname`是当前运行的任务(可通过`task`参数指定详细方法名)，对用户而言在不指定`task`时默认为ASORM/usertasks/下的用户任务（即文件夹）名称，`datetime`是日志记录的时间，`message`为具体消息内容，使用：
 
 ```
