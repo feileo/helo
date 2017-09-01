@@ -4,6 +4,7 @@ import os,threading
 from .const import EVENT_DIR
 from .eventfinder import find_eventname
 from ._baselog import BaseLog
+from ._baselog import Bcolors
 EVENT_PATH = os.path.sep.join([os.getcwd(),EVENT_DIR])
 
 class EventLogger(BaseLog):
@@ -13,9 +14,9 @@ class EventLogger(BaseLog):
     [I event time] message
     [W event time] message
     """
-    error_partten = '[E {0} {1}] {2}'
-    info_partten= '[I {0} {1}] {2}'
-    warning_partten = '[W {0} {1}] {2}'
+    error_partten = Bcolors.ERROR + '[E {0} {1}] {2}' + Bcolors.ENDC
+    info_partten=  Bcolors.OKGREEN + '[I {0} {1}] {2}' + Bcolors.ENDC
+    warning_partten = Bcolors.WARNING + '[W {0} {1}] {2}' + Bcolors.ENDC
     __lock = threading.Lock()
 
     @staticmethod
@@ -49,6 +50,6 @@ class EventLogger(BaseLog):
         else:
             event_name = task
         EventLogger.__lock.acquire()
-        log_str = EventLogger.warning_partten.format(event_name, BaseLog.now_time(), message)
+        log_str = EventLogger.warning_partten.format(event_name, BaseLog.now_time(),message)
         BaseLog.warning(log_str)
         EventLogger.__lock.release()

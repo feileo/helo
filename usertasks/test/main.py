@@ -96,7 +96,7 @@ class TestTask(BaseTask):
         # await model.Student.remove_by_ids([1,2,3,4,5,6])
         ### 查询 ###
         # 主键查询 直接使用get
-        EventLogger.info('get: {}'.format(len(await model.Student.get(3))))
+        EventLogger.info('get: {}'.format(len(await model.Student.get(0))))
         # # 查询全部 
         EventLogger.info('all: {}'.format(len(await model.Student.select_all())))
         # 等值查询 
