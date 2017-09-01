@@ -37,10 +37,7 @@ Bcolors [logtype taskname datetime] message
 from component import EventLogger
 ```
 
-EventLogger提供`info()`，`error()`，`warning()`三个方法来打印不同类型的日志；示例如下：<br>
-<font color=Red>[E get_id 20170901-21:38:19] 'uid' value error --- [0]</font><br>
-<font color=Green>[I test 20170901-21:38:19] finished</font><br>
-<font color=Yellow>[W test 20170901-21:55:44] This is a warning message</font>
+EventLogger提供`info()`，`error()`，`warning()`三个方法来打印不同类型的日志；
 ### qiniustore
 qiniustore模块提供了七牛存储的简单api,使用方法：
 
