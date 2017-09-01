@@ -107,7 +107,7 @@ class TestTask(BaseTask):
         # EventLogger.info('custom_filter: {}'.format(len(await model.Student.select_custom_filter(filter1='name=\'acths\'',filter2='id=17'))))
         # # 自定义where查询
         # EventLogger.info('custom_where: {}'.format(len(await model.Student.select_custom_where('WHERE id=1 and name=\'acths\''))))
-        # 综合条件查询  常用 推荐
+        # 综合查询方法链  常用 推荐
         # 过滤器filter(id=1,name=test_stu_obj.name[,...]), limit(count,start_num=0), select(rows)
         query = await \
             model.Student.query_all('id','name','cppscore').filter(name=test_stu_obj.name).order_by('id').select()
