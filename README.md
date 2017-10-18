@@ -1,5 +1,5 @@
 # ASORM
-#### ASORM是本人使用`Python3.5`开发和封装的简易异步`ORM`，协程实现，操作容易，目前只支持`MySQL`，不定期更新中
+#### ASORM是本人使用`Python3.5`开发和封装的简易异步`ORM`，协程实现，操作接口容易，目前只支持`MySQL`，还在不定期更新完善中
 
 ## 简单说明几点
 1. ASORM的orm包是核心，其封装了访问和操作底层数据库的所有方法，可独立与其他组件单独使用；
@@ -27,7 +27,7 @@ pip3 install aiomysql
 base基础任务模型实现了`BaseTask`类，用户任务需继承`BaseTask`类并配置类属性`conn_path`，以指定此任务的数据库读写为`config.py`配置文件中`DB_SETING`字典中已有的数据库，该类实现了`start()`和`end()`类方法来启动和结束一个用户任务，其在内部维护了一个数据库连接池，尽量复用连接，用户必须在进行数据库读写前使用`start()`方法创建一个数据库连接池`db_con_pool`，全部完毕后使用`end()`方法关闭连接池；该基础任务模型现尚不完善，还在更新计划中。
 
 ## component组件
-component组件提供了日志(`logger`)，七牛存储(`qiniustore`)和扫描器(`scanner`)。
+component组件提供了日志(`logger`)，七牛存储(`qiniustore`)和扫描器(`scanner`)三大组件。
 ### logger 
 logger日志模块提供了一个线程安全的用户日志功能，实现了对系统以及不同用户任务中打印的日志捕获的功能，打印出的日志格式为：
 ```
@@ -57,6 +57,7 @@ scanner扫描器会自动扫描usertasks目录下的继承自`BaseTask`类的用
 
 ## orm模块
 orm包为本项目的核心，该模块封装了orm的所有操作方法并使用协程实现了一般orm应具有的常用功能，所有涉及对数据库的连接及读写操作的方法均`async`声明为协程，用户需要在使用时将方法声明为`async`并使用`await`来调用；除此之外其他操作非常简单，下面简单介绍。
+<br>
 ### 数据类型
 <table>
 <tr><td>ASORM</td> <td>MySQL </td> <td>说明 </td> </tr>
