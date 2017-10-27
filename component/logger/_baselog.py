@@ -32,3 +32,10 @@ class Bcolors:
     WARNING = '\033[93m'
     ERROR = '\033[91m'
     ENDC = '\033[0m'
+
+
+
+
+
+
+    
