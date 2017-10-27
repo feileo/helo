@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
+# 临时文件
 import os
 from config import TEMP_FILES_DIR
 from component.logger.const import EVENT_DIR

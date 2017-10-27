@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
+# 七牛配置
 
 # 需要填写你的 Access Key 和 Secret Key
 ACCESS_KEY = "LfhBJkBiXcKV_llhc_DlDDmi0qzdy0imgxc22UDN"

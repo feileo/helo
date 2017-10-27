@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
+# 日志目前只有三种级别，dberrlog尚在开发中
+
 import os,threading
 from .const import EVENT_DIR
 from .eventfinder import find_eventname
@@ -53,3 +55,8 @@ class EventLogger(BaseLog):
         log_str = EventLogger.warning_partten.format(event_name, BaseLog.now_time(),message)
         BaseLog.warning(log_str)
         EventLogger.__lock.release()
+
+     @staticmethod
+    def dberrlog(message,task=None):
+        pass
+        

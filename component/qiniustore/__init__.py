@@ -7,6 +7,7 @@ from requests.exceptions import Timeout,ConnectionError
 from component import EventLogger
 from .tempfile import SaveFiles
 
+
 def save_to_qiniu_by_url(url):
     if not is_url(url):
         return ''
