@@ -47,13 +47,14 @@ class ModelMetaclass(type):
             raise RuntimeError('Primary key not found')
         for k in fieldmap.keys():
             attrs.pop(k)
-        attrs['__fieldmap__'] = fieldmap  # 保存属性名和列对象的映射关系
+        # 保存属性名和列对象的映射关系
+        attrs['__fieldmap__'] = fieldmap  
         attrs['__table__'] = table_name
         attrs['__primary_key__'] = primaryKey
         attrs['__key__'] = key
         attrs['__unique_key__'] = unique_key
         BaseField._id_count = 0
-        # 组装
+        # 开始组装
         build_items, fields= [], []
         for i in range(len(build_id)):
             build_items.append(build_id[i+1] + ' '+ build_info[build_id[i+1]])
@@ -74,8 +75,8 @@ class ModelMetaclass(type):
         return type.__new__(cls, name, bases, attrs)
 
 
+# 同时继承字典 两种属性访问方式
 class Model(dict,Table,metaclass=ModelMetaclass):
-
     def __init__(self, **kw):
         super(Model, self).__init__(**kw)
 
@@ -150,6 +151,7 @@ class Model(dict,Table,metaclass=ModelMetaclass):
         datamap = self._get_datamap()
         await self.update(uid=self.get_value_or_default(self.__primary_key__),what=datamap)
 
+    # 这个方法 要大改
     async def save(self):
         # 先判断主键是不是auto_increase,不强制但建议AI
         pk_field = self.__fieldmap__[self.__primary_key__]

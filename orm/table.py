@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
+# 表操作
 import asyncio
 import aiomysql
 import sys

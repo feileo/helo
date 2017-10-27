@@ -9,6 +9,7 @@ class BaseField(object):
     _type_sql = None
     _id_count = 0
 
+    # 所有都有的
     def __init__(self, name,comment,default):
         self.name = name
         self.comment = comment
@@ -37,7 +38,8 @@ class BaseField(object):
 
     def parse_common(self):
         add_str = []
-        # if hasattr(self, 'self.unsigned'):
+        # if hasattr(self, 'self.unsigned'): 
+        # 这个为啥不行？
         try:
             unsigned = self.unsigned
             if unsigned is True:
@@ -81,6 +83,7 @@ class BaseField(object):
     def _get_id_count():
         BaseField._id_count += 1
         return BaseField._id_count
+
 
 class StringField(BaseField):
     _this_type = str
@@ -136,6 +139,8 @@ class IntegerField(BaseField):
             self.blank = False
             self.default = None
         self.id_count = self._get_id_count()
+
+
 
 class DecimalField(BaseField):
     _this_type = float
@@ -195,6 +200,7 @@ class FloatField(BaseField):
             self.blank = False
             self.default = None
         self.id_count = self._get_id_count()
+
 
 
 class TimestampField(BaseField):
