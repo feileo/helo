@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
+# 启动
+
 from usertasks.test import TestTask
 from component import EventLogger
 import asyncio
