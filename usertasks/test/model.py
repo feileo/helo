@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
+# 简单测试
+
 import orm
 
 class Student(orm.Model):

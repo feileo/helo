@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
+# 简单测试
+
 from orm import create_all,drop_all
 from . import model
 from config import DB_PATH
