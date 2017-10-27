@@ -1,0 +1,9 @@
+[run]
+omit =
+    tests/*
+    */__init__.py
+    */site-packages/*
+    trod/extra/*
+    trod/errors.py
+    runtests.py
+

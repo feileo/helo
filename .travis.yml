@@ -1,0 +1,20 @@
+language: python
+python: "3.6"
+
+sudo: false
+
+install: true
+
+before_install: 
+  - export TEST_DBURL=mysql://root:HELLOtrod1234@cdb-d98hg752.bj.tencentcdb.com:10147/trod?charset=utf8
+  - pip install aiomysql
+  - pip install codecov
+  - pip install coverage
+  - pip install pylint
+
+script: 
+  - coverage run runtests.py
+  # - pylint ops/* --jobs=4 --reports=yes 
+
+after_success:
+  - codecov
