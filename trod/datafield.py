@@ -4,20 +4,20 @@
 
 from datetime import datetime
 
+
 class BaseField(object):
     _this_type = None
     _type_sql = None
     _id_count = 0
 
     # 所有都有的
-    def __init__(self, name,comment,default):
+    def __init__(self, name, comment, default):
         self.name = name
         self.comment = comment
         self.default = default
 
     def __str__(self):
-        return '{} [{}: {}]'.format(self.__class__.__name__,self.name,self.comment)
-
+        return '{} [{}: {}]'.format(self.__class__.__name__, self.name, self.comment)
 
     def build(self):
         out_char = [self.parse_type()]
@@ -26,19 +26,19 @@ class BaseField(object):
 
     def parse_type(self):
         if self.__class__ is StringField:
-            return self._type_sql.format(type=self.type,length=self.length)
+            return self._type_sql.format(type=self.type, length=self.length)
         elif self.__class__ is IntegerField:
-            return self._type_sql.format(type=self.type,length=self.length)
+            return self._type_sql.format(type=self.type, length=self.length)
         elif self.__class__ is DecimalField:
-            return self._type_sql.format(type=self.type,length=self.length,float_length=self.float_length)
+            return self._type_sql.format(type=self.type, length=self.length, float_length=self.float_length)
         elif self.__class__ is FloatField:
-            return self._type_sql.format(type=self.type,length=self.length,float_length=self.float_length)
+            return self._type_sql.format(type=self.type, length=self.length, float_length=self.float_length)
         elif self.__class__ is TimestampField or self.__class__ is DatetimeField:
             return self._type_sql
 
     def parse_common(self):
         add_str = []
-        # if hasattr(self, 'self.unsigned'): 
+        # if hasattr(self, 'self.unsigned'):
         # 这个为啥不行？
         try:
             unsigned = self.unsigned
@@ -89,15 +89,15 @@ class StringField(BaseField):
     _this_type = str
     _type_sql = '{type}({length})'
 
-    def __init__(self, 
+    def __init__(self,
                  name,
                  length,
                  comment='',
-                 default=None, 
+                 default=None,
                  blank=None,
                  varchar=False,
                  primary_key=False):
-        super(StringField,self).__init__(name=name, comment=comment,default=default)
+        super(StringField, self).__init__(name=name, comment=comment, default=default)
         self.length = length
         self.blank = blank
         if varchar is True:
@@ -115,7 +115,7 @@ class IntegerField(BaseField):
     _this_type = int
     _type_sql = '{type}({length})'
 
-    def __init__(self, 
+    def __init__(self,
                  name,
                  length,
                  comment='',
@@ -125,7 +125,7 @@ class IntegerField(BaseField):
                  bigint=False,
                  unsigned=False,
                  primary_key=False):
-        super(IntegerField,self).__init__(name=name, comment=comment,default=default)
+        super(IntegerField, self).__init__(name=name, comment=comment, default=default)
         self.length = length
         self.auto_increase = auto_increase
         self.blank = blank
@@ -139,7 +139,6 @@ class IntegerField(BaseField):
             self.blank = False
             self.default = None
         self.id_count = self._get_id_count()
-
 
 
 class DecimalField(BaseField):
@@ -156,12 +155,12 @@ class DecimalField(BaseField):
                  blank=None,
                  unsigned=False,
                  primary_key=False):
-        super(DecimalField,self).__init__(name=name,comment=comment,default=default)
+        super(DecimalField, self).__init__(name=name, comment=comment, default=default)
         self.length = length
         self.float_length = float_length
         self.auto_increase = auto_increase
         self.blank = blank
-        self.unsigned= unsigned
+        self.unsigned = unsigned
         self.type = 'DECIMAL'
         self.primary_key = primary_key
         if primary_key is True:
@@ -185,12 +184,12 @@ class FloatField(BaseField):
                  unsigned=False,
                  double=False,
                  primary_key=False):
-        super(FloatField,self).__init__(name=name,comment=comment,default=default)
+        super(FloatField, self).__init__(name=name, comment=comment, default=default)
         self.length = length
         self.float_length = float_length
         self.auto_increase = auto_increase
         self.blank = blank
-        self.unsigned= unsigned
+        self.unsigned = unsigned
         if double is True:
             self.type = 'DOUBLE'
         else:
@@ -200,7 +199,6 @@ class FloatField(BaseField):
             self.blank = False
             self.default = None
         self.id_count = self._get_id_count()
-
 
 
 class TimestampField(BaseField):
@@ -213,11 +211,11 @@ class TimestampField(BaseField):
                  default=None,
                  blank=True,
                  auto=None):
-        super(TimestampField,self).__init__(name=name,comment=comment,default=default)
+        super(TimestampField, self).__init__(name=name, comment=comment, default=default)
         self.blank = blank
         self.primary_key = False
         self.id_count = self._get_id_count()
-        if auto in ['on_create','on_update']:
+        if auto in ['on_create', 'on_update']:
             self.auto = auto
         elif auto is not None:
             raise Exception('auto parameter must be \'on_create\' or \'on_update\'')
@@ -235,7 +233,7 @@ class DatetimeField(BaseField):
                  comment='',
                  default=None,
                  blank=True):
-        super(DatetimeField,self).__init__(name=name,comment=comment,default=default)
+        super(DatetimeField, self).__init__(name=name, comment=comment, default=default)
         self.blank = blank
         self.primary_key = False
         self.id_count = self._get_id_count()

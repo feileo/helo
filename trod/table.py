@@ -7,11 +7,13 @@ import sys
 from .dbconpool import DBconpool
 from .error import ArgTypeError
 
+
 class Table(DBconpool):
     __affected__ = None
 
     @classmethod
     async def select(cls, sql, args=None, rows=None):
+        print(sql, args)
         async with cls.db_con_pool.get() as conn:
             async with conn.cursor(aiomysql.DictCursor) as cur:
                 try:
@@ -26,7 +28,8 @@ class Table(DBconpool):
                     raise exc_type(exc_value)
 
     @classmethod
-    async def submit(cls,sql, args=None, autocommit=True):
+    async def submit(cls, sql, args=None, autocommit=True):
+        print(sql, args)
         async with cls.db_con_pool.get() as conn:
             if not autocommit:
                 await conn.begin()
@@ -58,7 +61,7 @@ class Table(DBconpool):
 
     @classmethod
     async def drop_table(cls):
-        drop_sql = cls.__drop_sql__.format(cls.get_db_name(),cls.__table__)
+        drop_sql = cls.__drop_sql__.format(cls.get_db_name(), cls.__table__)
         await cls.submit(drop_sql)
 
     @classmethod
@@ -74,7 +77,7 @@ class Table(DBconpool):
     @classmethod
     async def select_all(cls):
         sql = 'SELECT {},{} FROM {} ORDER BY {};'
-        execute_sql = sql.format(cls.__primary_key__,','.join(cls.__fields__), cls.__table__, cls.__primary_key__)
+        execute_sql = sql.format(cls.__primary_key__, ','.join(cls.__fields__), cls.__table__, cls.__primary_key__)
         res = await cls.select(execute_sql)
         object = []
         for n in res:
@@ -89,10 +92,10 @@ class Table(DBconpool):
             keys.append(key)
             values.append(value)
         where_clause = ' AND '.join(['='.join([n, '%s']) for n in keys])
-        execute_sql = cls.__select__.format(cls.__primary_key__,','.join(cls.__fields__),
-                             cls.__table__,
-                             ('WHERE {}'.format(where_clause)) if where_clause else '',
-                             cls.__primary_key__)
+        execute_sql = cls.__select__.format(cls.__primary_key__, ','.join(cls.__fields__),
+                                            cls.__table__,
+                                            ('WHERE {}'.format(where_clause)) if where_clause else '',
+                                            cls.__primary_key__)
         res = await cls.select(execute_sql, values)
         object = []
         for n in res:
@@ -107,10 +110,10 @@ class Table(DBconpool):
             keys.append(key)
             values.append(value.join(['%'] * 2))
         where_clause = ' AND '.join([' LIKE '.join([n, '%s']) for n in keys])
-        execute_sql = cls.__select__.format(cls.__primary_key__,','.join(cls.__fields__),
-                             cls.__table__,
-                             ('WHERE {}'.format(where_clause)) if where_clause else '',
-                             cls.__primary_key__)
+        execute_sql = cls.__select__.format(cls.__primary_key__, ','.join(cls.__fields__),
+                                            cls.__table__,
+                                            ('WHERE {}'.format(where_clause)) if where_clause else '',
+                                            cls.__primary_key__)
         res = await cls.select(execute_sql, values)
         object = []
         for n in res:
@@ -125,10 +128,10 @@ class Table(DBconpool):
             keys.append(key)
             patterns.append(pattern)
         where_clause = ' AND '.join([pa.format(ke) for ke, pa in zip(keys, patterns)])
-        execute_sql = cls.__select__.format(cls.__primary_key__,','.join(cls.__fields__),
-                             cls.__table__,
-                             ('WHERE {}'.format(where_clause)) if where_clause else '',
-                             cls.__primary_key__)
+        execute_sql = cls.__select__.format(cls.__primary_key__, ','.join(cls.__fields__),
+                                            cls.__table__,
+                                            ('WHERE {}'.format(where_clause)) if where_clause else '',
+                                            cls.__primary_key__)
         print(execute_sql)
         res = await cls.select(execute_sql)
         object = []
@@ -138,10 +141,10 @@ class Table(DBconpool):
 
     @classmethod
     async def select_custom_where(cls, where_clause):
-        execute_sql = cls.__select__.format(cls.__primary_key__,','.join(cls.__fields__),
-                             cls.__table__,
-                             where_clause,
-                             cls.__primary_key__)
+        execute_sql = cls.__select__.format(cls.__primary_key__, ','.join(cls.__fields__),
+                                            cls.__table__,
+                                            where_clause,
+                                            cls.__primary_key__)
         res = await cls.select(execute_sql)
         object = []
         for n in res:
@@ -149,7 +152,7 @@ class Table(DBconpool):
         return object
 
     @classmethod
-    def _remove_sql(cls,uid,where):
+    def _remove_sql(cls, uid, where):
         if uid is None:
             where_data = where
         else:
@@ -163,7 +166,7 @@ class Table(DBconpool):
 
     @classmethod
     async def remove(cls, uid=None, where={}):
-        sql,values = cls._remove_sql(uid,where)
+        sql, values = cls._remove_sql(uid, where)
         await cls.submit(sql, values)
 
     @classmethod
@@ -177,7 +180,7 @@ class Table(DBconpool):
 
     # 暂时不包含pk,so 必须 AI
     @classmethod
-    def _batch_insert_sql(cls,data):
+    def _batch_insert_sql(cls, data):
         if isinstance(data, list):
             insert_data = data
         else:
@@ -193,10 +196,10 @@ class Table(DBconpool):
         symbols_num = len(fields)
         single_symbol = '({0})'.format(','.join(['%s'] * symbols_num))
         execute_sql = sql.format(cls.__table__, ','.join(fields), ','.join([single_symbol] * len(insert_data)))
-        return execute_sql,value_list
+        return execute_sql, value_list
 
     @classmethod
-    def _insert_sql(cls,data):
+    def _insert_sql(cls, data):
         sql = 'INSERT INTO {} ({}) VALUES ({});'
         fields = []
         values = []
@@ -204,18 +207,18 @@ class Table(DBconpool):
             fields.append(n)
             values.append(data[n])
         execute_sql = sql.format(cls.__table__, ','.join(fields), ','.join(['%s'] * len(fields)))
-        return execute_sql,values
+        return execute_sql, values
 
     @classmethod
     async def insert(cls, data):
-        if not isinstance(data,dict):
+        if not isinstance(data, dict):
             raise ArgTypeError('type error')
         sql, values = cls._insert_sql(data)
         return await cls.submit(sql, values)
 
     @classmethod
     async def batch_insert(cls, data):
-        sql,values = cls._batch_insert_sql(data)
+        sql, values = cls._batch_insert_sql(data)
         await cls.submit(sql, values)
 
     @classmethod

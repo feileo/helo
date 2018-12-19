@@ -2,52 +2,66 @@
 # -*- coding:utf-8 -*-
 # 简单测试
 
-from orm import create_all,drop_all
+from trod import create_all, drop_all
 from . import model
 from config import DB_PATH
 from component import EventLogger
 import asyncio
-from datetime import datetime,timedelta
+from datetime import datetime, timedelta
 import random
 from base import BaseTask
 
-name_list = ['gjwdw','lmgjw','jbbdw','lizha','gjjmd','chpoo','acths','mmssa','dwawb','tyuxa']
+name_list = ['gjwdw', 'lmgjw', 'jbbdw', 'lizha', 'gjjmd', 'chpoo', 'acths', 'mmssa', 'dwawb', 'tyuxa']
+
+
 def ran_name():
-    return name_list[random.randint(0,9)]
+    return name_list[random.randint(0, 9)]
+
+
 def ran_password():
-    return str(random.randint(0,100000))
+    return str(random.randint(0, 100000))
+
+
 def ran_score():
     return random.random()*100
+
+
 def ran_sex(i):
-    return 'm' if i%2==0 else 'f'
+    return 'm' if i % 2 == 0 else 'f'
+
+
 def ran_date():
-    return datetime.now()-timedelta(days=random.randint(0,100))
+    return datetime.now()-timedelta(days=random.randint(0, 100))
 
 # 本任务为简单测试任务，操作无实际意义
 
+
 class TestTask(BaseTask):
     # 配置连接数据库
-    conn_path = DB_PATH.test1
+    # conn_path = DB_PATH.trod
+    conn_path = 'mysql://root:txymysql1234@cdb-m0f0sibq.bj.tencentcdb.com:10036/trod?charset=utf8'
 
     @classmethod
-    async def test_task(cls,loop):
+    async def test_task(cls, loop):
         # 开始任务
         await cls.start(loop)
         await create_all(model)
 
-        test_stu_obj = model.Student(name = ran_name(),password = ran_password(),cppscore = 199.12,
-                                     dbscore = ran_score(),enscore = ran_score(),chscore = ran_score(),
-                                     rgdate = ran_date())
-        
+        test_stu_obj = model.Student(
+            name=ran_name(), password=ran_password(), cppscore=199.12,
+            dbscore=ran_score(), enscore=ran_score(), chscore=ran_score(),
+            rgdate=ran_date()
+        )
+
         test_tea_obj = model.Teacher()
         for i in range(len(name_list)):
             test_tea_obj.name = name_list[i]
             test_tea_obj.password = ran_password()
-            test_tea_obj.age = random.randint(20,100)
+            test_tea_obj.age = random.randint(20, 100)
             test_tea_obj.sex = ran_sex(i)
-            test_tea_obj.rgdate = datetime.now()-timedelta(days=random.randint(0,100))
+            test_tea_obj.rgdate = datetime.now()-timedelta(days=random.randint(0, 100))
             exist_tea = await \
-            model.Teacher.query_all().filter(name=test_tea_obj.name,age=test_tea_obj.age).order_by('id').select()
+                model.Teacher.query_all().filter(name=test_tea_obj.name, age=test_tea_obj.age).order_by('id').select()
             if exist_tea is not None:
                 continue
             await test_tea_obj.save()
@@ -66,7 +80,7 @@ class TestTask(BaseTask):
         #     EventLogger.warning('<Table \'{}>\' already exists"'.format(test_stu_obj.__table__))
         # 查看建表语句
         # test_stu_obj.show_create_table()
-        
+
         ############################# 对象 ###########################
         # 对于当前对象,你可以
         await test_stu_obj.save()
@@ -99,28 +113,28 @@ class TestTask(BaseTask):
         ### 查询 ###
         # 主键查询 直接使用get
         EventLogger.info('get: {}'.format(len(await model.Student.get(0))))
-        # # 查询全部 
+        # # 查询全部
         EventLogger.info('all: {}'.format(len(await model.Student.select_all())))
-        # 等值查询 
-        EventLogger.info('eq: {}'.format(len(await model.Student.select_eq_filter(cppscore = 199.12,name='gjwdw'))))
-        # like查询 
+        # 等值查询
+        EventLogger.info('eq: {}'.format(len(await model.Student.select_eq_filter(cppscore=199.12, name='gjwdw'))))
+        # like查询
         EventLogger.info('like: {}'.format(len(await model.Student.select_like_filter(name='gjw'))))
-        # # 自定义filter查询 
+        # # 自定义filter查询
         # EventLogger.info('custom_filter: {}'.format(len(await model.Student.select_custom_filter(filter1='name=\'acths\'',filter2='id=17'))))
         # # 自定义where查询
         # EventLogger.info('custom_where: {}'.format(len(await model.Student.select_custom_where('WHERE id=1 and name=\'acths\''))))
         # 综合查询方法链  常用 推荐
         # 过滤器filter(id=1,name=test_stu_obj.name[,...]), limit(count,start_num=0), select(rows)
         query = await \
-            model.Student.query_all('id','name','cppscore').filter(name=test_stu_obj.name).order_by('id').select()
-            # model.Student.query_all().filter(name=test_stu_obj.name,cppscore=199.12).order_by('id').select()
-        if not isinstance(query,list) and query is not None:
+            model.Student.query_all('id', 'name', 'cppscore').filter(name=test_stu_obj.name).order_by('id').select()
+        # model.Student.query_all().filter(name=test_stu_obj.name,cppscore=199.12).order_by('id').select()
+        if not isinstance(query, list) and query is not None:
             EventLogger.info('query: 1 row')
-            EventLogger.info('({} {} {})'.format(query.id,query.name,query.cppscore))
-        elif isinstance(query,list):
+            EventLogger.info('({} {} {})'.format(query.id, query.name, query.cppscore))
+        elif isinstance(query, list):
             EventLogger.info('query: {} rows'.format(len(query)))
             for query_i in query:
-                EventLogger.info('({} {} {})'.format(query_i.name,query_i.id,query_i.cppscore))
+                EventLogger.info('({} {} {})'.format(query_i.name, query_i.id, query_i.cppscore))
         else:
             EventLogger.info('query: Did not query the results')
 
@@ -129,5 +143,5 @@ class TestTask(BaseTask):
         # await model.Student.drop_table()
         # 全部删除
         # await drop_all(model)
-        
+
         await cls.end()
