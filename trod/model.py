@@ -140,8 +140,9 @@ class Model(dict, Table, metaclass=ModelMetaclass):
         args = []
         for key in self.__fields__:
             args.append(self.get_value_or_default(key))
-        insert_sql = 'INSERT INTO {} ({}) VALUES ({});'.format(self.__table__,
-                                                               ', '.join(self.__fields__), ', '.join(['%s'] * len(self.__fields__)))
+        insert_sql = 'INSERT INTO {} ({}) VALUES ({});'.format(
+            self.__table__, ', '.join(self.__fields__), ', '.join(['%s'] * len(self.__fields__))
+        )
         self_id = await self.__class__.submit(insert_sql, args)
         self._update_id(self_id)
         if self.__affected__ != 1:

@@ -28,12 +28,17 @@ class BaseIndex:
             'cols': ','.join(self.column),
             'comment': self.comment
         }
+        self.is_modify = False
 
     def __str__(self):
         return '<{} ({}: {})>'.format(self.__class__.__name__, self.name, self.comment)
 
     def build(self):
         return self._type_sql_tpl.format(**self.options)
+
+    def modify(self):
+        self.is_modify = True
+        return self
 
     @property
     def _attr_key(self):

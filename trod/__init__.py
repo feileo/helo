@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # # -*- coding:utf-8 -*-
 # from .dbconpool import DBconpool
 # from .model import Model, MODEL_LIST
@@ -26,3 +25,22 @@
 #             if await value.status():
 #                 await value.drop_table()
 #                 EventLogger.info('dropped <Table \'{}\'> from <db: \'{}\'>'.format(key, DBconpool.get_db_name()))
+from trod.model import Model
+from trod.db import Transitioner
+
+
+class Trod:
+
+    Model = Model
+
+    @classmethod
+    async def bind(cls, url,
+                   minsize=None, maxsize=None,
+                   timeout=None, pool_recycle=None,
+                   echo=None, loop=None, **kwargs):
+
+        await Transitioner.bind_db(url=url)
+
+    @classmethod
+    async def unbind(cls):
+        await Transitioner.close()

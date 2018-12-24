@@ -1,27 +1,27 @@
 # -*- coding=utf8 -*-
+
 """ medel """
 from collections import OrderedDict
 
-from trod.model.session import Session
+from trod.component import EventLogger
+from trod.db import Transitioner
+from trod.model.loader import Loader
+from trod.model import SQL
+from trod.model.sql import Generator, _Logic, Where
 from trod.types.field import BaseField
 from trod.types.index import BaseIndex
-from trod.utils import Dict, dict_formatter
+from trod.utils import Dict, dict_formatter, to_list
 
 
 # from trod.component import EventLogger
-MODEL_LIST = []
 
 TABLE_DEFAULT = {
     '__table__': '',
     '__auto_pk__': False,
     '__engine__': 'InnoDB',
     '__charset__': 'utf8',
-    '__comment__': ''
+    '__comment__': '',
 }
-
-
-def gen_create_sql(t_n, i_c, eg, cs, cm):
-    return f"CREATE TABLE `{t_n}` (\n{i_c}\n) ENGINE={eg} DEFAULT CHARSET={cs} COMMENT='{cm}'"
 
 
 class _ModelMetaclass(type):
@@ -47,7 +47,6 @@ class _ModelMetaclass(type):
             return meta
 
         attrs['__meta__'] = build_meta()
-        table_name = attrs['__meta__'].table
 
         primary_key = None
         field_stmt_map, key_stmt_map = {}, {}
@@ -80,7 +79,9 @@ class _ModelMetaclass(type):
                     raise TypeError('TypeError child')
 
         if not primary_key:
-            raise RuntimeError(f'Primary key not found for table `{table_name}`')
+            raise RuntimeError(
+                f"Primary key not found for table `{attrs['__meta__'].table}`"
+            )
 
         build_items = []
         if pk_stmt is not None:
@@ -90,19 +91,13 @@ class _ModelMetaclass(type):
         build_items.append(f'PRIMARY KEY(`{primary_key}`)')
         for index in index_inst_map:
             build_items.append(key_stmt_map[index])
-        inner_create = ',\n'.join(build_items)
-        attrs['__ddl__'] = Dict()
-        attrs['__table__'] = Dict()
-        attrs['__ddl__'].create_sql = gen_create_sql(
-            table_name, inner_create,
-            attrs['__meta__'].engine,
-            attrs['__meta__'].charset,
-            attrs['__meta__'].comment
+        attrs['__meta__'].coldef = ', '.join(build_items)
+
+        attrs['__table__'] = Dict(
+            field_dict=field_inst_map,
+            index_dict=index_inst_map,
+            pk=primary_key
         )
-        attrs['__ddl__'].drop_sql = 'DROP TABLE {}.{};'
-        attrs['__table__'].field_dict = field_inst_map
-        attrs['__table__'].index_dict = index_inst_map
-        attrs['__table__'].pk = primary_key
 
         for field in field_inst_map:
             attrs.pop(field)
@@ -113,11 +108,6 @@ class _ModelMetaclass(type):
 
 
 class Model(metaclass=_ModelMetaclass):
-    session = None
-
-    @classmethod
-    def activate(cls, connector):
-        cls.session = Session(connector)
 
     def __repr__(self):
         return f"<{self.__class__.__name__}(table '{self.__meta__.table}' : {self.__meta__.comment})>"
@@ -131,7 +121,7 @@ class Model(metaclass=_ModelMetaclass):
         except KeyError:
             if key == self.__table__.pk:
                 return None
-            if key in self.__table__.fields:
+            elif key in self.__table__.field_dict:
                 return None
             elif key in self.__table__.index_dict:
                 return self.__table__.index_dict[key]
@@ -139,62 +129,232 @@ class Model(metaclass=_ModelMetaclass):
                 raise AttributeError("'Model' object has no attribute '{}'".format(key))
 
     def __setattr__(self, key, value):
-        if key not in self.__table__.fields:
-            raise TypeError(f'Not allow set attribute {key}')
+        if key in self.__table__.index_dict:
+            raise BaseException('Key type not allow instantiation')
+        elif key not in self.__table__.field_dict:
+            if not (self.__meta__.auto_pk is True and key == self.__table__.pk):
+                raise TypeError(f'Not allow set attribute {key}')
+
         self.__dict__[key] = value
 
-    # Model's DDL statement
-    #
+    def _get_value(self, key):
+        value = getattr(self, key, None)
+        if value is None:
+            field = self.__table__.field_dict[key]
+            if field.default is not None:
+                value = (field.default() if callable(field.default) else field.default)
+                print(f'Using default value for {key}: {value}')
+                setattr(self, key, value)
+        return value
+
+    def set_value(self, key, value):
+        return setattr(self, key, value)
+
+    def save(self):
+        self._save_pk_checker(self)
+        return await self._add(self)
+
+    # def modify(self):
+    #     return self.updete()
+
+    def delete(self):
+        self_pk = self.__table__.pk
+        pk_value = self._get(self_pk)
+        if pk_value is None:
+            raise RuntimeError('Modify unsaved objects')
+        return self.remove(
+            Where(column=self_pk, operator='==', value=pk_value)
+        )
+
+    @classmethod
+    def _get_create_sql(cls):
+        return SQL.create.format(
+            tn=cls.__meta__.table,
+            cd=cls.__meta__.coldef,
+            eg=cls.__meta__.engine,
+            cs=cls.__meta__.charset,
+            cm=cls.__meta__.comment
+        )
+
     @classmethod
     async def create(cls):
-        await cls.session.executer.submit(cls.__ddl__.create_sql)
+        return await Transitioner.execute(cls._get_create_sql())
 
     @classmethod
-    def show_create(cls):
-        return cls.__ddl__.create_sql
+    async def drop(cls):
+        drop_sql = SQL.drop.format(table_name=cls.__meta__.table)
+        return await Transitioner.execute(drop_sql)
 
     @classmethod
-    def show(cls):
-        show_sql = f'show full columns from {cls.__meta__.table}'
-        return cls.session.executer.select(show_sql)
+    async def alter(cls, modify_col=None, add_col=None, drop_col=None):
+        if not any([modify_col, add_col, drop_col]):
+            return None
+
+        modify_col, add_col, drop_col = to_list([modify_col, add_col, drop_col])
+
+        alter_sql = Generator.alter(
+            cls.__table__, cls.__meta__.table,
+            modify_list=modify_col, add_list=add_col, drop_list=drop_col
+        )
+        return await Transitioner.execute(alter_sql)
 
     @classmethod
-    def alter(cls):
-        pass
+    async def show_create(cls):
+        show_create_sql = SQL.show.create.format(table_name=cls.__meta__.table)
+        return await Transitioner.text(
+            show_create_sql, rows=1
+        )
 
     @classmethod
-    def drop(cls):
-        pass
-
-    # Model's DML statement
-    #
-    @classmethod
-    def add(instance):
-        pass
-
-    @classmethod
-    def delete(cls):
-        pass
-
-    @classmethod
-    def updete(cls):
-        pass
+    async def show_struct(cls):
+        table_name = cls.__meta__.table
+        show_clo_sql = SQL.show.columns.format(
+            table_name=table_name, rows=1
+        )
+        show_idx_sql = SQL.show.indexs.format(
+            table_name=table_name, rows=1
+        )
+        result = Dict(
+            columns=await Transitioner.text(show_clo_sql),
+            indexs=await Transitioner.text(show_idx_sql)
+        )
+        return result
 
     @classmethod
-    def get(cls):
-        pass
+    async def exist(cls):
+        exist_sql = SQL.exist.format(table_name=cls.__meta__.table)
+        return await Transitioner.exist(exist_sql)
 
     @classmethod
-    def batch_get(cls):
-        pass
+    def _get_add_values(cls, instance, cols):
+        if not isinstance(instance, cls):
+            raise TypeError('Add instance not Model')
+        return [instance._get_value(c) for c in cols]
 
     @classmethod
-    def query(cls):
-        pass
+    def _get_insert_sql(cls, cols):
+        return 'INSERT INTO {} ({}) VALUES ({});'.format(
+            cls.__meta__.table, ', '.join(cols), ', '.join(['%s']*len(cols))
+        )
 
-    # instance method
-    def save(self):
-        pass
+    @classmethod
+    def has_cols_checker(cls, cols):
+        for c in cols:
+            if c not in cls.__table__.field_dict and c != cls.__table__.pk:
+                raise Exception(f"{c} not in model {cls.__name__}'s query fields")
 
-    def dd(self):
-        pass
+    @classmethod
+    def _save_pk_checker(cls, instance):
+        if cls.__meta__.auto_pk is False:
+            if instance.getattr(cls.__table__.pk) is None:
+                raise Exception('has not pk to save')
+
+    @classmethod
+    async def _add(cls, instance):
+        cols = list(instance.__dict__.keys())
+        values = cls._get_add_values(instance, cols)
+        insert_sql = cls._get_insert_sql(cols)
+        result = await Transitioner.execute(insert_sql, values=values)
+        instance.set_value(instance.__table__.pk, result.last_id)
+        if result.affected != 1:
+            EventLogger.error(
+                f'failed to insert, affected rows: {result.affected}'
+            )
+        return result
+
+    @classmethod
+    async def add(cls, instance):
+        cls._save_pk_checker(instance)
+        return await cls._add(instance)
+
+    @classmethod
+    async def batch_add(cls, instances):
+        if not isinstance(instances, (list, tuple)):
+            raise TypeError(f'Get illgal type {instances}')
+
+        cols = list(cls.__table__.field_dict.keys())
+        for c in cols:
+            c_type = cls.__meta__.field_dict[c]
+            if hasattr(c_type, 'auto') and c_type.auto:
+                cols.remove(c)
+        values = []
+        for inst in instances:
+            values.append(cls._get_add_values(inst, cols))
+        insert_sql = cls._get_insert_sql(cols)
+        result = await Transitioner.execute(
+            insert_sql, values=values, batch=True
+        )
+        if result.affected != len(values):
+            EventLogger.error(
+                f'Failed to insert, affected rows: {result.affected}'
+            )
+
+        if cls.__meta__.auto_pk is True:
+            for inst in instances:
+                inst.set_value(cls.__table__.pk, 0)
+        return result
+
+    @classmethod
+    async def remove(cls, where):
+        """
+        where: Where object
+        """
+        if not isinstance(where, (Where, _Logic)):
+            raise TypeError('')
+        where_format = where.format_()
+        cls.has_cols_checker(where_format.col)
+        remove_sql = "DELETE FROM `{}` WHERE {};".format(
+            cls.__meta__.table, where_format.where
+        )
+        return await Transitioner.execute(remove_sql, values=where_format.arg)
+
+    @classmethod
+    async def updete(cls, data, where=None):
+        """
+        data: dict, {'name': 'hehe'} or Dict(name='hehe')
+        where: Where object
+        """
+        if not isinstance(data, dict):
+            raise TypeError('')
+
+        where_format = None
+        if where is not None:
+            if not isinstance(where, (Where, _Logic)):
+                raise TypeError('')
+            where_format = where.format_()
+            cls.has_cols_checker(where_format.col)
+
+        update_fields = list(data.keys())
+        update_values = [data[f] for f in update_fields]
+        set_clause = ','.join(['='.join([f, '%s']) for f in update_fields])
+
+        if where_format:
+            updete_sql = 'UPDATE `{}` SET {} WHERE {};'.format(
+                cls.__meta__.table, set_clause, where_format.where
+            )
+            update_values.extend(where_format.arg)
+        else:
+            updete_sql = 'UPDATE `{}` SET {}'.format(
+                cls.__meta__.table, set_clause
+            )
+
+        return await Transitioner.execute(updete_sql, values=update_values)
+
+    @classmethod
+    async def get(cls, id_):
+        """
+        Get by id
+        """
+        select_sql = 'SELECT * FROM `{}` WHERE {}=%;'.format(
+            cls.__meta__.table, cls.__table__.pk
+        )
+        result = await Transitioner(select_sql, args=id_, rows=1).fetch()
+        return Loader(cls, result).load()
+
+    @classmethod
+    async def query(cls, *cols):
+        query_cols = None
+        if cols:
+            cls.has_cols_checker(cols)
+            query_cols = list(cols)
+        return Generator(cls, query_cols)

@@ -3,82 +3,105 @@
 # Description:
 """
 
-import asyncio
 import urllib.parse as urlparse
 
 import aiomysql
 from asyncinit import asyncinit
 
+from component import EventLogger
 from trod.const import Schemes
 from trod.utils import dict_formatter, singleton
 
-from component import EventLogger
+
+@singleton
+class DefaultConnConfig:
+    """ connection default config """
+
+    MINSIZE = 1
+    MAXSIZE = 15
+    POOL_RECYCLE = -1
+    ECHO = False
+    TIMEOUT = 5
+
+    _CONFIG = {
+        'scheme': '',
+        'user': '',
+        'password': '',
+        'host': 'localhost',
+        'port': 3306,
+        'db': '',
+        'extra': {
+            'unix_socket': None,
+            'charset': 'utf8',
+            'sql_mode': None,
+            'use_unicode': None,
+            'connect_timeout': TIMEOUT,
+            'autocommit': False,
+            'ssl': None,
+        }
+    }
+
+    @property
+    def config(self):
+        """ config struct template """
+        return self._CONFIG
 
 
-@asyncinit
 class Connector:
-    """ 数据库连接池，可用过以下两种方式创建:
-        1. connector = await Connector(...)
+    """ 数据库连接池:
         2. connector = await Connector.from_url(url)
     """
 
     @classmethod
-    async def from_url(cls, url='', loop=None, echo=False):
-        """ 从 URL 走配置 """
+    async def create(cls, url='',
+                     minsize=DefaultConnConfig.MINSIZE,
+                     maxsize=DefaultConnConfig.MAXSIZE,
+                     timeout=DefaultConnConfig.TIMEOUT,
+                     pool_recycle=DefaultConnConfig.POOL_RECYCLE,
+                     echo=DefaultConnConfig.ECHO,
+                     loop=None, **kwargs):
+        """ 创建连接池 """
         if not url:
             return None
-        parser = ParseUrl(url, Schemes.all())
-        config = parser.parse()
-        connector = await cls._create_pool(config=config, loop=loop, echo=echo)
-        return await cls(connector=connector)
+        result = ParseUrl(url, Schemes.all()).parse()
+        extra = result.pop('extra')
+        kwargs.update(extra)
+        if timeout != DefaultConnConfig.TIMEOUT:
+            kwargs.update({'connect_timeout': timeout})
 
-    async def __init__(self, scheme=None, user=None, password=None,
-                       host=None, port=None, database=None, query=None,
-                       loop=None, echo=False, connector=None):
-        if not connector:
-            config = self._init_config(
-                scheme, user, password, host, port, database, query
+        connector = await cls._create_pool(
+            minsize=minsize, maxsize=maxsize,
+            pool_recycle=pool_recycle,
+            echo=echo, loop=loop, dbpath=result,
+            extra=kwargs
+        )
+        return cls(connector=connector)
+
+    @classmethod
+    async def _create_pool(cls, minsize, maxsize, pool_recycle,
+                           echo, loop, dbpath, extra):
+        connector = None
+        if dbpath.scheme and dbpath.scheme == Schemes.MYSQL.name.lower():
+            connector = await _MySQLConnector(
+                minsize, maxsize, pool_recycle,
+                echo, loop, dbpath, extra
             )
-            connector = await self._create_pool(config=config, loop=loop, echo=echo)
+        return connector
+
+    def __init__(self, connector):
+        if not connector:
+            raise RuntimeError(f'Connector pool is {type(connector)}')
         self.connector = connector
 
     def __repr__(self):
         return "<class '{} for {}:{}'>".format(
-            self.__class__.__name__, self.meta.host, self.meta.port
+            self.__class__.__name__, self.me.host, self.me.port
         )
 
     def __str__(self):
         return "<class '{} for {}:{}'>".format(
-            self.__class__.__name__, self.meta.host, self.meta.port
+            self.__class__.__name__, self.me.host, self.me.port
         )
-
-    @dict_formatter
-    def _init_config(self, scheme, user, password, host, port, database,
-                     query):
-        if scheme is None:
-            raise Exception('missing scheme error')
-        if query is not None:
-            assert isinstance(query, dict), 'illegal query type'
-        config = DefaultConfig().config
-        config.update({
-            'scheme': scheme,
-            'user': user,
-            'password': password,
-            'host': host if host else 'localhost',
-            'port': int(port) if port is not None else 3306,
-            'db': database,
-            'query': query
-        })
-        return config
-
-    @classmethod
-    async def _create_pool(cls, config, loop, echo):
-        connector = None
-        if config.scheme and config.scheme == Schemes.MYSQL.name.lower():
-            connector = await MySQLConnector(
-                loop=loop, echo=echo, meta=config
-            )
-        return connector
 
     @property
     @dict_formatter
@@ -94,9 +117,9 @@ class Connector:
 
     @property
     @dict_formatter
-    def meta(self):
+    def me(self):
         """ 连接池元信息 """
-        return self.connector.meta()
+        return self.connector.conn()
 
     def get(self):
         """ 从池中获取连接 """
@@ -117,41 +140,45 @@ class Connector:
 
 @singleton
 @asyncinit
-class MySQLConnector:
+class _MySQLConnector:
     """
     创建一个db连接池。
     使用连接池的好处是不必频繁地打开和关闭数据库连接，能复用就尽量复用。
     """
 
-    async def __init__(self, loop=None, echo=False, meta=None):
-        self._meta = meta
+    async def __init__(self, minsize, maxsize, pool_recycle,
+                       echo, loop, dbpath={}, extra={}):
+
+        self._db = dbpath
+        self._minsize = minsize
+        self._maxsize = maxsize
+        self._pool_recycle = pool_recycle
         self._echo = echo
         self._loop = loop
+        self._extra = extra
+        self._config = self._db.copy()
+        self._config.update(self._extra)
         self._pool = await self._create_pool()
 
     async def _create_pool(self):
         db_conn_pool = None
-        if self._meta is None:
+        if self._db is None:
             return db_conn_pool
+        self._config.pop('scheme')
         db_conn_pool = await aiomysql.create_pool(
-            loop=self._loop,
+            minsize=self._minsize,
+            maxsize=self._maxsize,
             echo=self._echo,
-            host=self._meta.host,
-            port=self._meta.port,
-            user=self._meta.user,
-            password=self._meta.password,
-            db=self._meta.db,
-            charset=self._meta.query.get('charset', DefaultConfig.CHARSET),
-            maxsize=self._meta.query.get('maxsize', DefaultConfig.MAXSIZE),
-            minsize=self._meta.query.get('minsize', DefaultConfig.MINSIZE),
-            autocommit=self._meta.query.get('autocommit', DefaultConfig.AUTOCOMMIT)
+            loop=self._loop,
+            pool_recycle=self._pool_recycle,
+            **self._config
         )
         return db_conn_pool
         # EventLogger.info('create database connection pool', task='building')
 
-    def meta(self):
+    def conn(self):
         """ 连接相关元信息 """
-        return self._meta
+        return {'db': self._db, 'extra': self._extra}
 
     @property
     def echo(self):
@@ -200,32 +227,6 @@ class MySQLConnector:
             await self._pool.wait_closed()
 
 
-@singleton
-class DefaultConfig:
-    """ connection default config """
-
-    CHARSET = 'utf-8'
-    MINSIZE = 1
-    MAXSIZE = 15
-    AUTOCOMMIT = True
-
-    _CONFIG = {
-        'scheme': '',
-        'user': '',
-        'password': '',
-        'host': 'localhost',
-        'port': 3306,
-        'db': '',
-        'query': {}
-    }
-
-    @property
-    @dict_formatter
-    def config(self):
-        """ config struct template """
-        return self._CONFIG
-
-
 class ParseUrl:
     """ database url parser """
 
@@ -250,10 +251,10 @@ class ParseUrl:
         """ 解析 DATABASE URL """
 
         if not self.is_illegal_url():
-            raise Exception('illegal url')
+            raise Exception('illegal dburl')
         self._register()
 
-        config = DefaultConfig().config
+        config = DefaultConnConfig().config
 
         url = urlparse.urlparse(self.url)
 
@@ -294,6 +295,6 @@ class ParseUrl:
 
             options[key] = values[-1]
         if options:
-            config['query'] = options
+            config['extra'].update(options)
 
         return config

@@ -8,13 +8,15 @@ from tests.data import TestTypesModel
 
 class TestModel(UnitTestBase):
 
-    def test_model_new(self):
-        test_types_model = TestTypesModel()
-        print(test_types_model.show_create())
+    def test_model_ddl(self):
 
         async def do():
-            # await test_types_model.create()
-            print(await test_types_model.show())
+            # if await TestTypesModel.exist():
+            #     await TestTypesModel.drop()
+            # await TestTypesModel.create()
+            from pprint import pprint
+            print(await TestTypesModel.alter(modify_col='float_', add_col='now_too'))
+            # pprint.pprint(await TestTypesModel.show_struct())
         self.loop.run_until_complete(do())
 
 

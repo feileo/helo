@@ -42,8 +42,7 @@ def _do_format(result):
     elif isinstance(result, (list, tuple)):
         fmt_result = []
         for item in result:
-            fmt_itrm = _do_format(item)
-            fmt_result.append(fmt_itrm)
+            fmt_result.append(_do_format(item))
         return fmt_result
     else:
         raise ValueError('Invalid data type to convert Dict')
@@ -80,6 +79,21 @@ def singleton(cls):
             instances[cls] = cls(*args, **kw)
         return instances[cls]
     return getinstance
+
+
+def to_list(args):
+    if not args:
+        return []
+    elif isinstance(args, str):
+        return [args]
+    elif isinstance(args, (list, tuple)):
+        result = []
+        for arg in args:
+            result.append(to_list(arg))
+        return result
+    raise TypeError(
+        'Rags must be list or str, now get {}'.format(type(args))
+    )
 
 
 class DeleteNoneTypeError(Exception):

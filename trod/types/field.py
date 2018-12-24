@@ -21,6 +21,7 @@ class BaseField:
         self.comment = comment
         self.attr_key = self._attr_key
         self.name = name
+        self.is_modify = False
 
     def __str__(self):
         return '<{} ({}: {})>'.format(self.__class__.__name__, self.name, self.comment)
@@ -57,6 +58,10 @@ class BaseField:
             print(f'Not to give default value for NOT NULL field {self.name}')
         stmt.append(f"COMMENT '{self.comment}'")
         return stmt
+
+    def modify(self):
+        self.is_modify = True
+        return self
 
     @classmethod
     def build_default_id(cls):
@@ -218,7 +223,6 @@ class Float(BaseField):
 
     def __init__(self,
                  length,
-                 float_length,
                  unsigned=False,
                  allow_null=True,
                  default=None,
@@ -227,8 +231,14 @@ class Float(BaseField):
         super().__init__(
             allow_null=allow_null, default=default, comment=comment, name=name
         )
-        self.length = length
-        self.float_length = float_length
+        if not isinstance(length, (tuple)):
+            raise TypeError('Length type error')
+        self.length = length[0]
+        if len(length) != 2:
+            print('Warning: length format error')
+            self.float_length = length[-1]
+        else:
+            self.float_length = length[1]
         self.unsigned = unsigned
 
     def build_type(self):
