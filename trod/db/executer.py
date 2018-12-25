@@ -3,7 +3,8 @@ import sys
 import aiomysql
 
 from trod.db.connector import Connector
-from trod.utils import async_dict_formatter
+from trod.extra.logger import Logger
+from trod.utils import async_dict_formatter, Dict
 
 
 class Executer:
@@ -11,7 +12,7 @@ class Executer:
 
     def __init__(self, conn_pool):
         if not isinstance(conn_pool, Connector):
-            raise TypeError('Init conn_pool must be `Connector` type')
+            raise ValueError('Init connection pool must be `Connector` type')
         self.conn_pool = conn_pool
 
     @async_dict_formatter
@@ -57,50 +58,84 @@ class Executer:
     async def close(self):
         await self.conn_pool.close()
 
+    def connect_status(self):
+        return self.conn_pool.status
 
-class Transitioner:
+    def connect_info(self):
+        return self.conn_pool.me
+
+
+class RequestClient:
 
     executer = None
 
-    def __init__(self, query, args=None, rows=None):
-        self.query = query
-        self.args = args
-        self.rows = rows
+    def __init__(self):
+        if self.executer is None:
+            raise RuntimeError(
+                'RequestClient no binding db or closed, maybe call Trod().bind()'
+            )
 
     @classmethod
     async def bind_db(cls, **kwargs):
+        for arg, value in kwargs.items():
+            if value is None:
+                kwargs.pop(arg)
         if cls.executer is not None:
-            raise RuntimeError('Duplicate binding')
+            raise RuntimeError('Duplicate database binding')
         connect_pool = await Connector.create(**kwargs)
         cls.executer = Executer(connect_pool)
+        return True
 
     @classmethod
     async def bind_db_by_conn(cls, connector):
         if cls.executer is not None:
-            raise RuntimeError('Duplicate binding')
+            raise RuntimeError('Duplicate database binding')
         cls.executer = Executer(connector)
+        return True
 
     @classmethod
     async def close(cls):
         if cls.executer is not None:
             await cls.executer.close()
+        else:
+            Logger.warning('No binding db connection or closed')
+        return True
 
     @classmethod
-    async def execute(cls, excu_sql, values=None, batch=False):
-        return await cls.executer.execute(
+    def is_usable(cls):
+        return bool(cls.executer)
+
+    @classmethod
+    def get_conn_status(cls):
+        if cls.executer:
+            return cls.executer.connect_status()
+        return {}
+
+    @classmethod
+    def get_conn_info(cls):
+        if cls.executer:
+            return cls.executer.connect_info()
+        return {}
+
+    async def execute(self, excu_sql, values=None, batch=False):
+        return await self.executer.execute(
             excu_sql, args=values, batch=batch
         )
 
-    @classmethod
-    async def exist(cls, exist_sql):
-        result = await cls.executer.fetch(exist_sql)
+    async def exist(self, exist_sql):
+        result = await self.executer.fetch(exist_sql)
         return bool(result)
 
-    @classmethod
-    async def text(cls, sql, args=None, rows=None):
-        return await cls.executer.fetch(sql, args=args, rows=rows)
-
-    async def fetch(self):
+    async def fetch(self, query, args=None, rows=None):
         return await self.executer.fetch(
-            self.query, args=self.args, rows=self.rows
+            query, args=args, rows=rows
         )
+
+    async def text(self, sql, args=None, rows=None):
+        is_fetch = True
+        if sql.find('SELECT"') or sql.find('select'):
+            result = await self.executer.fetch(sql, args=args, rows=rows)
+        else:
+            is_fetch = False
+            result = await self.executer.execute(sql, args=args, rows=rows)
+        return Dict(is_fetch=is_fetch, data=result)

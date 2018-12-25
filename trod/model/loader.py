@@ -1,5 +1,3 @@
-from trod.model import Model
-
 
 class Loader:
 
@@ -8,11 +6,8 @@ class Loader:
         self.data = data
 
     def load(self):
-        if not isinstance(self.model, Model):
-            raise TypeError('')
         if not self.data:
             return self.model()
-
         if isinstance(self.data, dict):
             return self._do_load(self.data)
         elif isinstance(self.data, (list, tuple)):
@@ -23,7 +18,7 @@ class Loader:
 
     def _do_load(self, data):
         if isinstance(data, dict):
-            raise TypeError('')
+            raise ValueError('Invalid loader data: {}'.format(type(data)))
         res_model = self.model()
         for key, value in data.items():
             res_model.set_value(key, value)

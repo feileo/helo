@@ -1,13 +1,13 @@
 # -*- coding=utf8 -*-
 
-from trod import Trod
+from tests.base import db
 from trod.types import field, index
 
 
 TEST_DBURL = 'mysql://root:txymysql1234@cdb-m0f0sibq.bj.tencentcdb.com:10036/trod?charset=utf8'
 
 
-class TestTypesModel(Trod.Model):
+class TestTypesModel(db.Model):
     __table__ = 'test_types_table'
     __comment__ = '测试用例'
     __auto_pk__ = True

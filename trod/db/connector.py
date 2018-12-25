@@ -1,19 +1,25 @@
-# -*- coding=utf8 -*-
-"""
-# Description:
-"""
-
 import urllib.parse as urlparse
+from enum import Enum, unique
 
 import aiomysql
 from asyncinit import asyncinit
 
-from component import EventLogger
-from trod.const import Schemes
+from trod.extra.logger import Logger
 from trod.utils import dict_formatter, singleton
 
 
-@singleton
+@unique
+class Schemes(Enum):
+    """ Schemes """
+
+    MYSQL = 1
+
+    @classmethod
+    def all(cls):
+        """ all scheme name list """
+        return [scheme.lower() for scheme in [cls.MYSQL.name]]
+
+
 class DefaultConnConfig:
     """ connection default config """
 
@@ -142,8 +148,7 @@ class Connector:
 @asyncinit
 class _MySQLConnector:
     """
-    创建一个db连接池。
-    使用连接池的好处是不必频繁地打开和关闭数据库连接，能复用就尽量复用。
+    使用 aiomysql 创建一个连接池。
     """
 
     async def __init__(self, minsize, maxsize, pool_recycle,
@@ -173,8 +178,8 @@ class _MySQLConnector:
             pool_recycle=self._pool_recycle,
             **self._config
         )
+        Logger.info('Create database connection pool success')
         return db_conn_pool
-        # EventLogger.info('create database connection pool', task='building')
 
     def conn(self):
         """ 连接相关元信息 """
@@ -211,17 +216,15 @@ class _MySQLConnector:
 
     def release(self, connect):
         """ 释放空闲连接 """
-        # EventLogger.info('close database connection pool')
         return self._pool.release(connect)
 
     async def clear(self):
         """ 关闭空闲连接 """
-        # EventLogger.info('close database connection pool')
         await self._pool.clear()
 
     async def close_pool(self):
         """ 关闭连接池 """
-        EventLogger.info('close database connection pool')
+        Logger.info('Database connection pool closed')
         if self._pool is not None:
             self._pool.close()
             await self._pool.wait_closed()
@@ -258,17 +261,14 @@ class ParseUrl:
 
         url = urlparse.urlparse(self.url)
 
-        # Split query strings from path.
         path, query = url.path[1:], url.query
         if '?' in path and not url.query:
             path, query = path.split('?', 2)
 
         query = urlparse.parse_qs(query)
 
-        # Handle postgres percent-encoded paths.
         hostname = url.hostname or ''
         if '%2f' in hostname.lower():
-            # Switch to url.netloc to avoid lower cased paths
             hostname = url.netloc
             if "@" in hostname:
                 hostname = hostname.rsplit("@", 1)[1]
@@ -276,7 +276,6 @@ class ParseUrl:
                 hostname = hostname.split(":", 1)[0]
             hostname = hostname.replace('%2f', '/').replace('%2F', '/')
 
-        # Update with environment configuration.
         config.update({
             'scheme': url.scheme,
             'db': urlparse.unquote(path or ''),
@@ -286,7 +285,6 @@ class ParseUrl:
             'port': url.port or '',
         })
 
-        # Pass the query string into OPTIONS.
         options = {}
         for key, values in query.items():
             if url.scheme == 'mysql' and key == 'ssl-ca':

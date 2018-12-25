@@ -5,7 +5,7 @@ import aiomysql
 
 from tests.base import UnitTestBase, unittest
 from trod.db.connector import Connector
-from trod.db import SQLExecuter
+from trod.db.executer import Transitioner
 from tests.data import TEST_DBURL
 
 
@@ -22,10 +22,10 @@ class TestConnector(UnitTestBase):
         async def do():
             connector = await Connector.create(TEST_DBURL)
 
-            await SQLExecuter.bind_db_by_conn(connector)
+            await Transitioner.bind_db_by_conn(connector)
             sql = "SELECT * FROM `teacher` WHERE `name`= %s ORDER BY `id` ASC LIMIT 1"
             args = 'gjwdw'
-            result = await SQLExecuter.text(sql, args=args)
+            result = await Transitioner.text(sql, args=args)
             self.assertEqual(result[-1].id, 1)
 
             conn = await connector.get()
@@ -34,6 +34,9 @@ class TestConnector(UnitTestBase):
 
             await connector.close()
         self.loop.run_until_complete(do())
+
+    def test_executer(self):
+        pass
 
 
 if __name__ == '__main__':

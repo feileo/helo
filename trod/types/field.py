@@ -3,8 +3,10 @@
     Field types and Index types
 """
 
-import traceback
 from datetime import datetime
+
+from trod.extra.logger import Logger
+from trod.model.sql import _Where
 
 
 class BaseField:
@@ -26,6 +28,30 @@ class BaseField:
     def __str__(self):
         return '<{} ({}: {})>'.format(self.__class__.__name__, self.name, self.comment)
 
+    def __eq__(self, data):
+        return _Where(column=self.name, operator='==', value=data)
+
+    def __ne__(self, data):
+        return _Where(column=self.name, operator='!=', value=data)
+
+    def __gt__(self, data):
+        return _Where(column=self.name, operator='>', value=data)
+
+    def __ge__(self, data):
+        return _Where(column=self.name, operator='>=', value=data)
+
+    def __lt__(self, data):
+        return _Where(column=self.name, operator='<', value=data)
+
+    def __le__(self, data):
+        return _Where(column=self.name, operator='<=', value=data)
+
+    def in_(self, data):
+        return _Where(column=self.name, operator='in', value=data)
+
+    def like(self, data):
+        return _Where(column=self.name, operator='like', value=data)
+
     def build_type(self):
         raise NotImplementedError
 
@@ -42,20 +68,20 @@ class BaseField:
         elif self.allow_null is False or self.allow_null == 0:
             stmt.append('NOT NULL')
         else:
-            raise TypeError('Allow_null value must be True, False, 0 or 1')
+            raise ValueError('Allow_null value must be True, False, 0 or 1')
         if self.default is not None:
             default = self.default
             if isinstance(self, Float):
                 default = float(default)
             if not isinstance(default, self._py_type):
-                raise TypeError(
+                raise ValueError(
                     f'Except default value {self._py_type} now is {default}'
                 )
             if isinstance(default, str):
                 default = f"'{self.default}'"
             stmt.append(f'DEFAULT {default}')
         elif not self.allow_null:
-            print(f'Not to give default value for NOT NULL field {self.name}')
+            Logger.warning(f'Not to give default value for NOT NULL field {self.name}')
         stmt.append(f"COMMENT '{self.comment}'")
         return stmt
 
@@ -124,7 +150,7 @@ class Int(Tinyint):
         self.primary_key = primary_key
         if self.primary_key is True:
             if self.allow_null:
-                print('primary_key is not allow null, use default')
+                Logger.warning('Primary_key is not allow null, use default')
             self.allow_null = False
             self.default = None
 
@@ -160,7 +186,7 @@ class Text(BaseField):
         elif self.allow_null is False or self.allow_null == 0:
             stmt.append('NOT NULL')
         else:
-            raise TypeError('Allow_null value must be True, False, 0 or 1]')
+            raise ValueError('Allow_null value must be True, False, 0 or 1]')
         stmt.append(f"COMMENT '{self.comment}'")
         return stmt
 
@@ -201,17 +227,17 @@ class String(BaseField):
         elif self.allow_null is False or self.allow_null == 0:
             stmt.append('NOT NULL')
         else:
-            raise TypeError('Allow_null value must be True, False, 0 or 1]')
+            raise ValueError('Allow_null value must be True, False, 0 or 1]')
         if self.default is not None:
             default = self.default
             if not isinstance(default, self._py_type):
-                raise TypeError(
+                raise ValueError(
                     f'Except default value {self._py_type} now is {default}')
             if isinstance(default, str):
                 default = f"'{self.default}'"
             stmt.append(f'DEFAULT {default}')
         elif not self.allow_null:
-            print(f'Not to give default value for NOT NULL field {self.name}')
+            Logger.warning(f'Not to give default value for NOT NULL field {self.name}')
         stmt.append(f"COMMENT '{self.comment}'")
         return stmt
 
@@ -232,10 +258,10 @@ class Float(BaseField):
             allow_null=allow_null, default=default, comment=comment, name=name
         )
         if not isinstance(length, (tuple)):
-            raise TypeError('Length type error')
+            raise ValueError('Length type error')
         self.length = length[0]
         if len(length) != 2:
-            print('Warning: length format error')
+            Logger.warning('Length format error')
             self.float_length = length[-1]
         else:
             self.float_length = length[1]
@@ -295,7 +321,7 @@ class Timestamp(Datetime):
         if auto in ['on_create', 'on_update']:
             self.auto = auto
         elif auto is not None:
-            raise Exception("auto parameter must be 'on_create' or 'on_update'")
+            raise ValueError("Auto parameter must be 'on_create' or 'on_update'")
 
     def build_stmt(self):
         stmt = []
@@ -304,7 +330,7 @@ class Timestamp(Datetime):
         elif self.allow_null is False or self.allow_null == 0:
             stmt.append('NOT NULL')
         else:
-            raise TypeError('Allow_null value must be True, False, 0 or 1]')
+            raise ValueError('Allow_null value must be True, False, 0 or 1]')
 
         if self.auto is not None:
             if self.auto == 'on_create':
@@ -313,12 +339,12 @@ class Timestamp(Datetime):
                 stmt.append('DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')
         elif self.default is not None:
             if not isinstance(self.default, self._py_type):
-                raise TypeError(
+                raise ValueError(
                     f'Except default value {self._py_type} now is {self.default}'
                 )
             stmt.append(f'DEFAULT {self.default}')
         elif not self.allow_null:
-            print(f'Not to give default value for NOT NULL field {self.name}')
+            Logger.warning(f'Not to give default value for NOT NULL field {self.name}')
 
         stmt.append(f"COMMENT '{self.comment}'")
 

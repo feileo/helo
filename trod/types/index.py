@@ -2,6 +2,7 @@
 """ 索引 """
 
 import traceback
+from trod.utils import Dict
 
 
 class BaseIndex:
@@ -20,14 +21,13 @@ class BaseIndex:
             self.column = column
         else:
             self.column = [column]
-        # self.attr_key = self._attr_key
         self.column = [f'`{c}`' for c in self.column]
 
-        self.options = {
-            'key_name': self.name,
-            'cols': ','.join(self.column),
-            'comment': self.comment
-        }
+        self.options = Dict(
+            key_name=self.name,
+            cols=','.join(self.column),
+            comment=self.comment
+        )
         self.is_modify = False
 
     def __str__(self):
@@ -47,8 +47,8 @@ class BaseIndex:
 
 
 class Key(BaseIndex):
-    _type_sql_tpl = 'KEY `{key_name}` ({cols}) COMMENT \'{comment}\''
+    _type_sql_tpl = "KEY `{key_name}` ({cols}) COMMENT '{comment}'"
 
 
 class UniqueKey(BaseIndex):
-    _type_sql_tpl = 'UNIQUE KEY `{key_name}` ({cols}) COMMENT \'{comment}\''
+    _type_sql_tpl = "UNIQUE KEY `{key_name}` ({cols}) COMMENT '{comment}'"
