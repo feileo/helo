@@ -7,19 +7,19 @@ class Loader:
 
     def load(self):
         if not self.data:
-            return self.model()
-        if isinstance(self.data, dict):
-            return self._do_load(self.data)
-        elif isinstance(self.data, (list, tuple)):
+            return None
+        if isinstance(self.data, (list, tuple)):
             res_models = []
             for data in self.data:
                 res_models.append(self._do_load(data))
             return res_models
+        else:
+            return self._do_load(self.data)
 
     def _do_load(self, data):
-        if isinstance(data, dict):
+        if not isinstance(data, dict):
             raise ValueError('Invalid loader data: {}'.format(type(data)))
         res_model = self.model()
         for key, value in data.items():
-            res_model.set_value(key, value)
+            res_model._set_value(key, value, is_loader=True)
         return res_model

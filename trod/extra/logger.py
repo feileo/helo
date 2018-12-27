@@ -86,7 +86,7 @@ class Logger:
         else:
             event_name = task
         error_str = '{}:{}'.format(error.__class__.__name__, error.message if error else '')
-        real_message = '{} {}'.format(message if message else '', error_str)
+        real_message = '{}, {}'.format(message if message else '', error_str)
         Logger.__lock.acquire()
         log_str = Logger.error_partten.format(
             event_name, BaseLog.now_time(), real_message

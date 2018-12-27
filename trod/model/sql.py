@@ -1,19 +1,37 @@
 from trod.db.executer import RequestClient
-from trod.model import SQL
 from trod.model.loader import Loader
 from trod.types.index import Key, UniqueKey
-from trod.utils import Dict, dict_formatter
+from trod.utils import Dict, dict_formatter, _do_format
+
+
+SQL = Dict(
+    create="CREATE TABLE `{tn}` ({cd}) ENGINE={eg} DEFAULT CHARSET={cs} COMMENT='{cm}';",
+    drop="DROP TABLE `{table_name}`;",
+    show=Dict(
+        tables='SHOW TABLES',
+        status='SHOW TABLE STATUS',
+        create="SHOW CREATE TABLE `{table_name}`;",
+        columns="SHOW FULL COLUMNS FROM `{table_name}`;",
+        indexs="SHOW INDEX FROM `{table_name}`;"
+    ),
+    exist="SELECT table_name FROM information_schema.tables WHERE table_schema='{schema}' AND table_name='{table}'",
+    alter="ALTER TABLE `{table_name}` {clause};",
+    insert="INSERT INTO `{table_name}` ({cols}) VALUES ({values});",
+    delete="DELETE FROM `{table_name}` WHERE {condition};",
+    update_=Dict(
+        complete="UPDATE `{table_name}` SET {kv} WHERE {condition};",
+        no_where="UPDATE `{table_name}` SET {kv}"
+    ),
+    select=Dict(
+        complete="SELECT {cols} FROM `{table_name}` {where_clause} {group_clause} {order_clause} {limit_clause}",
+        by_id="SELECT {cols} FROM `{table_name}` WHERE `{condition}`=%s;",
+        by_ids="SELECT {cols} FROM `{table_name}` WHERE `{condition}` IN {data};",
+    )
+)
 
 
 class _Where:
-    """
-    self.where=Dict(
-        column='name',
-        operator='==',
-        value='hehe'
-    )
-    self.format_() ==> "name = %s", "hehe"
-    """
+
     OPERATORS = {
         '=': ' = ',
         '==': ' = ',
@@ -49,15 +67,24 @@ class _Where:
     def get(self):
         return self.where
 
-    @dict_formatter
     def format_(self):
-        return {
-            'where': '{col}{ope}%s'.format(
+        if self.where.operator == self.OPERATORS['in']:
+            _where_stmt = '{col}{ope}{values}'.format(
+                col=self.where.column, ope=self.where.operator,
+                values=self.where.value
+            )
+            _arg = None
+        else:
+            _where_stmt = '{col}{ope}%s'.format(
                 col=self.where.column, ope=self.where.operator
-            ),
-            'arg': '{}'.format(self.where.value),
-            'col': self.where.column
-        }
+            )
+            _arg = '{}'.format(self.where.value)
+
+        return Dict(
+            where=_where_stmt,
+            arg=_arg,
+            col=self.where.column
+        )
 
 
 class _Logic:
@@ -77,61 +104,65 @@ class _Logic:
                 raise ValueError(f'Invalid logic operator')
             if isinstance(_w_format.arg, list):
                 args.extend(_w_format.arg)
-                cols.extend(_w_format.cols)
-            else:
+            elif _w_format.arg:
                 args.append(_w_format.arg)
-                cols.append(_w_format.col)
-            if isinstance(_w_format.cols, list):
-                cols.extend(_w_format.cols)
+            if isinstance(_w_format.col, list):
+                cols.extend(_w_format.col)
             else:
                 cols.append(_w_format.col)
         self._all_cdtns = wheres
         self._args = args
         self._cols = cols
 
-    @dict_formatter
     def format_(self):
-        return {
-            'where': self._LOGIC.join(self._all_cdtns),
-            'arg': self._args,
-            'col': self._cols
-        }
+        return Dict(
+            where=self._LOGIC.join(self._all_cdtns),
+            arg=self._args,
+            col=self._cols
+        )
 
 
-class And(_Logic):
-    _LOGIC = " AND "
-
-
-class Or(_Logic):
-    _LOGIC = " OR "
-
-
-class Generator:
+class _Generator:
 
     _sql_template = SQL.select.complete
     _render_data_default = Dict(
         where_clause='',
-        group_by_clause='',
-        order_by_clause='',
+        group_clause='',
+        order_clause='',
         limit_clause=''
     )
+
+    @property
+    @dict_formatter
+    def _tpl(self):
+        return self._render_data_default.copy()
 
     def __init__(self, model, cols):
         self._model = model
         self._cols = cols
         self._values = None
         self._has_func = False
-        self._render_data = self._render_data_default.copy()
+        self._has_col = False
+        self._render_data = self._tpl
 
     def _render_query(self):
         if not self._cols:
             raise ValueError('No column given the query')
-        if isinstance(self._cols, list):
-            self._render_data.cols = ','.join([c.join('``') for c in self._cols])
-        elif isinstance(self._cols, Func):
-            self._render_data.cols = self._cols.func
-            self._has_func = True
-        self._render_data.table_name = self._model.__meta__.table.join('``')
+        if not isinstance(self._cols, list):
+            raise ValueError(
+                f'The query column must be a list or tuple, now is {self._cols}'
+            )
+        cols, func_cols = [], []
+        for _c in self._cols:
+            if isinstance(_c, Func):
+                func_cols.append(_c.func)
+                self._has_func = True
+            else:
+                cols.append('`{}`'.format(_c))
+                self._has_col = True
+        cols.extend(func_cols)
+        self._render_data.cols = ','.join(cols)
+        self._render_data.table_name = self._model.__meta__.table
 
     def _render(self):
         self._render_query()
@@ -150,9 +181,12 @@ class Generator:
         group_by_tpl = "GROUP BY {cols}"
         if not cols:
             raise ValueError("Group by can't have no field")
-        self._model.has_cols_checker(cols)
-        self._render_data.group_by_clause = group_by_tpl.format(
-            cols=','.join([c.join('``') for c in cols])
+        col_names = []
+        for _c in cols:
+            col_names.append(_get_col_type_name(_c))
+        self._model.has_cols_checker(col_names)
+        self._render_data.group_clause = group_by_tpl.format(
+            cols=','.join([c.join('``') for c in col_names])
         )
         return self
 
@@ -161,42 +195,50 @@ class Generator:
         desc = 'DESC' if desc else 'ASC'
         if col is None:
             col = self._model.__table__.pk
+        col = _get_col_type_name(col)
         self._model.has_cols_checker(col)
-        self._render_data.order_by_clause = order_by_tpl.format(
+        self._render_data.order_clause = order_by_tpl.format(
             col=col.join('``'), desc=desc
         )
         return self
 
-    def rows(self, limit=1000, offset=0):
-        if self._has_func is True:
-            raise RuntimeError('Invalid call, maybe you can try to call scalar()')
+    async def rows(self, limit=1000, offset=0):
         limit_tpl = 'LIMIT {limit} OFFSET {offset}'
         self._render_data.limit_clause = limit_tpl.format(
             limit=limit, offset=offset
         )
-        result = RequestClient().fetch(self._render(), args=self._values)
+        result = await RequestClient().fetch(self._render(), args=self._values)
+        if self._has_func:
+            return _do_format(result)
         return Loader(self._model, result).load()
 
-    def first(self):
-        if self._has_func is True:
-            raise RuntimeError('Invalid call, maybe you can try to call scalar()')
+    async def first(self):
         limit = 'LIMIT 1'
         self._render_data.limit_clause = limit
-        result = RequestClient().fetch(
+        result = await RequestClient().fetch(
             self._render(), args=self._values, rows=1
         )
+        if self._has_func:
+            return _do_format(result)
         return Loader(self._model, result).load()
 
-    def all(self):
-        if self._has_func is True:
-            raise RuntimeError('Invalid call, maybe you can try to call scalar()')
-        result = RequestClient().fetch(self._render(), args=self._values)
+    async def all(self):
+        result = await RequestClient().fetch(self._render(), args=self._values)
+        if self._has_func:
+            return _do_format(result)
         return Loader(self._model, result).load()
 
-    def scalar(self):
-        return RequestClient().fetch(
+    async def scalar(self):
+        if self._has_col is True:
+            raise RuntimeError('Invalid call, Maybe you can try to call first()')
+        result = await RequestClient().fetch(
             self._render(), args=self._values, rows=1
         )
+        if len(result) == 1:
+            result = list(result.values())[0]
+        else:
+            result = _do_format(result)
+        return result
 
     @classmethod
     def alter(cls, new_dict, table_name, modify_list=None,
@@ -204,7 +246,7 @@ class Generator:
         alter_clause = []
         if modify_list is not None:
             for col in modify_list:
-                if col in new_dict.field_dict:
+                if col in list(new_dict.field_dict.keys()):
                     alter_clause.append(
                         "MODIFY COLUMN `{}` {}".format(col, new_dict.field_dict[col].build())
                     )
@@ -247,6 +289,14 @@ class Generator:
         return SQL.alter.format(table_name=table_name, clause=', '.join(alter_clause))
 
 
+class And(_Logic):
+    _LOGIC = " AND "
+
+
+class Or(_Logic):
+    _LOGIC = " OR "
+
+
 class Func:
 
     def __init__(self, func=None):
@@ -254,25 +304,37 @@ class Func:
 
     @classmethod
     def sum(cls, col):
-        func = 'SUM({})'.format(col)
+        func = 'SUM({}) AS sum'.format(_get_col_type_name(col))
         return cls(func=func)
 
     @classmethod
     def max(cls, col):
-        func = 'MAX({})'.format(col)
+        func = 'MAX({}) AS max'.format(_get_col_type_name(col))
         return cls(func=func)
 
     @classmethod
     def min(cls, col):
-        func = 'MIN({})'.format(col)
+        func = 'MIN({}) AS min'.format(_get_col_type_name(col))
         return cls(func=func)
 
     @classmethod
     def avg(cls, col):
-        func = 'AVG({})'.format(col)
+        func = 'AVG({}) AS avg'.format(_get_col_type_name(col))
         return cls(func=func)
 
     @classmethod
     def count(cls, col=None):
-        func = 'COUNT(1)'
-        return cls(func=func)
+        func_tpl = 'COUNT({}) AS count'
+        if col:
+            name = _get_col_type_name(col)
+        else:
+            name = 1
+        return cls(func=func_tpl.format(name))
+
+
+def _get_col_type_name(col):
+    if hasattr(col, 'name') and col.name:
+        name = col.name
+    else:
+        name = col
+    return name

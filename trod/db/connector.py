@@ -4,13 +4,14 @@ from enum import Enum, unique
 import aiomysql
 from asyncinit import asyncinit
 
+from trod.errors import InvaildDBUrlError
 from trod.extra.logger import Logger
 from trod.utils import dict_formatter, singleton
 
 
 @unique
 class Schemes(Enum):
-    """ Schemes """
+    """Currently supported Schemes """
 
     MYSQL = 1
 
@@ -21,7 +22,7 @@ class Schemes(Enum):
 
 
 class DefaultConnConfig:
-    """ connection default config """
+    """ Connection default config """
 
     MINSIZE = 1
     MAXSIZE = 15
@@ -42,20 +43,30 @@ class DefaultConnConfig:
             'sql_mode': None,
             'use_unicode': None,
             'connect_timeout': TIMEOUT,
-            'autocommit': False,
+            'autocommit': True,
             'ssl': None,
         }
     }
 
     @property
     def config(self):
-        """ config struct template """
+        """ Config struct template """
+
         return self._CONFIG
 
 
 class Connector:
-    """ 数据库连接池:
-        2. connector = await Connector.from_url(url)
+    """ Provide a factory method to create a database connection pool.
+        for example:
+            connector = await Connector.create(url)
+
+        Get a connection from the connection pool:
+            connection = await connector.get()
+
+        Close the pool:
+            await connector.close()
+
+        And etc.
     """
 
     @classmethod
@@ -66,7 +77,25 @@ class Connector:
                      pool_recycle=DefaultConnConfig.POOL_RECYCLE,
                      echo=DefaultConnConfig.ECHO,
                      loop=None, **kwargs):
-        """ 创建连接池 """
+        """ A coroutine that create a connection pool object
+
+        Args:
+            url: db url.
+            minsize: minimum sizes of the pool
+            maxsize: maximum sizes of the pool.
+            timeout: timeout of connection.
+                     abandoning the connection from the pool after not getting the connection
+            pool_recycle: connection reset period, default -1,
+                          indicating that the connection will be reclaimed after a given time,
+                          be careful not to exceed MySQL default time of 8 hours
+            echo: executed log SQL queryes
+            loop: is an optional event loop instance,
+                  asyncio.get_event_loop() is used if loop is not specified.
+            kwargs: and etc.
+
+        :returns : a `Connector` instance
+        """
+
         if not url:
             return None
         result = ParseUrl(url, Schemes.all()).parse()
@@ -96,23 +125,22 @@ class Connector:
 
     def __init__(self, connector):
         if not connector:
-            raise RuntimeError(f'Connector pool is {type(connector)}')
+            raise RuntimeError(
+                'Invalid connector parameter type {}'.format(type(connector))
+            )
         self.connector = connector
 
     def __repr__(self):
         return "<class '{} for {}:{}'>".format(
-            self.__class__.__name__, self.me.host, self.me.port
+            self.__class__.__name__, self.db.host, self.db.port
         )
 
-    def __str__(self):
-        return "<class '{} for {}:{}'>".format(
-            self.__class__.__name__, self.me.host, self.me.port
-        )
+    __str__ = __repr__
 
     @property
     @dict_formatter
     def status(self):
-        """ 连接池状态 """
+        """ connection pool status """
         return {
             'minsize': self.connector.minsize,
             'maxsize': self.connector.maxsize,
@@ -123,32 +151,36 @@ class Connector:
 
     @property
     @dict_formatter
-    def me(self):
-        """ 连接池元信息 """
+    def db(self):
+        """ Db info """
         return self.connector.conn()
 
     def get(self):
-        """ 从池中获取连接 """
+        """ Get a connection """
         return self.connector.acquire()
 
     def release(self, connect):
-        """ 释放空闲连接 """
+        """ Reverts connection conn to free pool for future recycling. """
         return self.connector.release(connect)
 
     async def clear(self):
-        """ 关闭空闲连接 """
+        """ A coroutine that closes all free connections in the pool.
+            At next connection acquiring at least minsize of them will be recreated
+        """
         await self.connector.clear()
+        return True
 
     async def close(self):
-        """ 关闭连接池 """
+        """ A coroutine that close pool. """
         await self.connector.close_pool()
+        return True
 
 
 @singleton
 @asyncinit
 class _MySQLConnector:
     """
-    使用 aiomysql 创建一个连接池。
+    Create a connection by aiomysql.create_pool().
     """
 
     async def __init__(self, minsize, maxsize, pool_recycle,
@@ -182,48 +214,50 @@ class _MySQLConnector:
         return db_conn_pool
 
     def conn(self):
-        """ 连接相关元信息 """
+        """ Db info """
         return {'db': self._db, 'extra': self._extra}
 
     @property
     def echo(self):
-        """返回 echo 模式状态"""
+        """ echo mode"""
         return self._pool.echo
 
     @property
     def minsize(self):
-        """ pool 的最小大小"""
+        """ pool minsize """
         return self._pool.minsize
 
     @property
     def maxsize(self):
-        """ pool 的最大大小"""
+        """ pool maxsize"""
         return self._pool.maxsize
 
     @property
     def size(self):
-        """ pool 的当前大小，包括使用的和空闲的连接 """
+        """ The current size of the pool,
+            including the used and idle connections
+        """
         return self._pool.size
 
     @property
     def freesize(self):
-        """pool 的空闲大小 """
+        """ Pool free size """
         return self._pool.freesize
 
     def acquire(self):
-        """ 从池中获取空闲连接 """
+        """ Get a connection """
         return self._pool.acquire()
 
     def release(self, connect):
-        """ 释放空闲连接 """
+        """ Release free connection """
         return self._pool.release(connect)
 
     async def clear(self):
-        """ 关闭空闲连接 """
+        """ A coroutine that close all free connection  """
         await self._pool.clear()
 
     async def close_pool(self):
-        """ 关闭连接池 """
+        """ A coroutine that close pool """
         Logger.info('Database connection pool closed')
         if self._pool is not None:
             self._pool.close()
@@ -243,7 +277,7 @@ class ParseUrl:
             urlparse.uses_netloc.append(scheme)
 
     def is_illegal_url(self):
-        """ 是否合法 DB URL """
+        """ A bool of is illegal url """
         url = urlparse.urlparse(self.url)
         if all([url.scheme, url.netloc]):
             return True
@@ -251,10 +285,10 @@ class ParseUrl:
 
     @dict_formatter
     def parse(self):
-        """ 解析 DATABASE URL """
+        """ do parse database url """
 
         if not self.is_illegal_url():
-            raise Exception('illegal dburl')
+            raise InvaildDBUrlError('Invalid dburl')
         self._register()
 
         config = DefaultConnConfig().config

@@ -1,15 +1,15 @@
-""" test Connector """
-
 import asyncio
+import unittest
+
 import aiomysql
 
-from tests.base import UnitTestBase, unittest
-from trod.db.connector import Connector
-from trod.db.executer import Transitioner
-from tests.data import TEST_DBURL
+from tests.base import TEST_DBURL
+from trod.db.connector import Connector, DefaultConnConfig, Schemes
+from trod.db.executer import RequestClient
+from trod.errors import InvaildDBUrlError, DuplicateBindError, NoBindError
 
 
-class TestConnector(UnitTestBase):
+class TestDB(unittest.TestCase):
 
     def setUp(self):
         self.loop = asyncio.new_event_loop()
@@ -18,26 +18,58 @@ class TestConnector(UnitTestBase):
     def tearDown(self):
         self.loop.close()
 
-    def test_connector(self):
-        async def do():
-            connector = await Connector.create(TEST_DBURL)
+    def test(self):
 
-            await Transitioner.bind_db_by_conn(connector)
-            sql = "SELECT * FROM `teacher` WHERE `name`= %s ORDER BY `id` ASC LIMIT 1"
-            args = 'gjwdw'
-            result = await Transitioner.text(sql, args=args)
-            self.assertEqual(result[-1].id, 1)
+        async def do_test():
 
-            conn = await connector.get()
-            self.assertIsInstance(conn, aiomysql.connection.Connection)
-            self.assertTrue(connector.release(conn))
+            # Connector Test
+            connector = await Connector.create('')
+            self.assertIsNone(connector)
 
-            await connector.close()
-        self.loop.run_until_complete(do())
+            invalid_url = 'hehe'
+            try:
+                await Connector.create(url=invalid_url)
+                assert False, 'Should be raise a InvaildDBUrlError'
+            except InvaildDBUrlError:
+                pass
 
-    def test_executer(self):
-        pass
+            timeout = 10
+            connector = await Connector.create(TEST_DBURL, timeout=timeout)
+            self.assertIsInstance(connector, Connector)
+
+            pool_status = connector.status
+            self.assertEqual(pool_status.minsize, DefaultConnConfig.MINSIZE)
+            self.assertEqual(pool_status.maxsize, DefaultConnConfig.MAXSIZE)
+            pool_info = connector.db
+            self.assertEqual(pool_info.db.scheme, Schemes.MYSQL.name.lower())
+            self.assertEqual(pool_info.extra.connect_timeout, timeout)
+
+            a_conn = await connector.get()
+            self.assertIsInstance(a_conn, aiomysql.connection.Connection)
+            self.assertTrue(connector.release(a_conn))
+            self.assertTrue(await connector.clear())
+
+            # RequestClient Test
+            self.assertRaises(NoBindError, RequestClient)
+
+            is_success = await RequestClient.bind_db_by_conn(connector)
+            self.assertTrue(is_success)
+
+            self.assertTrue(RequestClient.is_usable())
+
+            try:
+                await RequestClient.bind_db(url='url')
+                assert False, 'Should be raise a DeprecateBindError'
+            except DuplicateBindError:
+                pass
+
+            r_c = RequestClient()
+            self.assertTrue(r_c.get_conn_status())
+
+            self.assertTrue(await RequestClient.unbind())
+
+        self.loop.run_until_complete(do_test())
 
 
 if __name__ == '__main__':
-    unittest.main()
+    unittest.main(verbosity=2)

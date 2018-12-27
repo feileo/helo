@@ -1,32 +1,41 @@
-"""
-asyncio test base
-"""
+""" asyncio test base """
 
 import asyncio
 import unittest
 
-from trod import Trod
-from .data import TEST_DBURL
+from tests.models import db
+from tests import models
 
-db = Trod()
+
+TEST_DBURL = 'mysql://root:txymysql1234@cdb-m0f0sibq.bj.tencentcdb.com:10036/trod?charset=utf8'
+
+# TEST_DBURL = 'mysql://root:gjwlmj1190@localhost:3306/trod?charset=utf8'
 
 
 class UnitTestBase(unittest.TestCase):
     """ asyncio test base """
 
-    def setUp(self):
+    @classmethod
+    def setUpClass(cls):
 
-        async def set_bind():
-            await db.bind(TEST_DBURL)
+        async def do_prepare():
+            await db.bind(TEST_DBURL, echo=True)
 
-        self.loop = asyncio.new_event_loop()
+            # await db.batch_create(models.TestTypesModel, models.User)
+            await db.create_all(models)
+
+        cls.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(None)
-        self.loop.run_until_complete(set_bind())
+        cls.loop.run_until_complete(do_prepare())
 
-    def tearDown(self):
+    @classmethod
+    def tearDownClass(cls):
 
         async def end():
+            # await db.batch_drop(models.TestTypesModel, models.User)
+            await db.drop_all(models)
+
             await db.unbind()
 
-        self.loop.run_until_complete(end())
-        self.loop.close()
+        cls.loop.run_until_complete(end())
+        cls.loop.close()

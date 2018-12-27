@@ -1,11 +1,16 @@
 from collections import OrderedDict
 
 from trod.db.executer import RequestClient
+from trod.errors import (
+    DuplicateFieldNameError, DuplicatePKError, NoPKError,
+    InvalidFieldType, IllegalModelAttrAssigendError,
+    DeleteUnsavedError, MissingPKError, ModifyAutoPkError,
+    AddEmptyInstanceError, ModelSetAttrError
+)
 from trod.extra.logger import Logger
-from trod.model import SQL
 from trod.model.loader import Loader
-from trod.model.sql import Generator, _Logic, _Where, Func
-from trod.types.field import BaseField
+from trod.model.sql import SQL, _Generator, _Logic, _Where, Func
+from trod.types.field import BaseField, Bigint
 from trod.types.index import BaseIndex
 from trod.utils import Dict, dict_formatter, to_list
 
@@ -22,7 +27,7 @@ TABLE_DEFAULT = {
 class _ModelMetaclass(type):
 
     def __new__(cls, name, bases, attrs):
-        if name == 'Model':
+        if name == 'TrodModel':
             return type.__new__(cls, name, bases, attrs)
 
         @dict_formatter
@@ -56,14 +61,14 @@ class _ModelMetaclass(type):
 
         for attr_name, attr_instance in attrs.items():
             if primary_key and attr_name == primary_key:
-                raise RuntimeError('Duplicate field name `id`')
+                raise DuplicateFieldNameError('Duplicate field name `id`')
             if isinstance(attr_instance, BaseField):
                 field_name = attr_instance.name if attr_instance.name else attr_name
                 attr_instance.name = field_name
                 field_stmt_map[attr_name] = f'`{field_name}` {attr_instance.build()}'
                 if hasattr(attr_instance, 'primary_key') and attr_instance.primary_key:
                     if primary_key is not None:
-                        raise RuntimeError(
+                        raise DuplicatePKError(
                             f'Duplicate primary key found for field {attr_name}'
                         )
                     primary_key = attr_name
@@ -74,10 +79,10 @@ class _ModelMetaclass(type):
                 index_inst_map[attr_name] = attr_instance
             else:
                 if not (attr_name.endswith('__') and attr_name.endswith('__', 0, 2)):
-                    raise ValueError('Illegal model field')
+                    raise InvalidFieldType('Invalid model field {}'.format(attr_name))
 
         if not primary_key:
-            raise RuntimeError(
+            raise NoPKError(
                 f"Primary key not found for table `{attrs['__meta__'].table}`"
             )
 
@@ -97,6 +102,7 @@ class _ModelMetaclass(type):
             pk=primary_key
         )
 
+        # This will be very important
         for field in field_inst_map:
             attrs.pop(field)
         for index in index_inst_map:
@@ -104,12 +110,29 @@ class _ModelMetaclass(type):
 
         return type.__new__(cls, name, bases, attrs)
 
+    def __getattr__(cls, key):
+        if key in cls.__table__.field_dict:
+            return cls.__table__.field_dict[key]
+        elif key in cls.__table__.index_dict:
+            return cls.__table__.index_dict[key]
+        elif key == cls.__table__.pk:
+            return None
+        else:
+            raise AttributeError('Model class does not have this attribute')
+
+    def __setattr__(cls, _key, _value):
+        raise ModelSetAttrError('Model class not allow set attribute')
+
 
 class TrodModel(metaclass=_ModelMetaclass):
 
+    def __init__(self, **kwargs):
+        for attr in kwargs:
+            setattr(self, attr, kwargs[attr])
+
     def __repr__(self):
         return "<{model_name}(table '{table_name}' : {table_comment})>".format(
-            model_name=self.__class__.name, table_name=self.__meta__.table,
+            model_name=self.__class__.__name__, table_name=self.__meta__.table,
             table_comment=self.__meta__.comment
         )
 
@@ -130,40 +153,30 @@ class TrodModel(metaclass=_ModelMetaclass):
                     "'Model' object has no attribute '{}'".format(key)
                 )
 
-    def __setattr__(self, key, value):
+    def __setattr__(self, key, value, is_loader=False):
         if key in self.__table__.index_dict:
-            raise RuntimeError("'Key' type cannot be assigned")
-        elif key not in self.__table__.field_dict:
-            if not (self.__meta__.auto_pk is True and key == self.__table__.pk):
-                raise ValueError(f'Illegal attribute key {key} to set')
+            raise IllegalModelAttrAssigendError("'Key' type cannot be assigned")
+        if self.__meta__.auto_pk is True:
+            if key == self.__table__.pk and not is_loader:
+                raise ModifyAutoPkError('Auto_pk model not allowed modify pk')
+        if not is_loader and (key not in self.__table__.field_dict):
+            raise AttributeError(
+                "'Model' object not allowed set attribute '{}'".format(key)
+            )
 
         self.__dict__[key] = value
 
+    def _set_value(self, key, value, is_loader=False):
+        return self.__setattr__(key, value, is_loader=is_loader)
+
     def _get_value(self, key):
-        value = getattr(self, key, None)
+        value = self.__getattr__(key)
         if value is None:
             field = self.__table__.field_dict[key]
-            if field.default is not None:
-                value = (field.default() if callable(field.default) else field.default)
-                Logger.info(f'Using default value for {key}: {value}')
-                setattr(self, key, value)
+            value = (field() if callable(field) else field.default)
+            Logger.info(f'Using default value for {key}: {value}')
+            setattr(self, key, value)
         return value
-
-    def set_value(self, key, value):
-        return setattr(self, key, value)
-
-    async def save(self):
-        self._save_pk_checker(self)
-        return await self._add(self)
-
-    async def delete(self):
-        self_pk = self.__table__.pk
-        pk_value = self._get(self_pk)
-        if pk_value is None:
-            raise RuntimeError('Not allowed delete unsaved objects')
-        return await self.remove(
-            _Where(column=self_pk, operator='==', value=pk_value)
-        )
 
     @classmethod
     def _get_create_sql(cls):
@@ -177,6 +190,10 @@ class TrodModel(metaclass=_ModelMetaclass):
 
     @classmethod
     def _get_add_values(cls, instance, cols):
+        if not cols:
+            raise AddEmptyInstanceError(
+                'Add a instance {} without no data'.format(instance)
+            )
         if not isinstance(instance, cls):
             raise ValueError(
                 'The object ({}) to be saved is illegal'.format(type(instance))
@@ -187,15 +204,15 @@ class TrodModel(metaclass=_ModelMetaclass):
     def _get_insert_sql(cls, cols):
         return SQL.insert.format(
             table_name=cls.__meta__.table,
-            cols=', '.join(cols),
+            cols=', '.join([c.join('``') for c in cols]),
             values=', '.join(['%s']*len(cols))
         )
 
     @classmethod
     def _save_pk_checker(cls, instance):
         if cls.__meta__.auto_pk is False:
-            if instance.getattr(cls.__table__.pk) is None:
-                raise RuntimeError('Cannot save objects without a primary key')
+            if instance.__getattr__(cls.__table__.pk) is None:
+                raise MissingPKError('Cannot save objects without a primary key')
 
     @classmethod
     def _get_all_select_cols(cls):
@@ -218,11 +235,13 @@ class TrodModel(metaclass=_ModelMetaclass):
         if not any([modify_col, add_col, drop_col]):
             return None
 
-        modify_col, add_col, drop_col = to_list([modify_col, add_col, drop_col])
+        modify_col, add_col, drop_col = to_list(modify_col, add_col, drop_col)
 
-        alter_sql = Generator.alter(
+        alter_sql = _Generator.alter(
             cls.__table__, cls.__meta__.table,
-            modify_list=modify_col, add_list=add_col, drop_list=drop_col
+            modify_list=modify_col,
+            add_list=add_col,
+            drop_list=drop_col
         )
         return await RequestClient().execute(alter_sql)
 
@@ -250,15 +269,24 @@ class TrodModel(metaclass=_ModelMetaclass):
 
     @classmethod
     async def exist(cls):
-        exist_sql = SQL.exist.format(table_name=cls.__meta__.table)
+        if not RequestClient.is_usable():
+            return False
+        exist_sql = SQL.exist.format(
+            schema=RequestClient.get_conn_info().db.db,
+            table=cls.__meta__.table,
+        )
         return await RequestClient().exist(exist_sql)
 
     @classmethod
     def has_cols_checker(cls, cols):
-        for c in cols:
-            if c not in cls.__table__.field_dict and c != cls.__table__.pk:
+        if isinstance(cols, str):
+            cols = [cols]
+        for _c in cols:
+            if isinstance(_c, Func):
+                continue
+            if _c not in cls.__table__.field_dict and _c != cls.__table__.pk:
                 raise ValueError(
-                    f"Attribute {c} not in model {cls.__name__}'s query fields"
+                    f"Attribute {_c} not in model {cls.__name__}'s query fields"
                 )
 
     @classmethod
@@ -267,12 +295,15 @@ class TrodModel(metaclass=_ModelMetaclass):
         values = cls._get_add_values(instance, cols)
         insert_sql = cls._get_insert_sql(cols)
         result = await RequestClient().execute(insert_sql, values=values)
-        instance.set_value(instance.__table__.pk, result.last_id)
         if result.affected != 1:
             Logger.error(
                 f'Failed to insert, affected rows: {result.affected}'
             )
-        return result
+        if cls.__meta__.auto_pk is True:
+            instance._set_value(cls.__table__.pk, result.last_id, is_loader=True)
+        else:
+            result.last_id = instance.__dict__[cls.__table__.pk]
+        return result.last_id
 
     @classmethod
     async def add(cls, instance):
@@ -285,25 +316,23 @@ class TrodModel(metaclass=_ModelMetaclass):
             raise ValueError(f'Add illegal type {instances}')
 
         cols = list(cls.__table__.field_dict.keys())
-        for c in cols:
-            c_type = cls.__meta__.field_dict[c]
+        cols_copy = cols.copy()
+        for c in cols_copy:
+            c_type = cls.__table__.field_dict[c]
             if hasattr(c_type, 'auto') and c_type.auto:
                 cols.remove(c)
         values = []
         for inst in instances:
             values.append(cls._get_add_values(inst, cols))
+
         insert_sql = cls._get_insert_sql(cols)
         result = await RequestClient().execute(
-            insert_sql, values=values, batch=True
+            insert_sql, values=values, is_batch=True
         )
         if result.affected != len(values):
             Logger.error(
                 f'Failed to insert, affected rows: {result.affected}'
             )
-
-        if cls.__meta__.auto_pk is True:
-            for inst in instances:
-                inst.set_value(cls.__table__.pk, 0)
         return result
 
     @classmethod
@@ -313,6 +342,7 @@ class TrodModel(metaclass=_ModelMetaclass):
         if not isinstance(where, (_Where, _Logic)):
             raise ValueError('Invalid where type {}'.format(type(where)))
         where_format = where.format_()
+
         cls.has_cols_checker(where_format.col)
         remove_sql = SQL.delete.format(
             table_name=cls.__meta__.table, condition=where_format.where
@@ -366,7 +396,7 @@ class TrodModel(metaclass=_ModelMetaclass):
             table_name=cls.__meta__.table,
             condition=cls.__table__.pk
         )
-        result = await RequestClient().fetch(select_sql, args=id_, rows=1)
+        result = await RequestClient().fetch(select_sql, args=[id_], rows=1)
         return Loader(cls, result).load()
 
     @classmethod
@@ -374,6 +404,8 @@ class TrodModel(metaclass=_ModelMetaclass):
         """
         Get by id list
         """
+        if not isinstance(id_list, (list, tuple)):
+            raise ValueError('id_list must be a list or tuple')
         if cols:
             cls.has_cols_checker(cols)
         else:
@@ -381,24 +413,36 @@ class TrodModel(metaclass=_ModelMetaclass):
         select_sql = SQL.select.by_ids.format(
             cols=','.join([c.join('``') for c in cols]),
             table_name=cls.__meta__.table,
-            condition=cls.__table__.pk
+            condition=cls.__table__.pk,
+            data=tuple(id_list)
         )
-        result = await RequestClient().fetch(select_sql, args=id_list)
+        result = await RequestClient().fetch(select_sql)
         return Loader(cls, result).load()
 
     @classmethod
-    async def query(cls, *cols):
+    def query(cls, *cols):
         query_cols = []
         if cols:
             for c in cols:
-                if isinstance(c, Func):
-                    query_cols = c
-                    break
+                if isinstance(c, (Func, str)):
+                    query_cols.append(c)
                 elif isinstance(c, BaseField):
                     query_cols.append(c.name)
-            if not query_cols:
-                cls.has_cols_checker(cols)
-                query_cols = list(cols)
+            cls.has_cols_checker(query_cols)
         else:
             query_cols = cls._get_all_select_cols()
-        return Generator(cls, query_cols)
+
+        return _Generator(cls, query_cols)
+
+    async def save(self):
+        self._save_pk_checker(self)
+        return await self._add(self)
+
+    async def delete(self):
+        self_pk = self.__table__.pk
+        pk_value = self._get_value(self_pk)
+        if pk_value is None:
+            raise DeleteUnsavedError('Not allowed delete unsaved objects')
+        return await self.remove(
+            _Where(column=self_pk, operator='==', value=pk_value)
+        )

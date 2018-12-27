@@ -81,16 +81,26 @@ def singleton(cls):
     return getinstance
 
 
-def to_list(args):
+def to_list(*args):
+    result = []
     if not args:
-        return []
-    elif isinstance(args, str):
-        return [args]
-    elif isinstance(args, (list, tuple)):
-        result = []
-        for arg in args:
-            result.append(to_list(arg))
         return result
-    raise TypeError(
-        'Rags must be list or str, now get {}'.format(type(args))
-    )
+    for arg in args:
+        if isinstance(arg, (list, tuple)):
+            result.append(arg)
+        elif not arg:
+            result.append(arg)
+        else:
+            result.append([arg])
+    return result
+
+
+def tuple_formater(args):
+    res_args = None
+    if not args:
+        return res_args
+    if isinstance(args, list):
+        res_args = tuple(args)
+    elif isinstance(args, str):
+        res_args = tuple([args])
+    return res_args
