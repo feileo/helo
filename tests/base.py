@@ -20,8 +20,6 @@ class UnitTestBase(unittest.TestCase):
 
         async def do_prepare():
             await db.bind(TEST_DBURL, echo=True)
-
-            # await db.batch_create(models.TestTypesModel, models.User)
             await db.create_all(models)
 
         cls.loop = asyncio.new_event_loop()
@@ -32,9 +30,7 @@ class UnitTestBase(unittest.TestCase):
     def tearDownClass(cls):
 
         async def end():
-            # await db.batch_drop(models.TestTypesModel, models.User)
             await db.drop_all(models)
-
             await db.unbind()
 
         cls.loop.run_until_complete(end())

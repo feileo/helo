@@ -1,8 +1,8 @@
 from tests.base import UnitTestBase, unittest
 from tests.models import TestTypesModel, User, db
 from trod.errors import ModifyAutoPkError, ModelSetAttrError, DuplicateBindError
-from trod.types.index import Key
 from trod.types import field
+from trod.types.index import Key
 
 
 class TestModel(UnitTestBase):
