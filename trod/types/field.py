@@ -1,8 +1,3 @@
-# -*- coding=utf8 -*-
-"""
-    Field types and Index types
-"""
-
 from datetime import datetime
 
 from trod.extra.logger import Logger

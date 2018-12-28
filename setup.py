@@ -14,8 +14,9 @@ setup(
     install_requires=[
         'aiomysql',
         'asyncinit',
+        # 'requests'
         # 'qiniu',
-        'coverage'
+        # 'coverage'
     ],
     entry_points={
         # 'console_scripts': [

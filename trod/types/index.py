@@ -1,6 +1,3 @@
-# -*- coding:utf-8 -*-
-""" 索引 """
-
 import traceback
 from trod.utils import Dict
 

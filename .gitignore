@@ -11,7 +11,6 @@
 *.pyc
 *.mp4
 *.mov
-static/
 
 *.pid
 *.sqlite3
@@ -20,6 +19,7 @@ static/
 *.sup
 *.bak
 *.tmproj
+
 .tmp
 .sass-cache
 .coverage
@@ -31,6 +31,7 @@ static/
 dump.rdb
 .project
 .installed.cfg
+static/
 bin/
 develop-eggs/
 Guone.egg-info/

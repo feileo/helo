@@ -6,7 +6,7 @@ from trod.utils import Dict, async_dict_formatter
 
 
 class _TrodModel(_Model):
-    """ Trod orm model, but not exposed """
+    """ Trod model, but not exposed """
 
     @classmethod
     async def create(cls):
@@ -327,6 +327,9 @@ class Trod:
         Args:
             module: a module that defines several models
 
+        Return:
+            A list of created Model name
+
         For example:
             from tests import models
             await db.create_all(models)
@@ -339,13 +342,13 @@ class Trod:
                 if not await value.exist():
                     await value.create()
                     Logger.info(
-                        "Created <Model '{table_name}'> in <db: '{db}'>".format(
+                        "created Model '{table_name}' in db: '{db}'".format(
                             table_name=key, db=self.db_info.info.db.db
                         )
                     )
                     succeed.append(key)
                 else:
-                    Logger.error("<Table '{}>' already exists".format(key))
+                    Logger.error("table '{}' already exists".format(key))
         return succeed
 
     async def batch_create(self, *models):
@@ -354,22 +357,29 @@ class Trod:
         Args:
             models: one or more models
 
+        Return:
+            A list of created table name
+
         For example:
             from tests.models import User, Order
             await db.batch_create(User, Order)
         """
 
         self._checker()
+        succeed = []
         if not models:
             Logger.warning("parameter 'models' is empty, 'batch_create' nothing to do")
-        succeed = []
+            return succeed
+
         for model in models:
-            if isinstance(model, self.Model):
-                raise ValueError('create model type must be {}'.format(type(model)))
+            if not issubclass(model, self.Model):
+                raise ValueError(
+                    'create model type must be {}, get {}'.format(self.Model, model)
+                )
             if not await model.exist():
                 await model.create()
                 Logger.info(
-                    "Created <Table '{table_name}'> in <db: '{db}'>".format(
+                    "created table '{table_name}' in db: '{db}'".format(
                         table_name=model.__meta__.table,
                         db=self.db_info.info.db.db
                     )
@@ -377,7 +387,7 @@ class Trod:
                 succeed.append(model.__meta__.table)
             else:
                 Logger.error(
-                    message="<Table '{}>' already exists".format(model.__meta__.table)
+                    message="table '{}' already exists".format(model.__meta__.table)
                 )
         return succeed
 
@@ -386,6 +396,9 @@ class Trod:
 
         Args:
             module: a module that defines several models
+
+        Return:
+            A list of droped Model name
 
         For example:
             from tests import models
@@ -399,14 +412,14 @@ class Trod:
                 if await value.exist():
                     await value.drop()
                     Logger.info(
-                        "Dropped <Model '{table_name}'> from <db: '{db}'>".format(
-                            table_name=key, db=self.db_info.info.db.db
+                        "dropped Model '{model_name}' from db: '{db}'".format(
+                            model_name=key, db=self.db_info.info.db.db
                         )
                     )
                     succeed.append(key)
                 else:
                     Logger.error(
-                        message="<Drop table '{}>' does not exist".format(key)
+                        message="drop table '{}' does not exist".format(key)
                     )
         return succeed
 
@@ -416,23 +429,29 @@ class Trod:
         Args:
             models: one or more models
 
+        Return:
+            A list of droped table name
+
         For example:
             from tests.models import User, Order
             await db.batch_drop(User, Order)
         """
 
         self._checker()
+        succeed = []
         if not models:
             Logger.warning("parameter 'models' is empty, 'batch_drop' nothing to do")
+            return succeed
 
-        succeed = []
         for model in models:
-            if isinstance(model, self.Model):
-                raise ValueError('drop model type must be {}'.format(type(self.Model)))
+            if not issubclass(model, self.Model):
+                raise ValueError(
+                    'drop model type must be {}, get {}'.format(self.Model, model)
+                )
             if await model.exist():
                 await model.drop()
                 Logger.info(
-                    "Dropped <Table '{table_name}'> in <db: '{db}'>".format(
+                    "dropped table '{table_name}' from db: '{db}'".format(
                         table_name=model.__meta__.table,
                         db=self.db_info.info.db.db
                     )
@@ -440,6 +459,6 @@ class Trod:
                 succeed.append(model.__meta__.table)
             else:
                 Logger.error(
-                    message="<Drop table '{}>' does not exist".format(model.__meta__.table)
+                    message="drop table '{}' does not exist".format(model.__meta__.table)
                 )
         return succeed
