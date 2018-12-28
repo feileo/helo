@@ -25,6 +25,7 @@ TABLE_DEFAULT = {
 
 
 class _ModelMetaclass(type):
+    """ Metaclass of Trod Model """
 
     def __new__(cls, name, bases, attrs):
         if name in ['_Model', '_TrodModel']:
@@ -127,6 +128,7 @@ class _ModelMetaclass(type):
 
 
 class _Model(metaclass=_ModelMetaclass):
+    """ Interact with RequestClient to provide model functionality """
 
     def __init__(self, **kwargs):
         for attr in kwargs:
@@ -225,15 +227,21 @@ class _Model(metaclass=_ModelMetaclass):
 
     @classmethod
     async def _create(cls):
+        """ do create table """
+
         return await RequestClient().execute(cls._get_create_sql())
 
     @classmethod
     async def _drop(cls):
+        """ do drop table """
+
         drop_sql = SQL.drop.format(table_name=cls.__meta__.table)
         return await RequestClient().execute(drop_sql)
 
     @classmethod
     async def _alter(cls, modify_col=None, add_col=None, drop_col=None):
+        """ do alter table """
+
         if not any([modify_col, add_col, drop_col]):
             return None
 
@@ -249,6 +257,8 @@ class _Model(metaclass=_ModelMetaclass):
 
     @classmethod
     async def _show_create(cls):
+        """ do show table create """
+
         show_create_sql = SQL.show.create.format(table_name=cls.__meta__.table)
         result = await RequestClient().fetch(
             show_create_sql, rows=1
@@ -259,6 +269,8 @@ class _Model(metaclass=_ModelMetaclass):
 
     @classmethod
     async def _show_struct(cls):
+        """ do show table struct """
+
         table_name = cls.__meta__.table
         show_clo_sql = SQL.show.columns.format(
             table_name=table_name, rows=1
@@ -274,6 +286,8 @@ class _Model(metaclass=_ModelMetaclass):
 
     @classmethod
     async def _exist(cls):
+        """ query table is exist """
+
         if not RequestClient.is_usable():
             return False
         exist_sql = SQL.exist.format(
@@ -296,6 +310,8 @@ class _Model(metaclass=_ModelMetaclass):
 
     @classmethod
     async def _do_add(cls, instance):
+        """ do add a instance data """
+
         cols = list(instance.__dict__.keys())
         values = cls._get_add_values(instance, cols)
         insert_sql = cls._get_insert_sql(cols)
@@ -313,11 +329,15 @@ class _Model(metaclass=_ModelMetaclass):
 
     @classmethod
     async def _add(cls, instance):
+        """ add a instance data """
+
         cls._save_pk_checker(instance)
         return await cls._do_add(instance)
 
     @classmethod
     async def _batch_add(cls, instances):
+        """ batch add instance """
+
         if not isinstance(instances, (list, tuple)):
             raise ValueError(f'Add illegal type {instances}')
 
@@ -343,8 +363,8 @@ class _Model(metaclass=_ModelMetaclass):
 
     @classmethod
     async def _remove(cls, where):
-        """
-        """
+        """ do remove by where condition """
+
         if not isinstance(where, (_Where, _Logic)):
             raise ValueError('Invalid where type {}'.format(type(where)))
         where_format = where.format_()
@@ -359,10 +379,8 @@ class _Model(metaclass=_ModelMetaclass):
 
     @classmethod
     async def _updete(cls, data, where=None):
-        """
-        data: dict, {'name': 'hehe'} or Dict(name='hehe')
-        where: Where object
-        """
+        """ do update by where condition """
+
         if not isinstance(data, dict):
             raise ValueError('Invalid data type')
 
@@ -394,9 +412,8 @@ class _Model(metaclass=_ModelMetaclass):
 
     @classmethod
     async def _get(cls, id_):
-        """
-        Get by id
-        """
+        """ get by id """
+
         select_sql = SQL.select.by_id.format(
             cols=','.join([c.join('``') for c in cls._get_all_select_cols()]),
             table_name=cls.__meta__.table,
@@ -407,9 +424,8 @@ class _Model(metaclass=_ModelMetaclass):
 
     @classmethod
     async def _batch_get(cls, id_list, cols=None):
-        """
-        Get by id list
-        """
+        """ batch get by id list"""
+
         if not isinstance(id_list, (list, tuple)):
             raise ValueError('id_list must be a list or tuple')
         if cols:
@@ -427,6 +443,8 @@ class _Model(metaclass=_ModelMetaclass):
 
     @classmethod
     def _query(cls, *cols):
+        """ model query """
+
         query_cols = []
         if cols:
             for _c in cols:
@@ -441,10 +459,14 @@ class _Model(metaclass=_ModelMetaclass):
         return _Generator(cls, query_cols)
 
     async def _save(self):
+        """ save self """
+
         self._save_pk_checker(self)
         return await self._do_add(self)
 
     async def _delete(self):
+        """ delete self """
+
         self_pk = self.__table__.pk
         pk_value = self._get_value(self_pk)
         if pk_value is None:

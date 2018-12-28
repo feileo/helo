@@ -56,11 +56,11 @@ class BaseLog:
 
 class Logger:
     """
-    生成如下格式log
     BaseLog.Bcolors [E event time] trace(filename->funcname) message
     BaseLog.Bcolors [I event time] message
     BaseLog.Bcolors [W event time] message
     """
+
     error_partten = BaseLog.Bcolors.ERROR + '[E {0} {1}] {2}' + BaseLog.Bcolors.ENDC
     info_partten = '[I {0} {1}] {2}'
     warning_partten = BaseLog.Bcolors.WARNING + '[W {0} {1}] {2}' + BaseLog.Bcolors.ENDC

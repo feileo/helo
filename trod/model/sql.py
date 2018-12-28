@@ -47,6 +47,7 @@ class _Where:
     }
 
     def __init__(self, column, operator, value):
+
         if operator not in self.OPERATORS:
             raise ValueError(f'Does not support the {operator} operator')
         if isinstance(value, str):
@@ -68,6 +69,7 @@ class _Where:
         return self.where
 
     def format_(self):
+
         if self.where.operator == self.OPERATORS['in']:
             _where_stmt = '{col}{ope}{values}'.format(
                 col=self.where.column, ope=self.where.operator,
@@ -92,6 +94,7 @@ class _Logic:
     _LOGIC = ""
 
     def __init__(self, *where_objects):
+
         wheres, args, cols = [], [], []
         for where in where_objects:
             if isinstance(where, _Where):
@@ -115,6 +118,7 @@ class _Logic:
         self._cols = cols
 
     def format_(self):
+
         return Dict(
             where=self._LOGIC.join(self._all_cdtns),
             arg=self._args,
@@ -169,6 +173,8 @@ class _Generator:
         return self._sql_template.format(**self._render_data)
 
     def filter(self, where):
+        """ Query condition filter """
+
         if not isinstance(where, (_Where, _Logic)):
             raise ValueError('Invalid filter condition')
         where_format = where.format_()
@@ -178,6 +184,8 @@ class _Generator:
         return self
 
     def group_by(self, *cols):
+        """ Generate group by clause  """
+
         group_by_tpl = "GROUP BY {cols}"
         if not cols:
             raise ValueError("Group by can't have no field")
@@ -191,6 +199,8 @@ class _Generator:
         return self
 
     def order_by(self, col=None, desc=False):
+        """ Generate order by clause  """
+
         order_by_tpl = "ORDER BY {col} {desc}"
         desc = 'DESC' if desc else 'ASC'
         if col is None:
@@ -203,6 +213,8 @@ class _Generator:
         return self
 
     async def rows(self, limit=1000, offset=0):
+        """ Generate limit clause  """
+
         limit_tpl = 'LIMIT {limit} OFFSET {offset}'
         self._render_data.limit_clause = limit_tpl.format(
             limit=limit, offset=offset
@@ -213,6 +225,8 @@ class _Generator:
         return Loader(self._model, result).load()
 
     async def first(self):
+        """ Select first  """
+
         limit = 'LIMIT 1'
         self._render_data.limit_clause = limit
         result = await RequestClient().fetch(
@@ -223,12 +237,16 @@ class _Generator:
         return Loader(self._model, result).load()
 
     async def all(self):
+        """ Select all  """
+
         result = await RequestClient().fetch(self._render(), args=self._values)
         if self._has_func:
             return _do_format(result)
         return Loader(self._model, result).load()
 
     async def scalar(self):
+        """ return a count  """
+
         if self._has_col is True:
             raise RuntimeError('Invalid call, Maybe you can try to call first()')
         result = await RequestClient().fetch(
@@ -243,6 +261,8 @@ class _Generator:
     @classmethod
     def alter(cls, new_dict, table_name, modify_list=None,
               add_list=None, drop_list=None):
+        """ Table alter syntax generator """
+
         alter_clause = []
         if modify_list is not None:
             for col in modify_list:
@@ -293,14 +313,25 @@ class _Generator:
 
 
 class And(_Logic):
+    """
+    Model query by:
+        And(User.name == user.name, User.age < user.age)
+    """
+
     _LOGIC = " AND "
 
 
 class Or(_Logic):
+    """
+    Model query by:
+        Or(User.age == user.age, User.id.in_([1,2,3]))
+    """
+
     _LOGIC = " OR "
 
 
 class Func:
+    """ Basic mysql function  """
 
     def __init__(self, func=None):
         self.func = func

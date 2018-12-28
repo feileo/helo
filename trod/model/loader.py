@@ -1,11 +1,14 @@
 
 class Loader:
+    """ Convert data of type Dict to model """
 
     def __init__(self, model, data):
         self.model = model
         self.data = data
 
     def load(self):
+        """ Load self.data to some model instance """
+
         if not self.data:
             return None
         if isinstance(self.data, (list, tuple)):
