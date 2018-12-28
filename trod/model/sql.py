@@ -172,7 +172,7 @@ class _Generator:
         if not isinstance(where, (_Where, _Logic)):
             raise ValueError('Invalid filter condition')
         where_format = where.format_()
-        self._model.has_cols_checker(where_format.col)
+        self._model._has_cols_checker(where_format.col)
         self._render_data.where_clause = "WHERE {}".format(where_format.where)
         self._values = where_format.arg
         return self
@@ -184,7 +184,7 @@ class _Generator:
         col_names = []
         for _c in cols:
             col_names.append(_get_col_type_name(_c))
-        self._model.has_cols_checker(col_names)
+        self._model._has_cols_checker(col_names)
         self._render_data.group_clause = group_by_tpl.format(
             cols=','.join([c.join('``') for c in col_names])
         )
@@ -196,7 +196,7 @@ class _Generator:
         if col is None:
             col = self._model.__table__.pk
         col = _get_col_type_name(col)
-        self._model.has_cols_checker(col)
+        self._model._has_cols_checker(col)
         self._render_data.order_clause = order_by_tpl.format(
             col=col.join('``'), desc=desc
         )
@@ -246,6 +246,7 @@ class _Generator:
         alter_clause = []
         if modify_list is not None:
             for col in modify_list:
+                col = _get_col_type_name(col)
                 if col in list(new_dict.field_dict.keys()):
                     alter_clause.append(
                         "MODIFY COLUMN `{}` {}".format(col, new_dict.field_dict[col].build())
@@ -254,6 +255,7 @@ class _Generator:
                     raise RuntimeError(f"Modify column/key '{col}' not found")
         if add_list is not None:
             for col in add_list:
+                col = _get_col_type_name(col)
                 if col in new_dict.field_dict:
                     cols = list(new_dict.field_dict.keys())
                     col_seq = cols.index(col)
@@ -284,6 +286,7 @@ class _Generator:
                     raise RuntimeError(f"Add column/key '{col}' not found")
         if drop_list is not None:
             for col in drop_list:
+                col = _get_col_type_name(col)
                 alter_clause.append(f"DROP COLUMN `{col}`")
 
         return SQL.alter.format(table_name=table_name, clause=', '.join(alter_clause))

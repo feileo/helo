@@ -17,6 +17,7 @@ class Executer:
         """
         arg: conn_pool is a `Connector` instance
         """
+
         if not isinstance(conn_pool, Connector):
             raise ValueError('Init connection pool must be `Connector` type')
         self.conn_pool = conn_pool
@@ -24,6 +25,7 @@ class Executer:
     @property
     def autocommit(self):
         """ Whether to automatically submit a transaction """
+
         return self.conn_pool.db.extra.autocommit
 
     @async_dict_formatter
@@ -47,7 +49,6 @@ class Executer:
                     error = exc_type(exc_value)
                     raise error
 
-    @async_dict_formatter
     async def execute(self, sql, args=None, batch=False):
         sql = sql.strip()
         if args:
@@ -72,18 +73,21 @@ class Executer:
                 exc_type, exc_value, _ = sys.exc_info()
                 error = exc_type(exc_value)
                 raise error
-            return {'last_id': last_id, 'affected': affected}
+            return Dict(last_id=last_id, affected=affected)
 
     async def close(self):
         """ A coroutine that close self.conn_pool. """
+
         await self.conn_pool.close()
 
     def connect_status(self):
         """ Current connection pool status """
+
         return self.conn_pool.status
 
     def connect_info(self):
         """ Db info """
+
         return self.conn_pool.db
 
 
@@ -112,6 +116,7 @@ class RequestClient:
     @classmethod
     async def bind_db(cls, **kwargs):
         """ A coroutine that bind db for `RequestClient` """
+
         useful_kwargs = kwargs.copy()
         for arg, value in kwargs.items():
             if value is None:
@@ -125,6 +130,7 @@ class RequestClient:
     @classmethod
     async def bind_db_by_conn(cls, connector):
         """ A coroutine that bind db for `RequestClient` by connector """
+
         if cls.executer is not None:
             raise DuplicateBindError('Duplicate database binding')
         cls.executer = Executer(connector)
@@ -133,6 +139,7 @@ class RequestClient:
     @classmethod
     async def unbind(cls):
         """ A coroutine that call `executer.close()` to unbind db"""
+
         if cls.executer is not None:
             await cls.executer.close()
         else:
@@ -142,11 +149,13 @@ class RequestClient:
     @classmethod
     def is_usable(cls):
         """ return a bool is bind a db """
+
         return bool(cls.executer)
 
     @classmethod
     def get_conn_status(cls):
         """ db Connection pool status """
+
         if cls.executer:
             return cls.executer.connect_status()
         return {}
@@ -154,31 +163,36 @@ class RequestClient:
     @classmethod
     def get_conn_info(cls):
         """ db self info """
+
         if cls.executer:
             return cls.executer.connect_info()
         return {}
 
     async def execute(self, excu_sql, values=None, is_batch=False):
         """ A coroutine that proxy execute sql request """
+
         return await self.executer.execute(
             excu_sql, args=values, batch=is_batch
         )
 
     async def exist(self, exist_sql):
         """ A coroutine that return a bool is table is exist """
+
         result = await self.executer.fetch(exist_sql)
         return bool(result)
 
     async def fetch(self, query, args=None, rows=None):
         """ A coroutine that proxy fetch sql request """
+
         return await self.executer.fetch(
             query, args=args, rows=rows
         )
 
     async def text(self, sql, args=None, rows=None, batch=False):
         """ A coroutine that execute sql text """
+
         is_fetch = True
-        if sql.find('SELECT"') or sql.find('select'):
+        if 'SELECT' in sql or 'select' in sql:
             result = await self.executer.fetch(sql, args=args, rows=rows)
         else:
             is_fetch = False

@@ -1,4 +1,3 @@
-# -*- coding=utf8 -*-
 """
 # Description:
 """
@@ -45,7 +44,7 @@ def _do_format(result):
             fmt_result.append(_do_format(item))
         return fmt_result
     else:
-        raise ValueError('Invalid data type to convert Dict')
+        raise ValueError(f'Invalid data type {result} to convert Dict')
 
 
 def dict_formatter(func):

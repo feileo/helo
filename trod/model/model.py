@@ -10,7 +10,7 @@ from trod.errors import (
 from trod.extra.logger import Logger
 from trod.model.loader import Loader
 from trod.model.sql import SQL, _Generator, _Logic, _Where, Func
-from trod.types.field import BaseField, Bigint
+from trod.types.field import BaseField
 from trod.types.index import BaseIndex
 from trod.utils import Dict, dict_formatter, to_list
 
@@ -27,7 +27,7 @@ TABLE_DEFAULT = {
 class _ModelMetaclass(type):
 
     def __new__(cls, name, bases, attrs):
-        if name == 'TrodModel':
+        if name in ['_Model', '_TrodModel']:
             return type.__new__(cls, name, bases, attrs)
 
         @dict_formatter
@@ -118,13 +118,15 @@ class _ModelMetaclass(type):
         elif key == cls.__table__.pk:
             return None
         else:
-            raise AttributeError('Model class does not have this attribute')
+            raise AttributeError(
+                f'Model class does not have `{key}` attribute'
+            )
 
     def __setattr__(cls, _key, _value):
         raise ModelSetAttrError('Model class not allow set attribute')
 
 
-class TrodModel(metaclass=_ModelMetaclass):
+class _Model(metaclass=_ModelMetaclass):
 
     def __init__(self, **kwargs):
         for attr in kwargs:
@@ -222,16 +224,16 @@ class TrodModel(metaclass=_ModelMetaclass):
         return select_cols
 
     @classmethod
-    async def create(cls):
+    async def _create(cls):
         return await RequestClient().execute(cls._get_create_sql())
 
     @classmethod
-    async def drop(cls):
+    async def _drop(cls):
         drop_sql = SQL.drop.format(table_name=cls.__meta__.table)
         return await RequestClient().execute(drop_sql)
 
     @classmethod
-    async def alter(cls, modify_col=None, add_col=None, drop_col=None):
+    async def _alter(cls, modify_col=None, add_col=None, drop_col=None):
         if not any([modify_col, add_col, drop_col]):
             return None
 
@@ -246,14 +248,17 @@ class TrodModel(metaclass=_ModelMetaclass):
         return await RequestClient().execute(alter_sql)
 
     @classmethod
-    async def show_create(cls):
+    async def _show_create(cls):
         show_create_sql = SQL.show.create.format(table_name=cls.__meta__.table)
-        return await RequestClient().fetch(
+        result = await RequestClient().fetch(
             show_create_sql, rows=1
+        )
+        return Dict(
+            table_name=result['Table'], create_syntax=result['Create Table']
         )
 
     @classmethod
-    async def show_struct(cls):
+    async def _show_struct(cls):
         table_name = cls.__meta__.table
         show_clo_sql = SQL.show.columns.format(
             table_name=table_name, rows=1
@@ -268,7 +273,7 @@ class TrodModel(metaclass=_ModelMetaclass):
         return result
 
     @classmethod
-    async def exist(cls):
+    async def _exist(cls):
         if not RequestClient.is_usable():
             return False
         exist_sql = SQL.exist.format(
@@ -278,7 +283,7 @@ class TrodModel(metaclass=_ModelMetaclass):
         return await RequestClient().exist(exist_sql)
 
     @classmethod
-    def has_cols_checker(cls, cols):
+    def _has_cols_checker(cls, cols):
         if isinstance(cols, str):
             cols = [cols]
         for _c in cols:
@@ -290,7 +295,7 @@ class TrodModel(metaclass=_ModelMetaclass):
                 )
 
     @classmethod
-    async def _add(cls, instance):
+    async def _do_add(cls, instance):
         cols = list(instance.__dict__.keys())
         values = cls._get_add_values(instance, cols)
         insert_sql = cls._get_insert_sql(cols)
@@ -299,6 +304,7 @@ class TrodModel(metaclass=_ModelMetaclass):
             Logger.error(
                 f'Failed to insert, affected rows: {result.affected}'
             )
+            return None
         if cls.__meta__.auto_pk is True:
             instance._set_value(cls.__table__.pk, result.last_id, is_loader=True)
         else:
@@ -306,12 +312,12 @@ class TrodModel(metaclass=_ModelMetaclass):
         return result.last_id
 
     @classmethod
-    async def add(cls, instance):
+    async def _add(cls, instance):
         cls._save_pk_checker(instance)
-        return await cls._add(instance)
+        return await cls._do_add(instance)
 
     @classmethod
-    async def batch_add(cls, instances):
+    async def _batch_add(cls, instances):
         if not isinstance(instances, (list, tuple)):
             raise ValueError(f'Add illegal type {instances}')
 
@@ -336,14 +342,14 @@ class TrodModel(metaclass=_ModelMetaclass):
         return result
 
     @classmethod
-    async def remove(cls, where):
+    async def _remove(cls, where):
         """
         """
         if not isinstance(where, (_Where, _Logic)):
             raise ValueError('Invalid where type {}'.format(type(where)))
         where_format = where.format_()
 
-        cls.has_cols_checker(where_format.col)
+        cls._has_cols_checker(where_format.col)
         remove_sql = SQL.delete.format(
             table_name=cls.__meta__.table, condition=where_format.where
         )
@@ -352,7 +358,7 @@ class TrodModel(metaclass=_ModelMetaclass):
         )
 
     @classmethod
-    async def updete(cls, data, where=None):
+    async def _updete(cls, data, where=None):
         """
         data: dict, {'name': 'hehe'} or Dict(name='hehe')
         where: Where object
@@ -365,7 +371,7 @@ class TrodModel(metaclass=_ModelMetaclass):
             if not isinstance(where, (_Where, _Logic)):
                 raise ValueError('Invalid where type {}'.format(type(where)))
             where_format = where.format_()
-            cls.has_cols_checker(where_format.col)
+            cls._has_cols_checker(where_format.col)
 
         update_fields = list(data.keys())
         update_values = [data[f] for f in update_fields]
@@ -387,7 +393,7 @@ class TrodModel(metaclass=_ModelMetaclass):
         return await RequestClient().execute(updete_sql, values=update_values)
 
     @classmethod
-    async def get(cls, id_):
+    async def _get(cls, id_):
         """
         Get by id
         """
@@ -400,14 +406,14 @@ class TrodModel(metaclass=_ModelMetaclass):
         return Loader(cls, result).load()
 
     @classmethod
-    async def batch_get(cls, id_list, cols=None):
+    async def _batch_get(cls, id_list, cols=None):
         """
         Get by id list
         """
         if not isinstance(id_list, (list, tuple)):
             raise ValueError('id_list must be a list or tuple')
         if cols:
-            cls.has_cols_checker(cols)
+            cls._has_cols_checker(cols)
         else:
             cols = cls._get_all_select_cols()
         select_sql = SQL.select.by_ids.format(
@@ -420,25 +426,25 @@ class TrodModel(metaclass=_ModelMetaclass):
         return Loader(cls, result).load()
 
     @classmethod
-    def query(cls, *cols):
+    def _query(cls, *cols):
         query_cols = []
         if cols:
-            for c in cols:
-                if isinstance(c, (Func, str)):
-                    query_cols.append(c)
-                elif isinstance(c, BaseField):
-                    query_cols.append(c.name)
-            cls.has_cols_checker(query_cols)
+            for _c in cols:
+                if isinstance(_c, (Func, str)):
+                    query_cols.append(_c)
+                elif isinstance(_c, BaseField):
+                    query_cols.append(_c.name)
+            cls._has_cols_checker(query_cols)
         else:
             query_cols = cls._get_all_select_cols()
 
         return _Generator(cls, query_cols)
 
-    async def save(self):
+    async def _save(self):
         self._save_pk_checker(self)
-        return await self._add(self)
+        return await self._do_add(self)
 
-    async def delete(self):
+    async def _delete(self):
         self_pk = self.__table__.pk
         pk_value = self._get_value(self_pk)
         if pk_value is None:

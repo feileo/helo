@@ -93,7 +93,7 @@ class Connector:
                   asyncio.get_event_loop() is used if loop is not specified.
             kwargs: and etc.
 
-        :returns : a `Connector` instance
+        returns : a `Connector` instance
         """
 
         if not url:
@@ -141,6 +141,7 @@ class Connector:
     @dict_formatter
     def status(self):
         """ connection pool status """
+
         return {
             'minsize': self.connector.minsize,
             'maxsize': self.connector.maxsize,
@@ -153,10 +154,12 @@ class Connector:
     @dict_formatter
     def db(self):
         """ Db info """
+
         return self.connector.conn()
 
     def get(self):
         """ Get a connection """
+
         return self.connector.acquire()
 
     def release(self, connect):
@@ -167,11 +170,13 @@ class Connector:
         """ A coroutine that closes all free connections in the pool.
             At next connection acquiring at least minsize of them will be recreated
         """
+
         await self.connector.clear()
         return True
 
     async def close(self):
         """ A coroutine that close pool. """
+
         await self.connector.close_pool()
         return True
 
@@ -215,21 +220,25 @@ class _MySQLConnector:
 
     def conn(self):
         """ Db info """
+
         return {'db': self._db, 'extra': self._extra}
 
     @property
     def echo(self):
         """ echo mode"""
+
         return self._pool.echo
 
     @property
     def minsize(self):
         """ pool minsize """
+
         return self._pool.minsize
 
     @property
     def maxsize(self):
         """ pool maxsize"""
+
         return self._pool.maxsize
 
     @property
@@ -242,26 +251,31 @@ class _MySQLConnector:
     @property
     def freesize(self):
         """ Pool free size """
+
         return self._pool.freesize
 
     def acquire(self):
         """ Get a connection """
+
         return self._pool.acquire()
 
     def release(self, connect):
         """ Release free connection """
+
         return self._pool.release(connect)
 
     async def clear(self):
         """ A coroutine that close all free connection  """
+
         await self._pool.clear()
 
     async def close_pool(self):
         """ A coroutine that close pool """
-        Logger.info('Database connection pool closed')
+
         if self._pool is not None:
             self._pool.close()
             await self._pool.wait_closed()
+        Logger.info('Database connection pool closed')
 
 
 class ParseUrl:
@@ -273,11 +287,13 @@ class ParseUrl:
 
     def _register(self):
         """ Register database schemes in URLs """
+
         for scheme in self.schemes:
             urlparse.uses_netloc.append(scheme)
 
     def is_illegal_url(self):
         """ A bool of is illegal url """
+
         url = urlparse.urlparse(self.url)
         if all([url.scheme, url.netloc]):
             return True

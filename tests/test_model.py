@@ -1,6 +1,6 @@
 from tests.base import UnitTestBase, unittest
-from tests.models import TestTypesModel, User
-from trod.errors import ModifyAutoPkError, ModelSetAttrError
+from tests.models import TestTypesModel, User, db
+from trod.errors import ModifyAutoPkError, ModelSetAttrError, DuplicateBindError
 from trod.types.index import Key
 from trod.types import field
 
@@ -10,16 +10,6 @@ class TestModel(UnitTestBase):
     def test_model(self):
 
         async def do_test():
-
-            # table_is_exist = await TestTypesModel.exist()
-            # if table_is_exist:
-            #     self.assertTrue(await TestTypesModel.drop())
-            # self.assertTrue(await TestTypesModel.create())
-
-            # table_is_exist = await User.exist()
-            # if table_is_exist:
-            #     self.assertTrue(await User.drop())
-            # self.assertTrue(await User.create())
 
             self.assertTrue(await TestTypesModel.show_create())
             self.assertTrue(await TestTypesModel.show_struct())
@@ -57,9 +47,40 @@ class TestModel(UnitTestBase):
             self.assertIsNone(await TestTypesModel.alter())
             self.assertTrue(
                 await TestTypesModel.alter(
-                    modify_col=['string', 'decimal'], drop_col='now'
+                    modify_col=[TestTypesModel.string, TestTypesModel.decimal],
+                    drop_col=TestTypesModel.now
                 )
             )
+
+        self.loop.run_until_complete(do_test())
+
+    def test_trod(self):
+
+        async def do_test():
+
+            self.assertTrue(db.is_bind)
+
+            try:
+                await db.bind('')
+                assert False, 'Should be raise a DuplicateBindError'
+            except DuplicateBindError:
+                pass
+
+            self.assertTrue(db.db_info)
+
+            succeed = await db.batch_drop(TestTypesModel, User)
+            self.assertEqual(len(succeed), 2)
+            succeed = await db.batch_create(TestTypesModel, User)
+            self.assertEqual(len(succeed), 2)
+
+            sql = "INSERT INTO `user` (`id`, `name`, `num`) values (100, 'test', 1234)"
+            result = await db.text(sql)
+            self.assertEqual(result.affected, 1)
+
+            sql = 'SELECT `name`, `num` FROM `user` WHERE id=100'
+            query_user = await db.text(sql, rows=1)
+            self.assertEqual(query_user.name, 'test')
+            self.assertEqual(query_user.num, 1234)
 
         self.loop.run_until_complete(do_test())
 
