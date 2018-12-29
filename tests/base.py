@@ -3,8 +3,8 @@
 import asyncio
 import unittest
 
-from tests.models import db
 from tests import models
+from tests.models import db
 
 
 TEST_DBURL = 'mysql://root:txymysql1234@cdb-m0f0sibq.bj.tencentcdb.com:10036/trod?charset=utf8'
@@ -19,7 +19,6 @@ class UnitTestBase(unittest.TestCase):
     def setUpClass(cls):
 
         async def do_prepare():
-            await db.bind(TEST_DBURL, echo=True)
             await db.create_all(models)
 
         cls.loop = asyncio.new_event_loop()
@@ -31,7 +30,28 @@ class UnitTestBase(unittest.TestCase):
 
         async def end():
             await db.drop_all(models)
-            await db.unbind()
 
         cls.loop.run_until_complete(end())
         cls.loop.close()
+
+
+class TestPrepare(unittest.TestCase):
+
+    def setUp(self):
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(None)
+
+    def tearDown(self):
+        self.loop.close()
+
+    def bind_db(self):
+        async def do_bind():
+            await db.bind(TEST_DBURL, echo=True)
+
+        self.loop.run_until_complete(do_bind())
+
+    def unbind_db(self):
+        async def do_unbind():
+            await db.unbind()
+
+        self.loop.run_until_complete(do_unbind())

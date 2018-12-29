@@ -75,7 +75,7 @@ def singleton(cls):
 
     @wraps(cls)
     async def getinstance(*args, **kw):
-        if (cls not in instances) or cls.is_depr:
+        if cls not in instances:
             instances[cls] = await cls(*args, **kw)
         return instances[cls]
     return getinstance

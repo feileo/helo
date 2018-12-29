@@ -68,6 +68,9 @@ class TestDB(unittest.TestCase):
 
             self.assertTrue(await RequestClient.unbind())
 
+            # import gc
+            # gc.collect()
+
         self.loop.run_until_complete(do_test())
 
 

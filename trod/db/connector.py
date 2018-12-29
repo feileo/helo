@@ -131,7 +131,7 @@ class Connector:
 
     def __repr__(self):
         return "<class '{} for {}:{}'>".format(
-            self.__class__.__name__, self.db.host, self.db.port
+            self.__class__.__name__, self.db.db.host, self.db.db.port
         )
 
     __str__ = __repr__
@@ -163,13 +163,13 @@ class Connector:
 
     def release(self, connect):
         """ Reverts connection conn to free pool for future recycling. """
+
         return self.connector.release(connect)
 
     async def clear(self):
         """ A coroutine that closes all free connections in the pool.
             At next connection acquiring at least minsize of them will be recreated
         """
-
         await self.connector.clear()
         return True
 
@@ -177,7 +177,7 @@ class Connector:
         """ A coroutine that close pool. """
 
         await self.connector.close_pool()
-        self.connector = None
+        del self.connector
         return True
 
 
