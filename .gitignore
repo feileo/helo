@@ -33,8 +33,10 @@ dump.rdb
 .installed.cfg
 static/
 bin/
+trod.egg-info/
 develop-eggs/
-Guone.egg-info/
+build/
+dist/
 parts/
 eggs/
 gen-py/

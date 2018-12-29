@@ -2,10 +2,19 @@
 trod
 ====
 
+.. image:: https://img.shields.io/pypi/v/trod.svg
+        :target: https://pypi.org/project/trod
+
+.. image:: https://travis-ci.org/acthse/trod.svg?branch=master
+    :target: https://travis-ci.org/acthse/trod
+
+.. image:: https://img.shields.io/azure-devops/coverage/:organization/:project/:definitionId.svg
+
 .. image:: https://img.shields.io/badge/language-python3-orange.svg
 
-Trod is a very simple asynchronous Python ORM based on asyncio. 
-Currently it only supports mysql and uses aiomysql as the database access driver.
+ 
+Trod is a very simple asynchronous Python ORM based on asyncio_. 
+Currently it only supports MySQL and uses aiomysql_ as the database access driver.
 
 * Strictly, trod is not an orm, just working in orm mode. The objects in trod 
   are completely isolated from the data in the database. It is only a Python object 
@@ -15,6 +24,7 @@ Currently it only supports mysql and uses aiomysql as the database access driver
 * Trod simply uses the model and the object and its API to form the SQL statement, 
   which is submitted to the database for change when executed. When loading, 
   the data is taken from the database and then wrapped into objects.
+
 
 Installation
 ------------
@@ -27,7 +37,8 @@ Installation
 Documentation
 -------------
 
-* Quick start
+* QuickStart_
+
 
 Basic Example
 --------
@@ -100,8 +111,13 @@ Basic Example
 
     asyncio.get_event_loop().run_until_complete(show_case())
 
+
 Requirements
 ------------
+
 * Python 3.6+
-* asyncio
-* asyncinit
+* asyncio_
+
+.. _asyncio: https://docs.python.org/3/library/asyncio.html
+.. _aiomysql: https://github.com/aio-libs/aiomysql
+.. _QuickStart: https://github.com/acthse/trod/blob/master/docs/doc.md

@@ -2,11 +2,10 @@ import urllib.parse as urlparse
 from enum import Enum, unique
 
 import aiomysql
-from asyncinit import asyncinit
 
 from trod.errors import InvaildDBUrlError
 from trod.extra.logger import Logger
-from trod.utils import dict_formatter, singleton
+from trod.utils import dict_formatter, singleton, asyncinit
 
 
 @unique
@@ -178,6 +177,7 @@ class Connector:
         """ A coroutine that close pool. """
 
         await self.connector.close_pool()
+        self.connector = None
         return True
 
 
@@ -187,6 +187,7 @@ class _MySQLConnector:
     """
     Create a connection by aiomysql.create_pool().
     """
+    is_depr = False
 
     async def __init__(self, minsize, maxsize, pool_recycle,
                        echo, loop, dbpath={}, extra={}):
@@ -272,9 +273,11 @@ class _MySQLConnector:
     async def close_pool(self):
         """ A coroutine that close pool """
 
+        self.is_depr = True
         if self._pool is not None:
             self._pool.close()
             await self._pool.wait_closed()
+        del self
         Logger.info('Database connection pool closed')
 
 

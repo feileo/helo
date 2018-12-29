@@ -1,3 +1,4 @@
+import inspect
 from functools import wraps
 
 
@@ -26,6 +27,60 @@ class Dict(dict):
         self[key] = value
 
 
+def asyncinit(obj):
+    """
+        A class decorator that add async `__init__` functionality.
+    """
+
+    if not inspect.isclass(obj):
+        raise ValueError("decorated object must be a class")
+
+    if obj.__new__ is object.__new__:
+        cls_new = _new
+    else:
+        cls_new = _force_async(obj.__new__)
+
+    @wraps(obj.__new__)
+    async def new(cls, *args, **kwargs):
+        self = await cls_new(cls, *args, **kwargs)
+
+        cls_init = _force_async(self.__init__)
+        await cls_init(*args, **kwargs)
+
+        return self
+
+    obj.__new__ = new
+
+    return obj
+
+
+async def _new(cls, *_args, **_kwargs):
+    return object.__new__(cls)
+
+
+def _force_async(f_n):
+    if inspect.iscoroutinefunction(f_n):
+        return f_n
+
+    async def wrapped(*args, **kwargs):
+        return f_n(*args, **kwargs)
+
+    return wrapped
+
+
+def singleton(cls):
+    """ A singleton decorator of asyncinit class """
+
+    instances = {}
+
+    @wraps(cls)
+    async def getinstance(*args, **kw):
+        if (cls not in instances) or cls.is_depr:
+            instances[cls] = await cls(*args, **kw)
+        return instances[cls]
+    return getinstance
+
+
 def dict_formatter(func):
     """ A function decorator that convert the returned dict object to Dict
         If it is a list, recursively convert its elements
@@ -46,19 +101,6 @@ def async_dict_formatter(func):
         result = await func(*args, **kwargs)
         return _do_format(result)
     return convert
-
-
-def singleton(cls):
-    """ Singleton function decorator """
-
-    instances = {}
-
-    @wraps(cls)
-    def getinstance(*args, **kw):
-        if cls not in instances:
-            instances[cls] = cls(*args, **kw)
-        return instances[cls]
-    return getinstance
 
 
 def to_list(*args):
