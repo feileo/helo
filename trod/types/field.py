@@ -6,6 +6,7 @@ from trod.model.sql import _Where
 
 class BaseField:
     """ Field types base """
+
     _py_type = None
     _db_type = None
     _type_sql_tpl = None
@@ -42,20 +43,33 @@ class BaseField:
         return _Where(column=self.name, operator='<=', value=data)
 
     def in_(self, data):
+        """
+        For example:
+            await User.remove(User.id.in_([1,2,3]))
+        """
+
         return _Where(column=self.name, operator='in', value=data)
 
     def like(self, data):
+        """ Similar `in` """
+
         return _Where(column=self.name, operator='like', value=data)
 
     def build_type(self):
+        """ Build field type """
+
         raise NotImplementedError
 
     def build(self):
+        """ Generate field definition syntax """
+
         field_sql = [self.build_type()]
         field_sql.extend(self.build_stmt())
         return ' '.join(field_sql)
 
     def build_stmt(self):
+        """ Build field definition """
+
         stmt = []
 
         if self.allow_null is True or self.allow_null == 1:
@@ -81,21 +95,29 @@ class BaseField:
         return stmt
 
     def modify(self):
+        """ Deprecated  """
+
         self.is_modify = True
         return self
 
     @classmethod
     def build_default_id(cls):
+        """ auto pk """
+
         id_field = "`id` bigint(45) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键'"
         return id_field, 'id'
 
     @property
     def _attr_key(self):
+        """ Deprecated  """
+
         BaseField._attr_key_num += 1
         return BaseField._attr_key_num
 
 
 class Tinyint(BaseField):
+    """ Mysql tinyint """
+
     _py_type = int
     _db_type = 'tinyint'
     _type_sql_tpl = '{type}({length})'
@@ -123,10 +145,14 @@ class Tinyint(BaseField):
 
 
 class Smallint(Tinyint):
+    """ Mysql smallint """
+
     _db_type = 'smallint'
 
 
 class Int(Tinyint):
+    """ Mysql int """
+
     _db_type = 'int'
 
     def __init__(self,
@@ -151,10 +177,14 @@ class Int(Tinyint):
 
 
 class Bigint(Int):
+    """ Mysql bigint """
+
     _db_type = 'bigint'
 
 
 class Text(BaseField):
+    """ Mysql Text """
+
     _py_type = str
     _db_type = 'text'
     _type_sql_tpl = '{type}'
@@ -181,12 +211,14 @@ class Text(BaseField):
         elif self.allow_null is False or self.allow_null == 0:
             stmt.append('NOT NULL')
         else:
-            raise ValueError('Allow_null value must be True, False, 0 or 1]')
+            raise ValueError('Allow_null value must be True, False, 0 or 1')
         stmt.append(f"COMMENT '{self.comment}'")
         return stmt
 
 
 class String(BaseField):
+    """ Mysql String """
+
     _py_type = str
     _db_type = 'char'
     _type_sql_tpl = '{type}({length})'
@@ -222,7 +254,7 @@ class String(BaseField):
         elif self.allow_null is False or self.allow_null == 0:
             stmt.append('NOT NULL')
         else:
-            raise ValueError('Allow_null value must be True, False, 0 or 1]')
+            raise ValueError('Allow_null value must be True, False, 0 or 1')
         if self.default is not None:
             default = self.default
             if not isinstance(default, self._py_type):
@@ -238,6 +270,8 @@ class String(BaseField):
 
 
 class Float(BaseField):
+    """ Mysql float """
+
     _py_type = float
     _db_type = 'float'
     _type_sql_tpl = '{type}({length},{float_length})'
@@ -272,14 +306,20 @@ class Float(BaseField):
 
 
 class Double(Float):
+    """ Mysql double """
+
     _db_type = 'double'
 
 
 class Decimal(Float):
+    """ Mysql decimal """
+
     _db_type = 'decimal'
 
 
 class Datetime(BaseField):
+    """ Mysql datetime """
+
     _py_type = datetime
     _db_type = 'datetime'
     _type_sql_tpl = '{type}'
@@ -301,6 +341,8 @@ class Datetime(BaseField):
 
 
 class Timestamp(Datetime):
+    """ Mysql timestamp """
+
     _db_type = 'timestamp'
 
     def __init__(self,
@@ -325,7 +367,7 @@ class Timestamp(Datetime):
         elif self.allow_null is False or self.allow_null == 0:
             stmt.append('NOT NULL')
         else:
-            raise ValueError('Allow_null value must be True, False, 0 or 1]')
+            raise ValueError('Allow_null value must be True, False, 0 or 1')
 
         if self.auto is not None:
             if self.auto == 'on_create':
