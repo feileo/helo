@@ -5,9 +5,13 @@ sudo: false
 
 install: true
 
-before_install: pip install aiomysql
+before_install: 
+  - pip install aiomysql
+  - pip install codecov
+  - pip install coverage
 
 script: 
-  - python3 -m unittest  tests/test_db.py
-  - python3 -m unittest  tests/test_model.py
-  - python3 -m unittest  tests/test_crud.py
+  - coverage run tests/test_crud.py
+
+after_success:
+  - codecov
