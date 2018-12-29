@@ -105,7 +105,7 @@ class TestCRUD(UnitTestBase):
 
             new_num = 787878
             update_data = Dict(num=new_num)
-            result = await User.updete(
+            result = await User.update(
                 update_data, And(User.sex == user.sex, User.age == user.age)
             )
             self.assertEqual(result.affected, 1)

@@ -1,4 +1,4 @@
-from trod import Trod
+from trod import Trod, Auto
 from trod.types import field, index
 
 
@@ -21,8 +21,8 @@ class TestTypesModel(db.Model):
     decimal = field.Decimal((4, 4), unsigned=True, default=0, comment='decimal test')
     now = field.Datetime(comment='datetime test')
     now_ts = field.Timestamp(comment='now ts test')
-    created_at = field.Timestamp(auto='on_create', comment='created_at')
-    updated_at = field.Timestamp(auto='on_update', comment='updated_at')
+    created_at = field.Timestamp(auto=Auto.on_create, comment='created_at')
+    updated_at = field.Timestamp(auto=Auto.on_update, comment='updated_at')
 
     key = index.Key(column=['tinyint', 'now'], comment='key test')
     unique_key = index.UniqueKey(column='string', comment='unique key test')
@@ -39,8 +39,8 @@ class User(db.Model):
     sex = field.Tinyint(1, unsigned=True, allow_null=False, default=0, comment='sex')
     age = field.Smallint(3, unsigned=True, default=0, comment='age')
     date = field.Datetime(comment='registration time')
-    created_at = field.Timestamp(auto='on_create', comment='created_at')
-    updated_at = field.Timestamp(auto='on_update', comment='updated_at')
+    created_at = field.Timestamp(auto=Auto.on_create, comment='created_at')
+    updated_at = field.Timestamp(auto=Auto.on_update, comment='updated_at')
 
     name_idx = index.Key(column='name')
     num_unidx = index.UniqueKey(column='num')

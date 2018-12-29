@@ -34,7 +34,7 @@ Basic Example
 
     import asyncio
 
-    from trod import Trod, And
+    from trod import Trod, And, Auto
     from trod.types import field, index
 
     db = Trod()
@@ -47,8 +47,8 @@ Basic Example
         name = field.String(length=20, use_varchar=True, allow_null=False, comment='user name')
         password = field.String(length=45, use_varchar=True, comment='password')
         date = field.Datetime(comment='registration time')
-        created_at = field.Timestamp(auto='on_create')
-        updated_at = field.Timestamp(auto='on_update')
+        created_at = field.Timestamp(auto=Auto.on_create)
+        updated_at = field.Timestamp(auto=Auto.on_update)
 
         name_idx = index.Key(column='name')
 

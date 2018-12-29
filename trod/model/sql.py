@@ -28,6 +28,10 @@ SQL = Dict(
         by_ids="SELECT {cols} FROM `{table_name}` WHERE `{condition}` IN {data};",
     )
 )
+Auto = Dict(
+    on_create='on_create',
+    on_update='on_update'
+)
 
 
 class _Where:
