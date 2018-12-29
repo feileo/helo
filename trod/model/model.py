@@ -378,7 +378,7 @@ class _Model(metaclass=_ModelMetaclass):
         )
 
     @classmethod
-    async def _updete(cls, data, where=None):
+    async def _update(cls, data, where=None):
         """ do update by where condition """
 
         if not isinstance(data, dict):

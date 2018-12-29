@@ -154,7 +154,7 @@ class _TrodModel(_Model):
         return await cls._remove(where)
 
     @classmethod
-    async def updete(cls, data, where):
+    async def update(cls, data, where):
         """ A coroutine that update by where.
 
         Args:
@@ -167,7 +167,7 @@ class _TrodModel(_Model):
                 Dict(last_id=0, affected=0)
         """
 
-        return await cls._updete(data, where)
+        return await cls._update(data, where)
 
     @classmethod
     async def get(cls, id_):
