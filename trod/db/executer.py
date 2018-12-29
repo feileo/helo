@@ -142,6 +142,7 @@ class RequestClient:
 
         if cls.executer is not None:
             await cls.executer.close()
+            cls.executer = None
         else:
             Logger.warning('No binding db connection or closed')
         return True

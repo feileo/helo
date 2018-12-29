@@ -16,6 +16,9 @@ class TestDB(unittest.TestCase):
         asyncio.set_event_loop(None)
 
     def tearDown(self):
+        async def end():
+            await RequestClient.unbind()
+        self.loop.run_until_complete(end())
         self.loop.close()
 
     def test(self):

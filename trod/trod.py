@@ -292,7 +292,9 @@ class Trod:
     async def unbind(self):
         """ A coroutine that unbind database. """
         self._checker()
-        return await RequestClient.unbind()
+        await RequestClient.unbind()
+        self.Client = None
+        return True
 
     @property
     def db_info(self):
