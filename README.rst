@@ -10,18 +10,17 @@ Currently it only supports mysql and uses aiomysql as the database access driver
   in memory. Changing it does not affect the database. To change the database, 
   you must explicitly submit the request to the database.
 
+
 * Trod simply uses the model and the object and its API to form the SQL statement, 
   which is submitted to the database for change when executed. When loading, 
   the data is taken from the database and then wrapped into objects.
 
-* Free software: BSD license
-* Requires: Python 3.6
 
 Requirements
 ------------
 * Python 3.6+
 * asyncio
-  asyncinit
+* asyncinit
 
 Installation
 ------------
@@ -34,8 +33,7 @@ Installation
 Documentation
 -------------
 
-* English_
-* Chinese_
+* Quick start
 
 Basic Example
 --------
