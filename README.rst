@@ -6,11 +6,7 @@ trod
         :target: https://pypi.org/project/trod
 
 .. image:: https://travis-ci.org/acthse/trod.svg?branch=master
-    :target: https://travis-ci.org/acthse/trod
-
-.. image:: https://img.shields.io/azure-devops/coverage/:organization/:project/:definitionId.svg
-
-.. image:: https://img.shields.io/badge/language-python3-orange.svg
+        :target: https://travis-ci.org/acthse/trod
 
  
 Trod is a very simple asynchronous Python ORM based on asyncio_. 
