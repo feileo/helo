@@ -1,6 +1,6 @@
 language: python
 python: "3.6"
-before_install: sudo pip install aiomysql
+before_install: sudo pip3 install aiomysql
 script: 
   - python3 -m unittest  tests/test_db.py
   - python3 -m unittest  tests/test_model.py
