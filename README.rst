@@ -1,6 +1,7 @@
 ====
 trod
 ====
+.. image https://img.shields.io/badge/language-python3-orange.svg
 
 Trod is a very simple asynchronous Python ORM based on asyncio. 
 Currently it only supports mysql and uses aiomysql as the database access driver.
