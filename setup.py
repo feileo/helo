@@ -2,12 +2,12 @@
 
 from setuptools import find_packages, setup
 
-with open('README.rst', 'r') as readme_file:
-    trod_readme = readme_file.read()
+with open('README.rst', 'r', encoding='utf-8') as readme_file:
+    trod_readme = readme_file.read().strip()
 
 setup(
     name='trod',
-    version='0.0.1',
+    version='0.0.11',
     license='BSD license',
     author='acthse',
     author_email='acthse@outlook.com',
@@ -22,4 +22,12 @@ setup(
     install_requires=[
         'aiomysql>=0.0.19',
     ],
+    classifiers=[
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
+        "License :: OSI Approved :: BSD License",
+        'Intended Audience :: Developers',
+    ]
 )

@@ -8,18 +8,28 @@ trod
 .. image:: https://travis-ci.org/acthse/trod.svg?branch=master
         :target: https://travis-ci.org/acthse/trod
 
+.. image:: https://codecov.io/gh/acthse/trod/branch/master/graph/badge.svg
+        :target: https://codecov.io/gh/acthse/trod
+
  
-Trod is a very simple asynchronous Python ORM based on asyncio_. 
-Currently it only supports MySQL and uses aiomysql_ as the database access driver.
+**Trod** is a very simple asynchronous Python ORM based on asyncio_. 
+Now it only supports MySQL and uses aiomysql_ as the access 'driver' for the database.
 
-* Strictly, trod is not an orm, just working in orm mode. The objects in trod 
-  are completely isolated from the data in the database. It is only a Python object 
-  in memory. Changing it does not affect the database. To change the database, 
-  you must explicitly submit the request to the database.
+* Strictly, trod is not an ORM, it just working in an ORM-like mode. 
+  The objects in trod is completely isolated from the data in the database. 
+  It is only a Python object in memory, changing it does not affect the database. 
+  You must explicitly execute the commit request to the database.
 
-* Trod simply uses the model and the object and its API to form the SQL statement, 
-  which is submitted to the database for change when executed. When loading, 
-  the data is taken from the database and then wrapped into objects.
+* Trod only uses model and object APIs to compose SQL statements and submit 
+  them to the database when executed. When loaded, the data is retrieved 
+  from the database and then packaged into objects.
+
+
+About
+-----
+The author of trod (that's me) is a junior Pythoner, and trod has a lot of temporary 
+solutions to optimize and continue to add new features, this is just the beginning. 
+I will continue later, and welcome your issues and pull requests.
 
 
 Installation
@@ -37,7 +47,7 @@ Documentation
 
 
 Basic Example
---------
+-------------
 
 .. code-block:: python
 
@@ -64,23 +74,23 @@ Basic Example
     async show_case():
         """ show some base case """
 
-        db.bind('mysql://user:password@host:port/db')
+        await db.bind('mysql://user:password@host:port/db')
 
         # create_table
         await User.create()
 
         # add a user
-        user = User(id=1,name='name',password='123456')
+        user = User(id=1,name='name', password='123456')
         user_id = await User.add(user)
         print(user_id)  # 1
 
         # get a user by id
-        user = User.get(user_id)
+        user = await User.get(user_id)
         print(user.password)  # 123456
 
         # update user password
         await User.update(dict(password=654321), User.name == user.name)
-        user = User.get(user_id)
+        user = await User.get(user_id)
         print(user.password)  # 654321
 
         # delete a user
@@ -88,10 +98,10 @@ Basic Example
 
         # query
         users = [
-            User(id=2,name='zs',password='222222')
-            User(id=3,name='ls',password='333333')
+            User(id=2, name='zs', password='222222')
+            User(id=3, name='ls', password='333333')
         ]
-        User.batch_add(users)
+        await User.batch_add(users)
         query_users = await User.query().filter(
             User.id.in_([1,2,3])
         ).order_by(User.data).all()
