@@ -108,7 +108,7 @@ class _Logic:
                 _w_format = where.format_()
                 wheres.append("({})".format(_w_format.where))
             else:
-                raise ValueError(f'Invalid logic operator')
+                raise ValueError('Invalid logic operator')
             if isinstance(_w_format.arg, list):
                 args.extend(_w_format.arg)
             elif _w_format.arg:

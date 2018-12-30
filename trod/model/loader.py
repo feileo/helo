@@ -21,7 +21,7 @@ class Loader:
 
     def _do_load(self, data):
         if not isinstance(data, dict):
-            raise ValueError('Invalid loader data: {}'.format(type(data)))
+            raise ValueError('Invalid loader data: {}'.format(data))
         res_model = self.model()
         for key, value in data.items():
             res_model._set_value(key, value, is_loader=True)

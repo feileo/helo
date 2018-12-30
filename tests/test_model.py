@@ -1,11 +1,11 @@
-from tests.base import UnitTestBase, unittest
+from tests.base import AsyncioTestBase, unittest
 from tests.models import TestTypesModel, User, db
 from trod.errors import ModifyAutoPkError, ModelSetAttrError, DuplicateBindError
 from trod.types import field
 from trod.types.index import Key
 
 
-class TestModel(UnitTestBase):
+class TestModel(AsyncioTestBase):
 
     def test_model(self):
 
@@ -86,4 +86,11 @@ class TestModel(UnitTestBase):
 
 
 if __name__ == '__main__':
-    unittest.main(verbosity=2)
+    suite = unittest.TestSuite()
+    suite.addTests(
+        unittest.makeSuite(TestModel),
+    )
+
+    AsyncioTestBase.prepare()
+    unittest.TextTestRunner(verbosity=2).run(suite)
+    AsyncioTestBase.end()

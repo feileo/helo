@@ -2,8 +2,8 @@
 
 from setuptools import find_packages, setup
 
-with open('README.rst', encoding='utf-8') as readme_file:
-    readme = readme_file.read()
+with open('README.rst', 'r') as readme_file:
+    trod_readme = readme_file.read()
 
 setup(
     name='trod',
@@ -13,7 +13,7 @@ setup(
     author_email='acthse@outlook.com',
     url='https://github.com/acthse/trod',
     description='Trod is a very simple asynchronous Python ORM based on asyncio',
-    long_description=readme,
+    long_description=trod_readme,
     packages=find_packages(exclude=['tests']),
     include_package_data=True,
     python_requires='>=3.6',

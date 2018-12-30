@@ -9,49 +9,47 @@ from tests.models import db
 
 TEST_DBURL = 'mysql://root:txymysql1234@cdb-m0f0sibq.bj.tencentcdb.com:10036/trod?charset=utf8'
 
-# TEST_DBURL = 'mysql://root:gjwlmj1190@localhost:3306/trod?charset=utf8'
 
+class AsyncioTestBase(unittest.TestCase):
+    """ async tests base """
 
-class UnitTestBase(unittest.TestCase):
-    """ asyncio test base """
+    loop = None
 
     @classmethod
     def setUpClass(cls):
+        """  called before tests in an individual class """
 
         async def do_prepare():
             await db.create_all(models)
 
-        cls.loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(None)
         cls.loop.run_until_complete(do_prepare())
 
     @classmethod
     def tearDownClass(cls):
+        """  called after tests in an individual class """
 
         async def end():
             await db.drop_all(models)
 
         cls.loop.run_until_complete(end())
-        cls.loop.close()
 
+    @classmethod
+    def prepare(cls):
+        """ Must be explicitly call before run all tests """
 
-class TestPrepare(unittest.TestCase):
-
-    def setUp(self):
-        self.loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(None)
-
-    def tearDown(self):
-        self.loop.close()
-
-    def bind_db(self):
         async def do_bind():
             await db.bind(TEST_DBURL, echo=True)
 
-        self.loop.run_until_complete(do_bind())
+        cls.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(None)
+        cls.loop.run_until_complete(do_bind())
 
-    def unbind_db(self):
+    @classmethod
+    def end(cls):
+        """ Must be explicitly call after run all tests """
+
         async def do_unbind():
             await db.unbind()
 
-        self.loop.run_until_complete(do_unbind())
+        cls.loop.run_until_complete(do_unbind())
+        cls.loop.close()

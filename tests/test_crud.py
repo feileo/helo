@@ -1,13 +1,13 @@
 from datetime import datetime
 
-from tests.base import UnitTestBase, unittest
+from tests.base import AsyncioTestBase, unittest
 from tests.models import TestTypesModel, User
 from trod import Func, And, Or
 from trod.errors import MissingPKError, AddEmptyInstanceError
 from trod.utils import Dict
 
 
-class TestCRUD(UnitTestBase):
+class TestCRUD(AsyncioTestBase):
 
     def test_a_add_get(self):
 
@@ -196,4 +196,12 @@ class TestCRUD(UnitTestBase):
 
 
 if __name__ == '__main__':
-    unittest.main(verbosity=2)
+
+    suite = unittest.TestSuite()
+    suite.addTests(
+        unittest.makeSuite(TestCRUD),
+    )
+
+    AsyncioTestBase.prepare()
+    unittest.TextTestRunner(verbosity=2).run(suite)
+    AsyncioTestBase.end()

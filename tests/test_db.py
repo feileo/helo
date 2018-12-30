@@ -6,7 +6,7 @@ import aiomysql
 from tests.base import TEST_DBURL
 from trod.db.connector import Connector, DefaultConnConfig, Schemes
 from trod.db.executer import RequestClient
-from trod.errors import InvaildDBUrlError, DuplicateBindError, NoBindError
+from trod.errors import InvaildDBUrlError, DuplicateBindError
 
 
 class TestDB(unittest.TestCase):
@@ -34,6 +34,7 @@ class TestDB(unittest.TestCase):
                 pass
 
             timeout = 10
+            # Reuse the connection binded in AsyncioTestBase.prepare
             connector = await Connector.create(TEST_DBURL, timeout=timeout)
             self.assertIsInstance(connector, Connector)
 
@@ -42,20 +43,19 @@ class TestDB(unittest.TestCase):
             self.assertEqual(pool_status.maxsize, DefaultConnConfig.MAXSIZE)
             pool_info = connector.db
             self.assertEqual(pool_info.db.scheme, Schemes.MYSQL.name.lower())
-            self.assertEqual(pool_info.extra.connect_timeout, timeout)
+            # timeout is still the default, not 10
+            self.assertEqual(pool_info.extra.connect_timeout, DefaultConnConfig.TIMEOUT)
 
             a_conn = await connector.get()
             self.assertIsInstance(a_conn, aiomysql.connection.Connection)
             self.assertTrue(connector.release(a_conn))
             self.assertTrue(await connector.clear())
 
-            # RequestClient Test
-            self.assertRaises(NoBindError, RequestClient)
-
-            is_success = await RequestClient.bind_db_by_conn(connector)
-            self.assertTrue(is_success)
-
-            self.assertTrue(RequestClient.is_usable())
+            try:
+                await RequestClient.bind_db_by_conn(connector)
+                assert False, 'Should be raise a DeprecateBindError'
+            except DuplicateBindError:
+                pass
 
             try:
                 await RequestClient.bind_db(url='url')
@@ -63,10 +63,12 @@ class TestDB(unittest.TestCase):
             except DuplicateBindError:
                 pass
 
+            self.assertTrue(RequestClient.is_usable())
+
             r_c = RequestClient()
             self.assertTrue(r_c.get_conn_status())
 
-            self.assertTrue(await RequestClient.unbind())
+            # self.assertTrue(await RequestClient.unbind())
 
             # import gc
             # gc.collect()
