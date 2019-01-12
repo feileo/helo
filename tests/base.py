@@ -7,7 +7,7 @@ from tests import models
 from tests.models import db
 
 
-TEST_DBURL = 'mysql://root:txymysql1234@cdb-m0f0sibq.bj.tencentcdb.com:10036/trod?charset=utf8'
+TEST_DBURL = 'mysql://root:txymysql1234@cdb-96x2qj2a.bj.tencentcdb.com:10004/trod?charset=utf8'
 
 
 class AsyncioTestBase(unittest.TestCase):

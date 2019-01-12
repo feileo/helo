@@ -50,6 +50,14 @@ class BaseField:
 
         return _Where(column=self.name, operator='in', value=data)
 
+    def exists(self, data):
+        """
+        For example:
+            await User.remove(User.id.exists([1,2,3]))
+        """
+
+        return _Where(column=self.name, operator='exists', value=data)
+
     def like(self, data):
         """ Similar `in` """
 

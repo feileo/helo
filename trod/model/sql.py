@@ -47,7 +47,9 @@ class _Where:
         'in': ' IN ',
         'IN': ' IN ',
         'like': ' LIKE ',
-        'LIKE': ' LIKE '
+        'LIKE': ' LIKE ',
+        'EXISTS': ' exists ',
+        'exists': ' exists '
     }
 
     def __init__(self, column, operator, value):
@@ -56,7 +58,7 @@ class _Where:
             raise ValueError(f'Does not support the {operator} operator')
         if isinstance(value, str):
             value = f"'{value}'"
-        if operator in ['in', 'IN']:
+        if operator in ['in', 'IN', 'exists', 'EXISTS']:
             if not isinstance(value, (list, tuple)):
                 raise ValueError(
                     f'The value of the operator {operator} should be list or tuple'
