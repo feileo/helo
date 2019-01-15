@@ -1,13 +1,18 @@
 """ asyncio test base """
 
 import asyncio
+import os
 import unittest
 
 from tests import models
 from tests.models import db
 
 
-TEST_DBURL = 'mysql://root:txymysql1234@cdb-96x2qj2a.bj.tencentcdb.com:10004/trod?charset=utf8'
+def get_test_db_url():
+    """ read dburl from environment """
+
+    test_dburl_key = 'TEST_DBURL'
+    return os.environ.get(test_dburl_key)
 
 
 class AsyncioTestBase(unittest.TestCase):
@@ -38,7 +43,7 @@ class AsyncioTestBase(unittest.TestCase):
         """ Must be explicitly call before run all tests """
 
         async def do_bind():
-            await db.bind(TEST_DBURL, echo=True)
+            await db.bind(get_test_db_url(), echo=True)
 
         cls.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(None)

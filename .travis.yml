@@ -6,6 +6,7 @@ sudo: false
 install: true
 
 before_install: 
+  - export TEST_DBURL=mysql://root:txymysql1234@cdb-0vka7748.bj.tencentcdb.com:10091/trod?charset=utf8
   - pip install aiomysql
   - pip install codecov
   - pip install coverage

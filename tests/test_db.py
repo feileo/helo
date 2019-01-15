@@ -3,7 +3,7 @@ import unittest
 
 import aiomysql
 
-from tests.base import TEST_DBURL
+from tests.base import get_test_db_url
 from trod.db.connector import Connector, DefaultConnConfig, Schemes
 from trod.db.executer import RequestClient
 from trod.errors import InvaildDBUrlError, DuplicateBindError
@@ -35,7 +35,7 @@ class TestDB(unittest.TestCase):
 
             timeout = 10
             # Reuse the connection binded in AsyncioTestBase.prepare
-            connector = await Connector.create(TEST_DBURL, timeout=timeout)
+            connector = await Connector.create(get_test_db_url(), timeout=timeout)
             self.assertIsInstance(connector, Connector)
 
             pool_status = connector.status
