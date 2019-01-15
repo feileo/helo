@@ -3,7 +3,7 @@ trod
 ====
 
 .. image:: https://img.shields.io/pypi/v/trod.svg
-        :target: https://pypi.org/project/trod
+        :target: https://pypi.python.org/pypi/trod
 
 .. image:: https://travis-ci.org/acthse/trod.svg?branch=master
         :target: https://travis-ci.org/acthse/trod

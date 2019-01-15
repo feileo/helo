@@ -7,7 +7,7 @@ with open('README.rst', 'r', encoding='utf-8') as readme_file:
 
 setup(
     name='trod',
-    version='0.0.11',
+    version='0.0.12',
     license='BSD license',
     author='acthse',
     author_email='acthse@outlook.com',
