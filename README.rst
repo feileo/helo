@@ -28,7 +28,7 @@ Now it only supports MySQL and uses aiomysql_ as the access 'driver' for the dat
 About
 -----
 The author of trod (that's me) is a junior Pythoner, and trod has a lot of temporary 
-solutions to optimize and continue to add new features, this is just the beginning💪.
+solutions to optimize and continue to add new features, this is just the beginning 💪.
 I will continue later, and welcome your issues and pull requests.
 
 
