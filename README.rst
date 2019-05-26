@@ -11,9 +11,11 @@ trod
 .. image:: https://codecov.io/gh/acthse/trod/branch/master/graph/badge.svg
         :target: https://codecov.io/gh/acthse/trod
 
-.. image:: https://img.shields.io/pypi/l/trod.svg   :alt: PyPI - License
+.. image:: https://img.shields.io/pypi/pyversions/trod.svg
+        :target: https://img.shields.io/pypi/pyversions/trod.svg
 
-.. image:: https://img.shields.io/pypi/pyversions/trod.svg   :alt: PyPI - Python Version
+.. image:: https://img.shields.io/pypi/l/trod.svg
+        :target: https://img.shields.io/pypi/l/trod.svg
 
  
 **Trod** is a very simple asynchronous Python ORM based on asyncio_. 
