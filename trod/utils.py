@@ -4,6 +4,7 @@ from functools import wraps
 
 class Dict(dict):
     """ Is a class that makes it easier to access the elements of the dict
+
         For example:
             dict_ = Dict(key=1)
             you can:

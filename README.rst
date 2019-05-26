@@ -11,6 +11,10 @@ trod
 .. image:: https://codecov.io/gh/acthse/trod/branch/master/graph/badge.svg
         :target: https://codecov.io/gh/acthse/trod
 
+.. image:: https://img.shields.io/pypi/l/trod.svg   :alt: PyPI - License
+
+.. image:: https://img.shields.io/pypi/pyversions/trod.svg   :alt: PyPI - Python Version
+
  
 **Trod** is a very simple asynchronous Python ORM based on asyncio_. 
 Now it only supports MySQL and uses aiomysql_ as the access 'driver' for the database.
@@ -27,7 +31,7 @@ Now it only supports MySQL and uses aiomysql_ as the access 'driver' for the dat
 
 About
 -----
-The author of trod (that's me) is a junior Pythoner, and trod has a lot of temporary 
+The author of trod (that's me 😊) is a junior Pythoner, and trod has a lot of temporary 
 solutions to optimize and continue to add new features, this is just the beginning 💪.
 I will continue later, and welcome your issues and pull requests.
 
@@ -38,12 +42,6 @@ Installation
 .. code-block:: console
 
     pip install trod
-
-
-Documentation
--------------
-
-* QuickStart_
 
 
 Basic Example
