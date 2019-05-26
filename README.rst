@@ -31,13 +31,6 @@ Now it only supports MySQL and uses aiomysql_ as the access 'driver' for the dat
   from the database and then packaged into objects.
 
 
-About
------
-The author of trod (that's me 😊) is a junior Pythoner, and trod has a lot of temporary 
-solutions to optimize and continue to add new features, this is just the beginning 💪.
-I will continue later, and welcome your issues and pull requests.
-
-
 Installation
 ------------
 
@@ -116,6 +109,13 @@ Basic Example
         await db.unbind()
 
     asyncio.get_event_loop().run_until_complete(show_case())
+
+
+About
+-----
+The author of trod (that's me 😊) is a junior Pythoner, and trod has a lot of temporary 
+solutions to optimize and continue to add new features, this is just the beginning 💪.
+I will continue later, and welcome your issues and pull requests.
 
 
 Requirements
