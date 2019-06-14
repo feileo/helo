@@ -56,7 +56,8 @@ class DefaultConnConfig:
 
 class Connector:
     """ Provide a factory method to create a database connection pool.
-        for example:
+
+        Ex:
             connector = await Connector.create(url)
 
         Get a connection from the connection pool:

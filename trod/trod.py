@@ -1,8 +1,13 @@
+import logging
+
 from trod.db.executer import RequestClient
 from trod.errors import NoBindError
 from trod.extra.logger import Logger
 from trod.model.model import _Model
 from trod.utils import Dict, async_dict_formatter
+
+
+logger = logging.getLogger('trod')
 
 
 class _TrodModel(_Model):
