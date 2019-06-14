@@ -5,10 +5,10 @@ trod
 .. image:: https://img.shields.io/pypi/v/trod.svg
         :target: https://pypi.python.org/pypi/trod
 
-.. image:: https://travis-ci.org/acthy/trod.svg?branch=master
-        :target: https://travis-ci.org/acthy/trod
+.. image:: https://travis-ci.org/acthse/trod.svg?branch=master
+        :target: https://travis-ci.org/acthse/trod
 
-.. image:: https://codecov.io/gh/acthy/trod/branch/master/graph/badge.svg
+.. image:: https://codecov.io/gh/acthse/trod/branch/master/graph/badge.svg
         :target: https://codecov.io/gh/acthy/trod
 
 .. image:: https://img.shields.io/pypi/pyversions/trod.svg
