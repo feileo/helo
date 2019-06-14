@@ -1,13 +1,15 @@
-import urllib.parse as urlparse
-from enum import Enum, unique
+import logging
+from collections import namedtuple
 
 import aiomysql
 
-from trod.errors import InvaildDBUrlError
-from trod.extra.logger import Logger
-from trod.utils import dict_formatter, singleton, asyncinit
+from trod import utils
 
 
+Arg = namedtuple('Arg', ['default', 'help'])
+
+
+@utils.asyncinit
 class Connector:
     """ Provide a factory method to create a database connection pool.
 
@@ -22,15 +24,61 @@ class Connector:
 
         And etc.
     """
+    _CONN_KWARGS = utils.TrodDict(
+        host=Arg(default="localhost", help=''),
+        user=Arg(default=None, help_=''),
+        password=Arg(default="", help_=''),
+        db=Arg(default=None, help_=''),
+        port=Arg(default=3306, help_=''),
+        unix_socket=Arg(default=None, help_=''),
+        charset=Arg(default='', help_=''),
+        sql_mode=Arg(default=None, help_=''),
+        read_default_file=Arg(default=None, help_=''),
+        conv=Arg(default=aiomysql.connection.decoders, help_=''),
+        use_unicode=Arg(default=None, help_=''),
+        client_flag=Arg(default=0, help_=''),
+        cursorclass=Arg(default=aiomysql.cursors.DictCursor, help_=''),
+        init_command=Arg(default=None, help_=''),
+        connect_timeout=Arg(default=None, help_=''),
+        read_default_group=Arg(default=None, help_=''),
+        no_delay=Arg(default=None, help_=''),
+        autocommit=Arg(default=False, help_=''),
+        echo=Arg(default=False, help_=''),
+        loop=Arg(default=None, help_=''),
+        local_infile=Arg(default=False, help_=''),
+        ssl=Arg(default=None, help_=''),
+        auth_plugin=Arg(default='', help_=''),
+        program_name=Arg(default='', help_=''),
+        server_public_key=Arg(default=None, help_=''),
+    )
+
+    __slots__ = ('pool', 'meta', 'state')
+
+    async def __init__(self, minsize=1, maxsize=10, echo=False, pool_recycle=-1, loop=None, **conn_kwargs):
+
+        conn_kwargs = self._check_conn_kwargs(conn_kwargs)
+        self.pool = await aiomysql.create_pool(
+            minsize=minsize,
+            maxsize=maxsize,
+            echo=echo,
+            loop=loop,
+            pool_recycle=pool_recycle,
+            **conn_kwargs
+        )
+        logging.info('Create database connection pool success')
+
+    def _check_conn_kwargs(self, conn_kwargs):
+        ret_kwargs = {}
+        for arg in self._CONN_KWARGS:
+            ret_kwargs[arg] = conn_kwargs.pop(arg, None) or self._CONN_KWARGS[arg].default
+        for exarg in conn_kwargs:
+            raise TypeError(
+                f'{self.__class__.__name__} got an unexpected keyword argument {exarg}'
+            )
+        return ret_kwargs
 
     @classmethod
-    async def create(cls, url='',
-                     minsize=DefaultConnConfig.MINSIZE,
-                     maxsize=DefaultConnConfig.MAXSIZE,
-                     timeout=DefaultConnConfig.TIMEOUT,
-                     pool_recycle=DefaultConnConfig.POOL_RECYCLE,
-                     echo=DefaultConnConfig.ECHO,
-                     loop=None, **kwargs):
+    async def from_url(cls, url, minsize=1, maxsize=10, echo=False, pool_recycle=-1, loop=None, **conn_kwgs):
         """ A coroutine that create a connection pool object
 
         Args:
@@ -52,255 +100,57 @@ class Connector:
 
         if not url:
             return None
-        result = ParseUrl(url, Schemes.all()).parse()
-        extra = result.pop('extra')
-        kwargs.update(extra)
-        if timeout != DefaultConnConfig.TIMEOUT:
-            kwargs.update({'connect_timeout': timeout})
 
-        connector = await cls._create_pool(
-            minsize=minsize, maxsize=maxsize,
-            pool_recycle=pool_recycle,
-            echo=echo, loop=loop, dbpath=result,
-            extra=kwargs
+        return cls(
+            minsize=minsize, maxsize=maxsize, echo=echo,
+            pool_recycle=pool_recycle, loop=loop, **conn_kwgs
         )
-        return cls(connector=connector)
-
-    @classmethod
-    async def _create_pool(cls, minsize, maxsize, pool_recycle,
-                           echo, loop, dbpath, extra):
-        connector = None
-        if dbpath.scheme and dbpath.scheme == Schemes.MYSQL.name.lower():
-            connector = await _MySQLConnector(
-                minsize, maxsize, pool_recycle,
-                echo, loop, dbpath, extra
-            )
-        return connector
-
-    def __init__(self, connector):
-        if not connector:
-            raise RuntimeError(
-                'Invalid connector parameter type {}'.format(type(connector))
-            )
-        self.connector = connector
 
     def __repr__(self):
-        return "<class '{} for {}:{}'>".format(
-            self.__class__.__name__, self.db.db.host, self.db.db.port
+        return "<class '{0}'[{1}:{2}] for {3}:{4}/{5}>".format(
+            self.__class__.__name__, self.state.minsize, self.state.maxsize, self.meta['host'],
+            self.meta['port'], self.meta['db']
         )
 
     __str__ = __repr__
 
     @property
-    @dict_formatter
-    def status(self):
-        """ connection pool status """
+    @utils.troddict_formatter()
+    def state(self):
+        """ connection pool state """
 
         return {
-            'minsize': self.connector.minsize,
-            'maxsize': self.connector.maxsize,
-            'echo': self.connector.echo,
-            'size': self.connector.size,
-            'freesize': self.connector.freesize
+            'minsize': self.pool.minsize,
+            'maxsize': self.pool.maxsize,
+            'size': self.pool.size,
+            'freesize': self.pool.freesize
         }
-
-    @property
-    @dict_formatter
-    def db(self):
-        """ Db info """
-
-        return self.connector.conn()
 
     def get(self):
         """ Get a connection """
 
-        return self.connector.acquire()
+        return self.pool.acquire()
 
     def release(self, connect):
         """ Reverts connection conn to free pool for future recycling. """
 
-        return self.connector.release(connect)
+        return self.pool.release(connect)
 
     async def clear(self):
         """ A coroutine that closes all free connections in the pool.
             At next connection acquiring at least minsize of them will be recreated
         """
-        await self.connector.clear()
-        return True
+        await self.pool.clear()
 
     async def close(self):
         """ A coroutine that close pool. """
 
-        await self.connector.close_pool()
-        del self.connector
-        return True
+        if self.pool is not None:
+            self.pool.close()
+            await self.pool.wait_closed()
 
+        logging.info('Database connection pool closed')
 
-@singleton
-@asyncinit
-class _MySQLConnector:
-    """
-    Create a connection by aiomysql.create_pool().
-    """
-    is_depr = False
+    async def terminate(self):
 
-    async def __init__(self, minsize, maxsize, pool_recycle,
-                       echo, loop, dbpath={}, extra={}):
-
-        self._db = dbpath
-        self._minsize = minsize
-        self._maxsize = maxsize
-        self._pool_recycle = pool_recycle
-        self._echo = echo
-        self._loop = loop
-        self._extra = extra
-        self._config = self._db.copy()
-        self._config.update(self._extra)
-        self._pool = await self._create_pool()
-
-    async def _create_pool(self):
-        db_conn_pool = None
-        if self._db is None:
-            return db_conn_pool
-        self._config.pop('scheme')
-        db_conn_pool = await aiomysql.create_pool(
-            minsize=self._minsize,
-            maxsize=self._maxsize,
-            echo=self._echo,
-            loop=self._loop,
-            pool_recycle=self._pool_recycle,
-            **self._config
-        )
-        Logger.info('Create database connection pool success')
-        return db_conn_pool
-
-    def conn(self):
-        """ Db info """
-
-        return {'db': self._db, 'extra': self._extra}
-
-    @property
-    def echo(self):
-        """ echo mode"""
-
-        return self._pool.echo
-
-    @property
-    def minsize(self):
-        """ pool minsize """
-
-        return self._pool.minsize
-
-    @property
-    def maxsize(self):
-        """ pool maxsize"""
-
-        return self._pool.maxsize
-
-    @property
-    def size(self):
-        """ The current size of the pool,
-            including the used and idle connections
-        """
-        return self._pool.size
-
-    @property
-    def freesize(self):
-        """ Pool free size """
-
-        return self._pool.freesize
-
-    def acquire(self):
-        """ Get a connection """
-
-        return self._pool.acquire()
-
-    def release(self, connect):
-        """ Release free connection """
-
-        return self._pool.release(connect)
-
-    async def clear(self):
-        """ A coroutine that close all free connection  """
-
-        await self._pool.clear()
-
-    async def close_pool(self):
-        """ A coroutine that close pool """
-
-        self.is_depr = True
-        if self._pool is not None:
-            self._pool.close()
-            await self._pool.wait_closed()
-        del self
-        Logger.info('Database connection pool closed')
-
-
-class ParseUrl:
-    """ database url parser """
-
-    def __init__(self, url, schemes):
-        self.url = url
-        self.schemes = schemes
-
-    def _register(self):
-        """ Register database schemes in URLs """
-
-        for scheme in self.schemes:
-            urlparse.uses_netloc.append(scheme)
-
-    def is_illegal_url(self):
-        """ A bool of is illegal url """
-
-        url = urlparse.urlparse(self.url)
-        if all([url.scheme, url.netloc]):
-            return True
-        return False
-
-    @dict_formatter
-    def parse(self):
-        """ do parse database url """
-
-        if not self.is_illegal_url():
-            raise InvaildDBUrlError('Invalid dburl')
-        self._register()
-
-        config = DefaultConnConfig().config
-
-        url = urlparse.urlparse(self.url)
-
-        path, query = url.path[1:], url.query
-        if '?' in path and not url.query:
-            path, query = path.split('?', 2)
-
-        query = urlparse.parse_qs(query)
-
-        hostname = url.hostname or ''
-        if '%2f' in hostname.lower():
-            hostname = url.netloc
-            if "@" in hostname:
-                hostname = hostname.rsplit("@", 1)[1]
-            if ":" in hostname:
-                hostname = hostname.split(":", 1)[0]
-            hostname = hostname.replace('%2f', '/').replace('%2F', '/')
-
-        config.update({
-            'scheme': url.scheme,
-            'db': urlparse.unquote(path or ''),
-            'user': urlparse.unquote(url.username or ''),
-            'password': urlparse.unquote(url.password or ''),
-            'host': hostname,
-            'port': url.port or '',
-        })
-
-        options = {}
-        for key, values in query.items():
-            if url.scheme == 'mysql' and key == 'ssl-ca':
-                options['ssl'] = {'ca': values[-1]}
-                continue
-
-            options[key] = values[-1]
-        if options:
-            config['extra'].update(options)
-
-        return config
+        await self.pool.terminate()

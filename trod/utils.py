@@ -1,13 +1,13 @@
 import inspect
 from functools import wraps
+from collections.abc import Iterable
 
 
-class Dict(dict):
+class TrodDict(dict):
     """ Is a class that makes it easier to access the elements of the dict
 
-        For example:
-            dict_ = Dict(key=1)
-            you can:
+        EX::
+            dict_ = TrodDict(key=1)
             dict_.k
     """
 
@@ -21,11 +21,53 @@ class Dict(dict):
             return self[key]
         except KeyError:
             raise AttributeError(
-                f"Dict object has not attribute {key}"
+                f"TrodDict object has not attribute {key}."
             )
 
     def __setattr__(self, key, value):
         self[key] = value
+
+    def from_object(self, obj):
+        if not isinstance(obj, type):
+            raise ValueError(f'Invalid obj type: {obj}')
+
+        for key in dir(obj):
+            if key.isupper():
+                self[key] = getattr(obj, key)
+
+
+def troddict_formatter(is_async=False):
+    """ A function decorator that convert the returned dict object to TrodDict
+        If it is a list, recursively convert its elements
+    """
+    def decorator(func):
+        if not is_async:
+            @wraps(func)
+            def convert(*args, **kwargs):
+                result = func(*args, **kwargs)
+                return format_troddict(result)
+        else:
+            @wraps(func)
+            async def convert(*args, **kwargs):
+                result = await func(*args, **kwargs)
+                return format_troddict(result)
+        return convert
+    return decorator
+
+
+def format_troddict(target):
+    if target is None:
+        return target
+    if isinstance(target, dict):
+        return _do_troddict_format(target)
+    if isinstance(target, Iterable):
+        fmt_result = []
+        for item in target:
+            if isinstance(item, (str, int, bool)):
+                raise ValueError(f"Invalid data type '{target}' to convert `TrodDict`")
+            fmt_result.append(format_troddict(item))
+        return fmt_result
+    raise ValueError(f"Invalid data type '{target}' to convert `TrodDict`")
 
 
 def asyncinit(obj):
@@ -82,28 +124,6 @@ def singleton(cls):
     return getinstance
 
 
-def dict_formatter(func):
-    """ A function decorator that convert the returned dict object to Dict
-        If it is a list, recursively convert its elements
-    """
-
-    @wraps(func)
-    def convert(*args, **kwargs):
-        result = func(*args, **kwargs)
-        return _do_format(result)
-    return convert
-
-
-def async_dict_formatter(func):
-    """ A coroutine decorator of dict_formatter """
-
-    @wraps(func)
-    async def convert(*args, **kwargs):
-        result = await func(*args, **kwargs)
-        return _do_format(result)
-    return convert
-
-
 def to_list(*args):
     """ Args to list """
 
@@ -133,22 +153,34 @@ def tuple_formater(args):
     return res_args
 
 
-def _to_format_dict(ori_dict):
-    r_dict = Dict()
+def logit(logfile='out.log'):
+    def logging_decorator(func):
+        @wraps(func)
+        def wrapped_function(*args, **kwargs):
+            log_string = func.__name__ + " was called"
+            print(log_string)
+            # 打开logfile，并写入内容
+            with open(logfile, 'a') as opened_file:
+                # 现在将日志打到指定的logfile
+                opened_file.write(log_string + '\n')
+            return func(*args, **kwargs)
+        return wrapped_function
+    return logging_decorator
+
+
+def async_troddict_formatter(func):
+    """ A coroutine decorator of dict_formatter """
+
+    @wraps(func)
+    async def convert(*args, **kwargs):
+        result = await func(*args, **kwargs)
+        return format_troddict(result)
+
+    return convert
+
+
+def _do_troddict_format(ori_dict):
+    r_dict = TrodDict()
     for key, value in ori_dict.items():
-        r_dict[key] = _to_format_dict(value) if isinstance(value, dict) else value
+        r_dict[key] = _do_troddict_format(value) if isinstance(value, dict) else value
     return r_dict
-
-
-def _do_format(result):
-    if result is None:
-        return result
-    elif isinstance(result, dict):
-        return _to_format_dict(result)
-    elif isinstance(result, (list, tuple)):
-        fmt_result = []
-        for item in result:
-            fmt_result.append(_do_format(item))
-        return fmt_result
-    else:
-        raise ValueError(f'Invalid data type {result} to convert Dict')
