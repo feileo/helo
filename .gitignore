@@ -24,7 +24,6 @@
 .sass-cache
 .coverage
 .projectile
-.pylintrc
 .ropeproject/
 .mypy_cache
 
