@@ -78,7 +78,7 @@ class Connector(DataBase):
     )
     _POOL_KWARGS = ('minsize', 'maxsize', 'echo', 'pool_recycle', 'loop')
 
-    __slots__ = ('pool', '_conn_kwargs')
+    __slots__ = ('pool', )
 
     async def __init__(self, minsize=1, maxsize=10, echo=False,
                        pool_recycle=-1, loop=None, **conn_kwargs):
