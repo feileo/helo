@@ -12,7 +12,7 @@ from trod.model.loader import Loader
 from trod.model.sql import SQL, _Generator, _Logic, _Where, Func
 from trod.types.field import BaseField
 from trod.types.index import BaseIndex
-from trod.utils import Dict, dict_formatter, to_list
+from trod.utils import TrodDict, troddict_formatter, to_list
 
 
 TABLE_DEFAULT = {
@@ -31,7 +31,7 @@ class _ModelMetaclass(type):
         if name in ['_Model', '_TrodModel']:
             return type.__new__(cls, name, bases, attrs)
 
-        @dict_formatter
+        @troddict_formatter
         def build_meta():
             meta = {}
             for arg in TABLE_DEFAULT:
@@ -97,7 +97,7 @@ class _ModelMetaclass(type):
             build_items.append(key_stmt_map[index])
         attrs['__meta__'].coldef = ', '.join(build_items)
 
-        attrs['__table__'] = Dict(
+        attrs['__table__'] = TrodDict(
             field_dict=field_inst_map,
             index_dict=index_inst_map,
             pk=primary_key
@@ -263,7 +263,7 @@ class _Model(metaclass=_ModelMetaclass):
         result = await RequestClient().fetch(
             show_create_sql, rows=1
         )
-        return Dict(
+        return TrodDict(
             table_name=result['Table'], create_syntax=result['Create Table']
         )
 
@@ -278,7 +278,7 @@ class _Model(metaclass=_ModelMetaclass):
         show_idx_sql = SQL.show.indexs.format(
             table_name=table_name, rows=1
         )
-        result = Dict(
+        result = TrodDict(
             columns=await RequestClient().fetch(show_clo_sql),
             indexs=await RequestClient().fetch(show_idx_sql)
         )

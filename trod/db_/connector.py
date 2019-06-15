@@ -1,17 +1,42 @@
-import logging
 from collections import namedtuple
 
 import aiomysql
 
 from trod import utils
+from trod.db_ import utils as db_utils
 
 
 Arg = namedtuple('Arg', ['default', 'help'])
 
 
+class DataBase:
+
+    __slots__ = ('connmeta',)
+
+    def __init__(self, **kwargs):
+        self.connmeta = kwargs
+
+
+@utils.singleton
 @utils.asyncinit
-class Connector:
+class Connector(DataBase):
     """ Provide a factory method to create a database connection pool.
+
+        Args:
+            url: db url.
+            minsize: minimum sizes of the pool
+            maxsize: maximum sizes of the pool.
+            timeout: timeout of connection.
+                     abandoning the connection from the pool after not getting the connection
+            pool_recycle: connection reset period, default -1,
+                          indicating that the connection will be reclaimed after a given time,
+                          be careful not to exceed MySQL default time of 8 hours
+            echo: executed log SQL queryes
+            loop: is an optional event loop instance,
+                  asyncio.get_event_loop() is used if loop is not specified.
+            kwargs: and etc.
+
+        returns : a `Connector` instance
 
         Ex:
             connector = await Connector.create(url)
@@ -51,23 +76,62 @@ class Connector:
         program_name=Arg(default='', help_=''),
         server_public_key=Arg(default=None, help_=''),
     )
+    _POOL_KWARGS = ('minsize', 'maxsize', 'echo', 'pool_recycle', 'loop')
 
-    __slots__ = ('pool', 'meta', 'state')
+    __slots__ = ('pool', '_conn_kwargs')
 
-    async def __init__(self, minsize=1, maxsize=10, echo=False, pool_recycle=-1, loop=None, **conn_kwargs):
+    async def __init__(self, minsize=1, maxsize=10, echo=False,
+                       pool_recycle=-1, loop=None, **conn_kwargs):
 
         conn_kwargs = self._check_conn_kwargs(conn_kwargs)
         self.pool = await aiomysql.create_pool(
-            minsize=minsize,
-            maxsize=maxsize,
-            echo=echo,
-            loop=loop,
-            pool_recycle=pool_recycle,
+            minsize=minsize, maxsize=maxsize, echo=echo,
+            pool_recycle=pool_recycle, loop=loop,
             **conn_kwargs
         )
-        logging.info('Create database connection pool success')
+        super().__init__(**conn_kwargs)
 
+    @classmethod
+    async def from_url(cls, url, minsize=1, maxsize=10, echo=False,
+                       pool_recycle=-1, loop=None, **conn_kwargs):
+        """ A coroutine that create a connection pool object
+        """
+        if not url:
+            raise ValueError('Db url cannot be empty')
+
+        db_meta = db_utils.UrlParser(url).parse()
+        db_meta.update(conn_kwargs)
+        for arg in cls._POOL_KWARGS:
+            db_meta.pop(arg, None)
+
+        return await cls(
+            minsize=minsize, maxsize=maxsize, echo=echo,
+            pool_recycle=pool_recycle, loop=loop,
+            **db_meta
+        )
+
+    def __repr__(self):
+        return "<Class '{0}'[{1}:{2}] for {3}:{4}/{5}>".format(
+            self.__class__.__name__, self.state.minsize, self.state.maxsize,
+            self._conn_kwargs.host, self._conn_kwargs.port, self._conn_kwargs.db
+        )
+
+    __str__ = __repr__
+
+    @property
+    def state(self):
+        """ connection pool state """
+
+        return utils.TrodDict(
+            minsize=self.pool.minsize,
+            maxsize=self.pool.maxsize,
+            size=self.pool.size,
+            freesize=self.pool.freesize
+        )
+
+    @utils.troddict_formatter()
     def _check_conn_kwargs(self, conn_kwargs):
+
         ret_kwargs = {}
         for arg in self._CONN_KWARGS:
             ret_kwargs[arg] = conn_kwargs.pop(arg, None) or self._CONN_KWARGS[arg].default
@@ -76,55 +140,6 @@ class Connector:
                 f'{self.__class__.__name__} got an unexpected keyword argument {exarg}'
             )
         return ret_kwargs
-
-    @classmethod
-    async def from_url(cls, url, minsize=1, maxsize=10, echo=False, pool_recycle=-1, loop=None, **conn_kwgs):
-        """ A coroutine that create a connection pool object
-
-        Args:
-            url: db url.
-            minsize: minimum sizes of the pool
-            maxsize: maximum sizes of the pool.
-            timeout: timeout of connection.
-                     abandoning the connection from the pool after not getting the connection
-            pool_recycle: connection reset period, default -1,
-                          indicating that the connection will be reclaimed after a given time,
-                          be careful not to exceed MySQL default time of 8 hours
-            echo: executed log SQL queryes
-            loop: is an optional event loop instance,
-                  asyncio.get_event_loop() is used if loop is not specified.
-            kwargs: and etc.
-
-        returns : a `Connector` instance
-        """
-
-        if not url:
-            return None
-
-        return cls(
-            minsize=minsize, maxsize=maxsize, echo=echo,
-            pool_recycle=pool_recycle, loop=loop, **conn_kwgs
-        )
-
-    def __repr__(self):
-        return "<class '{0}'[{1}:{2}] for {3}:{4}/{5}>".format(
-            self.__class__.__name__, self.state.minsize, self.state.maxsize, self.meta['host'],
-            self.meta['port'], self.meta['db']
-        )
-
-    __str__ = __repr__
-
-    @property
-    @utils.troddict_formatter()
-    def state(self):
-        """ connection pool state """
-
-        return {
-            'minsize': self.pool.minsize,
-            'maxsize': self.pool.maxsize,
-            'size': self.pool.size,
-            'freesize': self.pool.freesize
-        }
 
     def get(self):
         """ Get a connection """
@@ -143,14 +158,20 @@ class Connector:
         await self.pool.clear()
 
     async def close(self):
-        """ A coroutine that close pool. """
+        """ A coroutine that close pool.
+
+        Mark all pool connections to be closed on getting back to pool.
+        Closed pool doesn't allow to acquire new connections.
+        """
 
         if self.pool is not None:
             self.pool.close()
             await self.pool.wait_closed()
 
-        logging.info('Database connection pool closed')
-
     async def terminate(self):
+        """Terminate pool.
+
+        Close pool with instantly closing all acquired connections also.
+        """
 
         await self.pool.terminate()

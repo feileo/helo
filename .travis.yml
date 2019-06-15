@@ -10,9 +10,11 @@ before_install:
   - pip install aiomysql
   - pip install codecov
   - pip install coverage
+  - pip insatll pylint
 
 script: 
-  # - coverage run runtests.py
+  - coverage run runtests.py
+  # - pylint ops/* --jobs=4 --reports=yes 
 
 after_success:
   - codecov

@@ -4,7 +4,7 @@ from trod.db.executer import RequestClient
 from trod.errors import NoBindError
 from trod.extra.logger import Logger
 from trod.model.model import _Model
-from trod.utils import Dict, async_dict_formatter
+from trod.utils import TrodDict, troddict_formatter
 
 
 logger = logging.getLogger('trod')
@@ -305,7 +305,7 @@ class Trod:
     def db_info(self):
         """ Get the basic info of the database connection """
 
-        info_dict = Dict()
+        info_dict = TrodDict()
         if self.Client is None:
             return info_dict
         info_dict.update(
@@ -320,7 +320,7 @@ class Trod:
 
         return bool(self.Client)
 
-    @async_dict_formatter
+    @troddict_formatter(is_async=True)
     async def text(self, sql, args=None, rows=None):
         """ A coroutine that used to directly execute SQL statements """
 
