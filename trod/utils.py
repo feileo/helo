@@ -180,7 +180,7 @@ def async_troddict_formatter(func):
 
 
 def _do_troddict_format(ori_dict):
-    r_dict = TrodDict()
+    tdict = TrodDict()
     for key, value in ori_dict.items():
-        r_dict[key] = _do_troddict_format(value) if isinstance(value, dict) else value
-    return r_dict
+        tdict[key] = _do_troddict_format(value) if isinstance(value, dict) else value
+    return tdict

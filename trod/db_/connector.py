@@ -3,82 +3,64 @@ from collections import namedtuple
 import aiomysql
 
 from trod import utils
-from trod.db_ import utils as db_utils
+from trod.db_ import schemes
 
 
 Arg = namedtuple('Arg', ['default', 'help'])
 
 
 class DataBase:
+    """ Database connection pool base """
 
     __slots__ = ('connmeta',)
 
     def __init__(self, **kwargs):
-        self.connmeta = kwargs
+        self.connmeta = utils.format_troddict(kwargs)
 
 
 @utils.singleton
 @utils.asyncinit
 class Connector(DataBase):
-    """ Provide a factory method to create a database connection pool.
+    """ Create a MySQL connection pool based on `aiomysql.create_pool`.
 
-        Args:
-            url: db url.
-            minsize: minimum sizes of the pool
-            maxsize: maximum sizes of the pool.
-            timeout: timeout of connection.
-                     abandoning the connection from the pool after not getting the connection
-            pool_recycle: connection reset period, default -1,
-                          indicating that the connection will be reclaimed after a given time,
-                          be careful not to exceed MySQL default time of 8 hours
-            echo: executed log SQL queryes
-            loop: is an optional event loop instance,
-                  asyncio.get_event_loop() is used if loop is not specified.
-            kwargs: and etc.
+        :param int minsize: Minimum sizes of the pool
+        :param int maxsize: Maximum sizes of the pool
+        :param bool echo: Executed log SQL queryes
+        :param int pool_recycle: Connection reset period, default -1,
+            indicating that the connection will be reclaimed after a given time,
+            be careful not to exceed MySQL default time of 8 hours
+        :param loop: Is an optional event loop instance,
+            asyncio.get_event_loop() is used if loop is not specified.
+        :param conn_kwargs: See `_CONN_KWARGS`.
 
-        returns : a `Connector` instance
-
-        Ex:
-            connector = await Connector.create(url)
-
-        Get a connection from the connection pool:
-            connection = await connector.get()
-
-        Close the pool:
-            await connector.close()
-
-        And etc.
+        :Returns : `Connector` instance
     """
     _CONN_KWARGS = utils.TrodDict(
-        host=Arg(default="localhost", help=''),
-        user=Arg(default=None, help_=''),
-        password=Arg(default="", help_=''),
-        db=Arg(default=None, help_=''),
-        port=Arg(default=3306, help_=''),
-        unix_socket=Arg(default=None, help_=''),
-        charset=Arg(default='', help_=''),
-        sql_mode=Arg(default=None, help_=''),
-        read_default_file=Arg(default=None, help_=''),
-        conv=Arg(default=aiomysql.connection.decoders, help_=''),
-        use_unicode=Arg(default=None, help_=''),
-        client_flag=Arg(default=0, help_=''),
-        cursorclass=Arg(default=aiomysql.cursors.DictCursor, help_=''),
-        init_command=Arg(default=None, help_=''),
-        connect_timeout=Arg(default=None, help_=''),
-        read_default_group=Arg(default=None, help_=''),
-        no_delay=Arg(default=None, help_=''),
-        autocommit=Arg(default=False, help_=''),
-        echo=Arg(default=False, help_=''),
-        loop=Arg(default=None, help_=''),
-        local_infile=Arg(default=False, help_=''),
-        ssl=Arg(default=None, help_=''),
-        auth_plugin=Arg(default='', help_=''),
-        program_name=Arg(default='', help_=''),
-        server_public_key=Arg(default=None, help_=''),
+        host=Arg(dft="localhost", help='Host where the database server is located'),
+        user=Arg(dft=None, help='Username to log in as'),
+        password=Arg(dft="", help='Password to use'),
+        db=Arg(dft=None, help='Database to use, None to not use a particular one'),
+        port=Arg(dft=3306, help='MySQL port to use'),
+        unix_socket=Arg(dft=None, help='You can use a unix socket rather than TCP/IP'),
+        charset=Arg(dft='', help='Charset you want to use'),
+        sql_mode=Arg(dft=None, help='Default SQL_MODE to use'),
+        read_default_file=Arg(dft=None, help='Specifies my.cnf file to read these parameters'),
+        use_unicode=Arg(dft=None, help='Whether or not to default to unicode strings'),
+        cursorclass=Arg(dft=aiomysql.cursors.DictCursor, help='Custom cursor class to use'),
+        init_command=Arg(dft=None, help='Initial SQL statement to run when connection is established'),
+        connect_timeout=Arg(dft=15, help='Timeout before throwing an exception when connecting'),
+        autocommit=Arg(dft=False, help='Autocommit mode. None means use server default'),
+        echo=Arg(dft=False, help='Echo mode'),
+        loop=Arg(dft=None, help='Asyncio loop'),
+        local_infile=Arg(dft=False, help='bool to enable the use of LOAD DATA LOCAL cmd'),
+        ssl=Arg(dft=None, help='Optional SSL Context to force SSL'),
+        auth_plugin=Arg(dft='', help='String to manually specify the authentication plugin to use'),
+        program_name=Arg(dft='', help='Program name string to provide'),
+        server_public_key=Arg(dft=None, help='SHA256 authentication plugin public key value'),
     )
     _POOL_KWARGS = ('minsize', 'maxsize', 'echo', 'pool_recycle', 'loop')
 
-    __slots__ = ('pool', )
+    __slots__ = ('pool',)
 
     async def __init__(self, minsize=1, maxsize=10, echo=False,
                        pool_recycle=-1, loop=None, **conn_kwargs):
@@ -94,12 +76,16 @@ class Connector(DataBase):
     @classmethod
     async def from_url(cls, url, minsize=1, maxsize=10, echo=False,
                        pool_recycle=-1, loop=None, **conn_kwargs):
-        """ A coroutine that create a connection pool object
+        """ Provide a factory method `from_url` to create a connection pool.
+
+        :params see `__init__` for information
+
+        :Returns : `Connector` instance
         """
         if not url:
             raise ValueError('Db url cannot be empty')
 
-        db_meta = db_utils.UrlParser(url).parse()
+        db_meta = schemes.UrlParser(url).parse()
         db_meta.update(conn_kwargs)
         for arg in cls._POOL_KWARGS:
             db_meta.pop(arg, None)
@@ -113,14 +99,14 @@ class Connector(DataBase):
     def __repr__(self):
         return "<Class '{0}'[{1}:{2}] for {3}:{4}/{5}>".format(
             self.__class__.__name__, self.state.minsize, self.state.maxsize,
-            self._conn_kwargs.host, self._conn_kwargs.port, self._conn_kwargs.db
+            self.connmeta.host, self.connmeta.port, self.connmeta.db
         )
 
     __str__ = __repr__
 
     @property
     def state(self):
-        """ connection pool state """
+        """ Connection pool state """
 
         return utils.TrodDict(
             minsize=self.pool.minsize,
@@ -129,12 +115,11 @@ class Connector(DataBase):
             freesize=self.pool.freesize
         )
 
-    @utils.troddict_formatter()
     def _check_conn_kwargs(self, conn_kwargs):
 
         ret_kwargs = {}
         for arg in self._CONN_KWARGS:
-            ret_kwargs[arg] = conn_kwargs.pop(arg, None) or self._CONN_KWARGS[arg].default
+            ret_kwargs[arg] = conn_kwargs.pop(arg, None) or self._CONN_KWARGS[arg].dft
         for exarg in conn_kwargs:
             raise TypeError(
                 f'{self.__class__.__name__} got an unexpected keyword argument {exarg}'
@@ -155,6 +140,7 @@ class Connector(DataBase):
         """ A coroutine that closes all free connections in the pool.
             At next connection acquiring at least minsize of them will be recreated
         """
+
         await self.pool.clear()
 
     async def close(self):
@@ -169,7 +155,7 @@ class Connector(DataBase):
             await self.pool.wait_closed()
 
     async def terminate(self):
-        """Terminate pool.
+        """ A coroutine that terminate pool.
 
         Close pool with instantly closing all acquired connections also.
         """

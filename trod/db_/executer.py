@@ -8,6 +8,7 @@ from trod import utils
 
 
 class Executer:
+    """ MySQL SQL executer """
 
     clint = None
 
@@ -34,13 +35,19 @@ class Executer:
 
     @property
     def connect_info(self):
-        """ Db info """
+        """ Database connection info """
 
         return self.clint.connmeta
 
+    @property
+    def autocommit(self):
+        """ Whether to automatically submit a transaction """
+
+        return self.clint.connmeta.autocommit
+
     @classmethod
     async def bind_db(cls, connector):
-        """ A coroutine that bind db for `RequestClient` """
+        """ A coroutine that to bind db """
 
         if cls.clint is not None:
             raise DuplicateBindError('Duplicate database binding')
@@ -50,7 +57,7 @@ class Executer:
 
     @classmethod
     async def unbind(cls):
-        """ A coroutine that call `executer.close()` to unbind db"""
+        """ A coroutine that call `clint.close()` to unbind db"""
 
         if cls.clint is not None:
             cls.clint = await cls.clint.close()
@@ -64,12 +71,6 @@ class Executer:
         """ return a bool is bind a db """
 
         return bool(cls.clint)
-
-    @property
-    def autocommit(self):
-        """ Whether to automatically submit a transaction """
-
-        return self.clint.connmeta.autocommit
 
     @utils.troddict_formatter(is_async=True)
     async def _fetch(self, sql, args=None, rows=None):
