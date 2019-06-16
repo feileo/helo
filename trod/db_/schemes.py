@@ -1,13 +1,13 @@
 import urllib.parse as urlparse
 
-from trod.errors import InvaildDBUrlError
 from trod import utils
+from trod.errors import InvaildDBUrlError
+
+SCHEMES = ('mysql',)
 
 
 class UrlParser:
-    """ database url parser """
-
-    SCHEMES = ('mysql',)
+    """ Database url parser """
 
     __slots__ = ('url', )
 
@@ -24,7 +24,7 @@ class UrlParser:
 
         url = urlparse.urlparse(self.url)
 
-        if url.scheme not in self.SCHEMES:
+        if url.scheme not in SCHEMES:
             raise ValueError(f'Unsupported scheme {url.scheme}')
 
         path, query = url.path[1:], url.query
@@ -66,7 +66,7 @@ class UrlParser:
     def _register(self):
         """ Register database schemes in URLs """
 
-        urlparse.uses_netloc.extend(self.SCHEMES)
+        urlparse.uses_netloc.extend(SCHEMES)
 
     def _is_illegal_url(self):
         """ A bool of is illegal url """
