@@ -12,7 +12,7 @@ setup(
     author='acthse',
     author_email='acthse@outlook.com',
     url='https://github.com/acthse/trod',
-    description='Trod is a very simple asynchronous Python ORM based on asyncio',
+    description='Trod is a very simple asynchronous Python MySQL ORM based on asyncio',
     long_description=TROD_README,
     packages=find_packages(exclude=['tests']),
     include_package_data=True,

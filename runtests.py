@@ -6,6 +6,7 @@ from tests.base import AsyncioTestBase
 
 def runtests():
     """ run all test case """
+    # Skip temporarily
     pass
 
     # suite = unittest.TestSuite()
