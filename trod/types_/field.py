@@ -174,13 +174,10 @@ class FieldBase(Column):
 
     _py_type = None
     _db_type = None
-    _attr_key_num = 0
 
-    def __init__(self, name, null=None, index=None, unique=None, default=None, comment=None):
+    def __init__(self, name, null=None, default=None, comment=None):
 
         self.null = null  # TODO name
         self.default = default
         self.comment = comment
-        self.attr_key = self._attr_key
-        self.is_modify = False
         super().__init__(name)
