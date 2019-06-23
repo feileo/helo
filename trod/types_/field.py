@@ -1,5 +1,7 @@
+from collections.abc import Iterable
 
 from trod.utils import TrodDict
+
 
 OPER = TrodDict(
     AND='AND',
@@ -32,37 +34,73 @@ OPER = TrodDict(
 )
 
 
+class Cnt:
+
+    def __init__(self, pair, op, encap=False):
+        if not encap:
+            self.pair = pair
+        else:
+            self.pair = [f'({p})' for p in pair]
+        self.op = op
+
+    @property
+    def sql(self):
+        return f"{self.pair[0]} {self.op} {self.pair[1]}"
+
+
 class Expr:
 
-    def __init__(self, lhs, op, rhs, flat=False):
-        self.lhs = lhs
+    __slots__ = ('lhs', 'op', 'rhs', 'flat', 'logic')
+
+    def __init__(self, lhs, op, rhs, flat=False, logic=False):
+        self.lhs = lhs.name if isinstance(lhs, Column) else lhs
         self.op = op
-        self.rhs = rhs
+        self.rhs = rhs.name if isinstance(rhs, Column) else rhs
         self.flat = flat
+        self.logic = logic
 
-    def __sql__(self, ctx):
-        pass
+    def __and__(self, expr):
+        if isinstance(expr, self.__class__):
+            return self.__class__(self.__sql__(), OPER.AND, expr.__sql__(), logic=True)
+        raise ValueError()
 
+    def __or__(self, expr):
+        if isinstance(expr, self.__class__):
+            return self.__class__(self.__sql__(), OPER.OR, expr.__sql__(), logic=True)
+        raise ValueError()
 
-class NodeList:
-    pass
+    def __sql__(self):
+        if self.op in (OPER.IN, OPER.NOT_IN, OPER.EXISTS):
+            if not isinstance(self.rhs, Iterable):
+                raise ValueError(
+                    f"The value of the operator {self.rhs} should be an Iterable object"
+                )
+            self.rhs = tuple(self.rhs)
+        return Cnt((self.lhs, self.rhs), self.op, encap=self.logic).sql
+
+    def sql(self):
+        return self.__sql__()
 
 
 class Column:
 
     __slots__ = ('name',)
 
-    @staticmethod
-    def _expr(op, inv=False):
+    def _expr(op, inv=False):  # pylint: disable=all
 
         def wraper(self, rhs):
             if inv:
-                return Expr(rhs, op, self.name)
-            return Expr(self.name, op, rhs)
+                return Expr(rhs, op, self)
+            return Expr(self, op, rhs)
         return wraper
 
     def __init__(self, name):
         self.name = name
+
+    def __repr__(self):
+        return f'<{self.__class__.__name__}: {self.name}>'
+
+    __str__ = __repr__
 
     __and__ = _expr(OPER.AND)
     __or__ = _expr(OPER.OR)
@@ -82,11 +120,11 @@ class Column:
 
     def __eq__(self, rhs):
         op = OPER.IS if rhs is None else OPER.EQ
-        return Expr(self.name, op, rhs)
+        return Expr(self, op, rhs)
 
     def __ne__(self, rhs):
         op = OPER.IS_NOT if rhs is None else OPER.NE
-        return Expr(self.name, op, rhs)
+        return Expr(self, op, rhs)
 
     __lt__ = _expr(OPER.LT)
     __le__ = _expr(OPER.LTE)
@@ -108,30 +146,41 @@ class Column:
 
     def is_null(self, is_null=True):
         op = OPER.IS if is_null else OPER.IS_NOT
-        return Expr(self.name, op, None)
+        return Expr(self, op, None)
 
     def contains(self, rhs):
-        return Expr(self.name, OPER.ILIKE, '%{}%'.format(rhs))
+        return Expr(self, OPER.ILIKE, f'%{rhs}%')
 
     def startswith(self, rhs):
-        return Expr(self.name, OPER.ILIKE, '{}%'.format(rhs))
+        return Expr(self, OPER.ILIKE, f'{rhs}%')
 
     def endswith(self, rhs):
-        return Expr(self.name, OPER.ILIKE, '%{}'.format(rhs))
+        return Expr(self, OPER.ILIKE, f'%{rhs}')
 
     def between(self, low, hig):
-        return Expr(self.name, OPER.BETWEEN, NodeList((low, SQL('AND'), hig)))
+        return Expr(self, OPER.BETWEEN, Cnt((low, hig), OPER.AND).sql)
 
     def __getitem__(self, item):
         if isinstance(item, slice):
             if item.start is None or item.stop is None:
-                raise ValueError('BETWEEN range must have both a start- and '
-                                 'end-point.')
+                raise ValueError(
+                    'BETWEEN range must have both a start and end-point.'
+                )
             return self.between(item.start, item.stop)
         return self == item
 
-    def distinct(self):
-        return NodeList((SQL('DISTINCT'), self.name))
 
-    def collate(self, collation):
-        return NodeList((self.name, SQL('COLLATE %s' % collation)))
+class FieldBase(Column):
+
+    _py_type = None
+    _db_type = None
+    _attr_key_num = 0
+
+    def __init__(self, name, null=None, index=None, unique=None, default=None, comment=None):
+
+        self.null = null  # TODO name
+        self.default = default
+        self.comment = comment
+        self.attr_key = self._attr_key
+        self.is_modify = False
+        super().__init__(name)
