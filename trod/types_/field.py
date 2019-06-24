@@ -172,12 +172,53 @@ class Column:
 
 class FieldBase(Column):
 
+    __slots__ = ('null', 'default', 'comment',)
+
     _py_type = None
     _db_type = None
 
-    def __init__(self, name, null=None, default=None, comment=None):
+    def __init__(self, name, null, default, comment):
 
-        self.null = null  # TODO name
+        self.null = null
         self.default = default
         self.comment = comment
         super().__init__(name)
+
+    def build_type(self):
+        """ Build field type """
+
+        raise NotImplementedError
+
+    def build_stmt(self):
+        """ Build field definition """
+
+        stmt = []
+
+        if self.allow_null is True or self.allow_null == 1:
+            stmt.append('NULL')
+        elif self.allow_null is False or self.allow_null == 0:
+            stmt.append('NOT NULL')
+        else:
+            raise ValueError('Allow_null value must be True, False, 0 or 1')
+        if self.default is not None:
+            default = self.default
+            if isinstance(self, Float):
+                default = float(default)
+            if not isinstance(default, self._py_type):
+                raise ValueError(
+                    f'Except default value {self._py_type} now is {default}'
+                )
+            if isinstance(default, str):
+                default = f"'{self.default}'"
+            stmt.append(f'DEFAULT {default}')
+        elif not self.allow_null:
+            Logger.warning(f'Not to give default value for NOT NULL field {self.name}')
+        stmt.append(f"COMMENT '{self.comment}'")
+        return stmt
+
+    def build(self):
+        """ Generate field definition syntax """
+
+        field_sql = [self.build_type()]
+        field_sql.extend(self.build_stmt())
+        return ' '.join(field_sql)
