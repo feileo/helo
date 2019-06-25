@@ -1,3 +1,4 @@
+import warnings
 from collections.abc import Iterable
 
 from trod.utils import TrodDict
@@ -172,53 +173,193 @@ class Column:
 
 class FieldBase(Column):
 
-    __slots__ = ('null', 'default', 'comment',)
+    __slots__ = ('null', 'default', 'comment', '_seq_num')
 
     _py_type = None
     _db_type = None
 
+    _field_counter = 0
+    _spaces = ' '
+
+    # TODO params checker
     def __init__(self, name, null, default, comment):
 
+        if not isinstance(null, bool):
+            raise ValueError(f"Unexpected `null` type: {null}")
+
+        super().__init__(name)
         self.null = null
         self.default = default
         self.comment = comment
-        super().__init__(name)
 
-    def build_type(self):
-        """ Build field type """
+        FieldBase._field_counter += 1
+        self._seq_num = FieldBase._field_counter
 
+    @property
+    def _allow_null(self):
+        return self.null is True or self.null == 1
+
+    @property
+    def _type(self):
         raise NotImplementedError
 
-    def build_stmt(self):
-        """ Build field definition """
+    @property
+    def _stmt(self):
 
-        stmt = []
-
-        if self.allow_null is True or self.allow_null == 1:
-            stmt.append('NULL')
-        elif self.allow_null is False or self.allow_null == 0:
-            stmt.append('NOT NULL')
-        else:
-            raise ValueError('Allow_null value must be True, False, 0 or 1')
+        allow_null = "NULL" if self.allow_null else 'NOT NULL'
+        stmt_list = [allow_null]
         if self.default is not None:
             default = self.default
             if isinstance(self, Float):
                 default = float(default)
             if not isinstance(default, self._py_type):
                 raise ValueError(
-                    f'Except default value {self._py_type} now is {default}'
+                    f'Except default value {self._py_type}, now got {default}'
                 )
             if isinstance(default, str):
                 default = f"'{self.default}'"
-            stmt.append(f'DEFAULT {default}')
+            stmt_list.append(f'DEFAULT {default}')
         elif not self.allow_null:
-            Logger.warning(f'Not to give default value for NOT NULL field {self.name}')
-        stmt.append(f"COMMENT '{self.comment}'")
-        return stmt
+            warnings.warn(f'Not to give default value for NOT NULL field {self.name}')
+        if self.comment:
+            stmt_list.append(f"COMMENT '{self.comment}'")
+        return self._spaces.join(stmt_list)
 
-    def build(self):
-        """ Generate field definition syntax """
+    def sql(self):
+        return f"{self.type} {self.stmt}"
 
-        field_sql = [self.build_type()]
-        field_sql.extend(self.build_stmt())
-        return ' '.join(field_sql)
+    @classmethod
+    def auto(cls):
+
+        id_field = "`id` bigint(45) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键'"
+        return id_field, 'id'
+
+    @property
+    def seq_num(self):
+        return self._seq_num
+
+
+class Defi:
+
+    def __init__(self):
+        self.sql = []
+
+    def __enter__(self):
+        # append _type
+        pass
+
+    def __exit__(self):
+        # append _comment
+        pass
+
+    def _type(self):
+        pass
+
+    def _allow_null(self):
+        pass
+
+    def _comment(self):
+        pass
+
+    def _custom(self):
+        pass
+
+
+class Tinyint(FieldBase):
+
+    __slots__ = ('unsigned', 'length',)
+
+    _py_type = int
+    _db_type = 'tinyint'
+
+    _type_tpl = '{type}({length})'
+
+    def __init__(self,
+                 length,
+                 unsigned=False,
+                 null=True,
+                 default=None,
+                 comment='',
+                 name=None):
+        super().__init__(
+            name=name, null=null, default=default, comment=comment
+        )
+        self.unsigned = unsigned
+        self.length = length
+
+    @property
+    def _type(self):
+        data_type = self._type_tpl.format(
+            type=self._db_type, length=self.length
+        )
+        if self.unsigned is True:
+            data_type = f'{data_type} unsigned'
+        return data_type
+
+
+class Smallint(Tinyint):
+
+    _db_type = 'smallint'
+
+
+class Int(Tinyint):
+
+    _db_type = 'int'
+
+    def __init__(self,
+                 length,
+                 unsigned=False,
+                 null=True,
+                 primary_key=False,
+                 default=None,
+                 comment='',
+                 name=None):
+        super().__init__(
+            name=name, null=null, default=default,
+            comment=comment, length=length, unsigned=unsigned
+        )
+        self.primary_key = primary_key
+        if self.primary_key is True:
+            if self.null:
+                warnings.warn('Primary_key is not allow null, use default')
+            self.null = False
+            self.default = None
+
+
+class Bigint(Int):
+
+    _db_type = 'bigint'
+
+
+class Text(FieldBase):
+
+    _py_type = str
+    _db_type = 'text'
+    _type_tpl = '{type}'
+
+    def __init__(self,
+                 encoding=None,
+                 null=True,
+                 comment='',
+                 name=None):
+        super().__init__(
+            name=name, null=null, default=None, comment=comment
+        )
+        self.encoding = encoding
+
+    @property
+    def _type(self):
+        return self._type_tpl.format(type=self._db_type)
+
+    @property
+    def _stmt(self):
+        stmt = []
+        if self.encoding is not None:
+            stmt.append(f'CHARACTER SET {self.encoding}')
+        if self.allow_null:
+            stmt.append('NULL')
+        else:
+            stmt.append('NOT NULL')
+        if self.comment:
+            stmt.append(f"COMMENT '{self.comment}'")
+        return self._spaces.join(stmt)
