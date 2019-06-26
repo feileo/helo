@@ -1,4 +1,5 @@
 import warnings
+# from abc import ABCMeta, abstractmethod
 from collections.abc import Iterable
 
 from trod.utils import TrodDict
@@ -171,15 +172,71 @@ class Column:
         return self == item
 
 
-class FieldBase(Column):
+class Defi:
 
-    __slots__ = ('null', 'default', 'comment', '_seq_num')
+    __slots__ = ('_sql',)
+
+    _spaces = ' '
+
+    def __init__(self):
+        self._sql = []
+
+    @property
+    def _field(self):
+        raise NotImplementedError
+
+    @property
+    def _type(self):
+        raise NotImplementedError
+
+    @property
+    def _unsigned(self):
+        raise NotImplementedError
+
+    @property
+    def _zerofill(self):
+        raise NotImplementedError
+
+    @property
+    def _encoding(self):
+        raise NotImplementedError
+
+    @property
+    def _allow_null(self):
+        raise NotImplementedError
+
+    @property
+    def _default(self):
+        raise NotImplementedError
+
+    @property
+    def _comment(self):
+        raise NotImplementedError
+
+    def sql(self):
+        self._sql.extend([self._field, self._type])
+        if self._unsigned:
+            self._sql.append(self._unsigned)
+        if self._encoding:
+            self._sql.append(self._encoding)
+        if self._zerofill:
+            self._sql.append(self._zerofill)
+        self._sql.extend(self._allow_null)
+        if self._default:
+            self._sql.append(self._default)
+        if self._comment:
+            self._sql.append(self._comment)
+        return self._space.join(self._sql)
+
+
+class FieldBase(Column, Defi):
+
+    __slots__ = ('null', 'default', 'comment', '_seq_num', )
 
     _py_type = None
     _db_type = None
 
     _field_counter = 0
-    _spaces = ' '
 
     # TODO params checker
     def __init__(self, name, null, default, comment):
@@ -196,18 +253,29 @@ class FieldBase(Column):
         self._seq_num = FieldBase._field_counter
 
     @property
+    def _field(self):
+        return f'`{self.name}`'
+
+    @property
+    def _unsigned(self):
+        return None
+
+    @property
+    def _zerofill(self):
+        return None
+
+    @property
+    def _encoding(self):
+        return None
+
+    @property
     def _allow_null(self):
-        return self.null is True or self.null == 1
+        return "NULL" if self.null else 'NOT NULL'
 
     @property
-    def _type(self):
-        raise NotImplementedError
+    def _default(self):
 
-    @property
-    def _stmt(self):
-
-        allow_null = "NULL" if self.allow_null else 'NOT NULL'
-        stmt_list = [allow_null]
+        default = None
         if self.default is not None:
             default = self.default
             if isinstance(self, Float):
@@ -218,51 +286,25 @@ class FieldBase(Column):
                 )
             if isinstance(default, str):
                 default = f"'{self.default}'"
-            stmt_list.append(f'DEFAULT {default}')
-        elif not self.allow_null:
+            default = f'DEFAULT {default}'
+        elif not self.null:
             warnings.warn(f'Not to give default value for NOT NULL field {self.name}')
+        return default
+
+    @property
+    def _comment(self):
         if self.comment:
-            stmt_list.append(f"COMMENT '{self.comment}'")
-        return self._spaces.join(stmt_list)
+            return f"COMMENT '{self.comment}'"
+        return None
 
-    def sql(self):
-        return f"{self.type} {self.stmt}"
-
-    @classmethod
-    def auto(cls):
-
-        id_field = "`id` bigint(45) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键'"
-        return id_field, 'id'
+    # @classmethod
+    # def auto(cls):
+    #     id_field = "`id` bigint(45) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键'"
+    #     return id_field, 'id'
 
     @property
     def seq_num(self):
         return self._seq_num
-
-
-class Defi:
-
-    def __init__(self):
-        self.sql = []
-
-    def __enter__(self):
-        # append _type
-        pass
-
-    def __exit__(self):
-        # append _comment
-        pass
-
-    def _type(self):
-        pass
-
-    def _allow_null(self):
-        pass
-
-    def _comment(self):
-        pass
-
-    def _custom(self):
-        pass
 
 
 class Tinyint(FieldBase):
@@ -277,6 +319,7 @@ class Tinyint(FieldBase):
     def __init__(self,
                  length,
                  unsigned=False,
+                 zerofill=False,
                  null=True,
                  default=None,
                  comment='',
@@ -284,17 +327,27 @@ class Tinyint(FieldBase):
         super().__init__(
             name=name, null=null, default=default, comment=comment
         )
-        self.unsigned = unsigned
         self.length = length
+        self.unsigned = unsigned
+        self.zerofill = zerofill
 
     @property
     def _type(self):
-        data_type = self._type_tpl.format(
+        return self._type_tpl.format(
             type=self._db_type, length=self.length
         )
-        if self.unsigned is True:
-            data_type = f'{data_type} unsigned'
-        return data_type
+
+    @property
+    def _unsigned(self):
+        if self.unsigned:
+            return 'unsigned'
+        return None
+
+    @property
+    def _zerofill(self):
+        if self.zerofill:
+            return 'zerofill'
+        return None
 
 
 class Smallint(Tinyint):
@@ -309,14 +362,15 @@ class Int(Tinyint):
     def __init__(self,
                  length,
                  unsigned=False,
+                 zerofill=False,
                  null=True,
                  primary_key=False,
                  default=None,
                  comment='',
                  name=None):
         super().__init__(
-            name=name, null=null, default=default,
-            comment=comment, length=length, unsigned=unsigned
+            name=name, null=null, default=default, comment=comment,
+            length=length, unsigned=unsigned, zerofill=zerofill
         )
         self.primary_key = primary_key
         if self.primary_key is True:
@@ -352,14 +406,11 @@ class Text(FieldBase):
         return self._type_tpl.format(type=self._db_type)
 
     @property
-    def _stmt(self):
-        stmt = []
-        if self.encoding is not None:
-            stmt.append(f'CHARACTER SET {self.encoding}')
-        if self.allow_null:
-            stmt.append('NULL')
-        else:
-            stmt.append('NOT NULL')
-        if self.comment:
-            stmt.append(f"COMMENT '{self.comment}'")
-        return self._spaces.join(stmt)
+    def _encoding(self):
+        if not self.encoding:
+            return None
+        return f'CHARACTER SET {self.encoding}'
+
+    @property
+    def _default(self):
+        return None
