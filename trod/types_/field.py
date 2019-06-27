@@ -182,7 +182,7 @@ class Defi:
         self._sql = []
 
     @property
-    def _field(self):
+    def _name(self):
         raise NotImplementedError
 
     @property
@@ -214,7 +214,7 @@ class Defi:
         raise NotImplementedError
 
     def sql(self):
-        self._sql.extend([self._field, self._type])
+        self._sql.extend([self._name, self._type])
         if self._unsigned:
             self._sql.append(self._unsigned)
         if self._encoding:
@@ -253,7 +253,7 @@ class FieldBase(Column, Defi):
         self._seq_num = FieldBase._field_counter
 
     @property
-    def _field(self):
+    def _name(self):
         return f'`{self.name}`'
 
     @property
@@ -277,18 +277,18 @@ class FieldBase(Column, Defi):
 
         default = None
         if self.default is not None:
-            default = self.default
-            if isinstance(self, Float):
-                default = float(default)
-            if not isinstance(default, self._py_type):
+            try:
+                default = self._py_type(default)
+            except ValueError:
                 raise ValueError(
                     f'Except default value {self._py_type}, now got {default}'
                 )
-            if isinstance(default, str):
-                default = f"'{self.default}'"
-            default = f'DEFAULT {default}'
-        elif not self.null:
-            warnings.warn(f'Not to give default value for NOT NULL field {self.name}')
+            default = f"DEFAULT '{default}'"
+        else:
+            if self.null:
+                default = 'DEFAULT NULL'
+            else:
+                warnings.warn(f'Not to give default value for NOT NULL field {self.name}')
         return default
 
     @property
