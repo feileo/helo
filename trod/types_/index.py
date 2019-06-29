@@ -1,7 +1,8 @@
 import traceback
+from abc import ABC
 
 
-class IndexBase:
+class IndexBase(ABC):
 
     __slots__ = ('name', 'columns', 'comment', '_seq_num', )
 
