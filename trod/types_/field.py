@@ -1,5 +1,6 @@
+import decimal
+import datetime
 import warnings
-# from abc import ABCMeta, abstractmethod
 from collections.abc import Iterable
 
 from trod.utils import TrodDict
@@ -244,13 +245,13 @@ class FieldBase(Column, Defi):
         if not isinstance(null, bool):
             raise ValueError(f"Unexpected `null` type: {null}")
 
-        super().__init__(name)
         self.null = null
         self.default = default
         self.comment = comment
 
         FieldBase._field_counter += 1
         self._seq_num = FieldBase._field_counter
+        super().__init__(name)
 
     @property
     def _name(self):
@@ -279,16 +280,15 @@ class FieldBase(Column, Defi):
         if self.default is not None:
             try:
                 default = self._py_type(default)
-            except ValueError:
+            except Exception:
                 raise ValueError(
                     f'Except default value {self._py_type}, now got {default}'
                 )
             default = f"DEFAULT '{default}'"
         else:
-            if self.null:
-                default = 'DEFAULT NULL'
-            else:
+            if not self.null:
                 warnings.warn(f'Not to give default value for NOT NULL field {self.name}')
+            default = 'DEFAULT NULL'
         return default
 
     @property
@@ -309,7 +309,7 @@ class FieldBase(Column, Defi):
 
 class Tinyint(FieldBase):
 
-    __slots__ = ('unsigned', 'length',)
+    __slots__ = ('unsigned', 'length', 'zerofill')
 
     _py_type = int
     _db_type = 'tinyint'
@@ -324,12 +324,12 @@ class Tinyint(FieldBase):
                  default=None,
                  comment='',
                  name=None):
-        super().__init__(
-            name=name, null=null, default=default, comment=comment
-        )
         self.length = length
         self.unsigned = unsigned
         self.zerofill = zerofill
+        super().__init__(
+            name=name, null=null, default=default, comment=comment
+        )
 
     @property
     def _type(self):
@@ -352,10 +352,14 @@ class Tinyint(FieldBase):
 
 class Smallint(Tinyint):
 
+    __slots__ = ()
+
     _db_type = 'smallint'
 
 
 class Int(Tinyint):
+
+    __slots__ = ('primary_key',)
 
     _db_type = 'int'
 
@@ -368,24 +372,29 @@ class Int(Tinyint):
                  default=None,
                  comment='',
                  name=None):
+        self.primary_key = primary_key
+        if self.primary_key is True:
+            if null:
+                warnings.warn('Primary_key is not allow null, use default')
+            null = False
+            default = None
+
         super().__init__(
             name=name, null=null, default=default, comment=comment,
             length=length, unsigned=unsigned, zerofill=zerofill
         )
-        self.primary_key = primary_key
-        if self.primary_key is True:
-            if self.null:
-                warnings.warn('Primary_key is not allow null, use default')
-            self.null = False
-            self.default = None
 
 
 class Bigint(Int):
+
+    __slots__ = ()
 
     _db_type = 'bigint'
 
 
 class Text(FieldBase):
+
+    __slots__ = ('encoding',)
 
     _py_type = str
     _db_type = 'text'
@@ -396,10 +405,10 @@ class Text(FieldBase):
                  null=True,
                  comment='',
                  name=None):
+        self.encoding = encoding
         super().__init__(
             name=name, null=null, default=None, comment=comment
         )
-        self.encoding = encoding
 
     @property
     def _type(self):
@@ -414,3 +423,191 @@ class Text(FieldBase):
     @property
     def _default(self):
         return None
+
+
+class Char(FieldBase):
+
+    __slots__ = ('length', 'encoding',)
+
+    _py_type = str
+    _db_type = 'char'
+
+    _type_tpl = '{type}({length})'
+
+    def __init__(self,
+                 length,
+                 encoding=None,
+                 null=True,
+                 default=None,
+                 comment='',
+                 name=None):
+        self.length = length
+        self.encoding = encoding
+        super().__init__(
+            null=null, default=default, comment=comment, name=name
+        )
+
+    @property
+    def _type(self):
+        return self._type_tpl.format(type=self._db_type, length=self.length)
+
+    @property
+    def _encoding(self):
+        if not self.encoding:
+            return None
+        return f'CHARACTER SET {self.encoding}'
+
+
+class VarChar(Char):
+
+    __slots__ = ()
+
+    _db_type = 'varchar'
+
+
+class Float(FieldBase):
+
+    __slots__ = ('length', 'unsigned',)
+
+    _py_type = float
+    _db_type = 'float'
+    _type_tpl = ('{type}', '{type}({m},{d})')
+
+    def __init__(self,
+                 length=None,
+                 unsigned=False,
+                 null=True,
+                 default=None,
+                 comment='',
+                 name=None):
+        if not length or isinstance(length, int):
+            self.length = length
+        else:
+            if isinstance(length, (tuple, list)) and len(length) == 2:
+                self.length = tuple(length)
+            else:
+                raise ValueError(f"Invalid `Float` length: {length}")
+        self.unsigned = unsigned
+        super().__init__(
+            null=null, default=default, comment=comment, name=name
+        )
+
+    @property
+    def _unsigned(self):
+        if self.unsigned:
+            return 'unsigned'
+        return None
+
+    @property
+    def _type(self):
+        if isinstance(self.length, tuple):
+            return self._type_tpl[1].format(
+                type=self._db_type, m=self.length[0], d=self.length[1]
+            )
+        return self._type_tpl[0].format(type=self._db_type)
+
+
+class Double(Float):
+
+    __slots__ = ()
+
+    _db_type = 'double'
+
+
+class Decimal(Float):
+
+    __slots__ = ('length', 'unsigned',)
+
+    _py_type = decimal.Decimal
+    _db_type = 'decimal'
+
+    _type_tpl = '{type}({m},{d})'
+
+    def __init__(self,
+                 length,
+                 unsigned=False,
+                 null=True,
+                 default=None,
+                 comment='',
+                 name=None):
+        if not isinstance(length, (tuple, list)) or len(length) != 2:
+            raise ValueError(f"Invalid `Float` length: {length}")
+        self.length = tuple(length)
+        self.unsigned = unsigned
+        super().__init__(
+            null=null, default=default, comment=comment, name=name
+        )
+
+    @property
+    def _type(self):
+        return self._type_tpl.format(
+            type=self._db_type, m=self.length[0], d=self.length[1]
+        )
+
+
+class Datetime(FieldBase):
+
+    __slots__ = ()
+
+    _py_type = datetime.datetime
+    _db_type = 'datetime'
+    _format = '%Y-%m-%d %H:%M:%S'
+
+    _type_tpl = '{type}'
+
+    def __init__(self,
+                 null=True,
+                 default=None,
+                 comment='',
+                 name=None):
+        if not isinstance(default, self._py_type):
+            raise ValueError(f"Invalid Datetime default: '{default}'")
+        super().__init__(
+            null=null, default=default, comment=comment, name=name
+        )
+
+    def __call__(self, *args, **kwargs):
+        return datetime.now()
+
+    @property
+    def type(self):
+        return self._type_tpl.format(type=self._db_type)
+
+    @property
+    def _default(self):
+        if self.default:
+            return "DEFAULT '{}'".format(self.default.strftime(self._format))
+        return 'DEFAULT NULL'
+
+
+class Timestamp(Datetime):
+
+    __slots__ = ()
+
+    _db_type = 'timestamp'
+    _auto = ('on_create', 'on_update')
+
+    def __init__(self,
+                 null=True,
+                 default=None,
+                 comment='',
+                 name=None):
+        if isinstance(default, self._py_type) or default in self._auto:
+            default = default
+        else:
+            raise ValueError(
+                f"Invalid `Timestamp` default: {default}"
+            )
+        super().__init__(
+            null=null, default=default, comment=comment, name=name
+        )
+
+    @property
+    def _default(self):
+        if self.default in self._auto:
+            if self.default == self._auto[0]:
+                return 'DEFAULT CURRENT_TIMESTAMP'
+            return 'DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'
+        elif self.default:
+            return "DEFAULT '{}'".format(self.default.strftime(self._format))
+        return 'DEFAULT NULL'
