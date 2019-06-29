@@ -1,5 +1,5 @@
 ====
-trod 👨‍💻 rewriting
+trod 
 ====
 
 .. image:: https://img.shields.io/pypi/v/trod.svg
@@ -18,6 +18,9 @@ trod 👨‍💻 rewriting
         :target: https://img.shields.io/pypi/l/trod.svg
 
 
+Status
+------------
+👨‍💻 rewriting
 
 🌻 **Trod** is a very simple asynchronous Python ORM based on asyncio_. 
 Now it only supports MySQL and uses aiomysql_ as the access 'driver' for the database.
