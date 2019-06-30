@@ -49,3 +49,7 @@ class AddEmptyInstanceError(RuntimeError):
 
 class ModelSetAttrError(AttributeError):
     pass
+
+
+class ProgrammingWarning(RuntimeWarning):
+    pass
