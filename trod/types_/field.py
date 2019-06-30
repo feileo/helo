@@ -4,6 +4,7 @@ import warnings
 from collections.abc import Iterable
 
 from trod.utils import TrodDict
+from trod import errors
 
 
 OPER = TrodDict(
@@ -214,6 +215,10 @@ class Defi:
     def _comment(self):
         raise NotImplementedError
 
+    @property
+    def _ai(self):
+        raise NotImplementedError
+
     def sql(self):
         self._sql.extend([self._name, self._type])
         if self._unsigned:
@@ -277,6 +282,8 @@ class FieldBase(Column, Defi):
     def _default(self):
 
         default = None
+        if self._ai:
+            return 'AUTO_INCREMENT'
         if self.default is not None:
             try:
                 default = self._py_type(default)
@@ -297,10 +304,9 @@ class FieldBase(Column, Defi):
             return f"COMMENT '{self.comment}'"
         return None
 
-    # @classmethod
-    # def auto(cls):
-    #     id_field = "`id` bigint(45) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键'"
-    #     return id_field, 'id'
+    @property
+    def _ai(self):
+        return False
 
     @property
     def seq_num(self):
@@ -359,7 +365,7 @@ class Smallint(Tinyint):
 
 class Int(Tinyint):
 
-    __slots__ = ('primary_key',)
+    __slots__ = ('pk', 'ai',)
 
     _db_type = 'int'
 
@@ -368,21 +374,36 @@ class Int(Tinyint):
                  unsigned=False,
                  zerofill=False,
                  null=True,
-                 primary_key=False,
+                 pk=False,
+                 ai=False,
                  default=None,
                  comment='',
                  name=None):
-        self.primary_key = primary_key
-        if self.primary_key is True:
+        self.pk = pk
+        self.ai = ai
+        if self.pk is True:
             if null:
-                warnings.warn('Primary_key is not allow null, use default')
+                warnings.warn(
+                    'Primary key is not allow null, use default',
+                    errors.ProgrammingWarning
+                )
             null = False
             default = None
+        elif self.ai:
+            warnings.warn(
+                "'AUTO_INCREMENT' cannot be set for non-primary key fields, use default",
+                errors.ProgrammingWarning
+            )
+            self.ai = False
 
         super().__init__(
             name=name, null=null, default=default, comment=comment,
             length=length, unsigned=unsigned, zerofill=zerofill
         )
+
+        @property
+        def _ai(self):
+            return True
 
 
 class Bigint(Int):

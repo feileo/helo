@@ -3,7 +3,7 @@ import logging
 
 import aiomysql
 
-from trod.errors import DuplicateBindError, NoBindError
+from trod import errors
 from trod import utils
 
 
@@ -16,7 +16,7 @@ class Executer:
 
     def __init__(self):
         if self.clint is None:
-            raise NoBindError(
+            raise errors.NoBindError(
                 'Executer no binding db or closed'
             )
 
@@ -50,7 +50,7 @@ class Executer:
         """ A coroutine that to bind db """
 
         if cls.clint is not None:
-            raise DuplicateBindError('Duplicate database binding')
+            raise errors.DuplicateBindError('Duplicate database binding')
 
         cls.clint = connector
         return True
