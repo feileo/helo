@@ -243,6 +243,9 @@ class Table:
     def drop(self):
         pass
 
+    def show(self):
+        pass
+
 
 class Insert:
     pass
