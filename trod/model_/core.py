@@ -1,9 +1,8 @@
 import warnings
 from collections import OrderedDict
 
-from trod import types_ as types, errors
-from trod.utils import TrodDict
-# from trod import db_ as db
+from trod import types_ as types, errors, utils, db_ as db
+from trod.model_ import crud, session
 
 
 class _ModelMeta(type):
@@ -40,7 +39,7 @@ class _ModelMeta(type):
         table_name = name
 
         fields, indexs = OrderedDict(), OrderedDict()
-        pk = TrodDict(auto=False, field=None, ai=None)
+        pk = utils.TrodDict(auto=False, field=None, ai=None)
 
         for attr in attrs.copy():
             if pk.field and attr == pk.field.name:
@@ -50,7 +49,8 @@ class _ModelMeta(type):
 
             if isinstance(field, types.field.FieldBase):
                 field.name = field.name or attr
-                if hasattr(field, 'pk') and field.pk:
+                if getattr(field, 'pk', None):
+                    # if hasattr(field, 'pk') and field.pk:
                     if pk.field is not None:
                         raise errors.DuplicatePKError(
                             f'Duplicate primary key found for field {field.name}'
@@ -130,70 +130,77 @@ class _Model(metaclass=_ModelMeta):
 
         self.__dict__[key] = value
 
+    @utils.troddict_formatter
+    def __self__(self):
+        return self.__dict__
+
     @classmethod
-    async def _create(cls, db):
+    async def _create(cls, bind):
         """ Do create table """
 
-        return await cls.__table__.create(db)
+        return await cls.__table__.create(bind)
 
     @classmethod
-    async def _drop(cls, db):
+    async def _drop(cls, bind):
         """ Do drop table """
 
-        return await cls.__table__.drop(db)
+        return await cls.__table__.drop(bind)
 
     @classmethod
-    async def _exist(cls, db):
+    async def _exist(cls, bind):
         """ query table is exist """
 
-        return await cls.__table__.exist(db)
+        return await cls.__table__.exist(bind)
 
     @classmethod
-    async def _show(cls, db):
+    async def _show(cls, bind):
 
-        return await cls.__table__.show(db)
+        return await cls.__table__.show(bind)
 
     @classmethod
-    async def _add_index(cls, db):
+    async def _add_index(cls, bind):
 
-        return await cls.__table__.add_index(db)
+        return await cls.__table__.add_index(bind)
 
     @classmethod
     def _normalize_data(cls, data, kwargs):
         pass
 
     @classmethod
-    async def _get(cls, db, _id):
+    async def _get(cls, bind, _id):
+
         pass
 
     @classmethod
-    async def _get_many(cls, db, ids, *fields):
+    async def _get_many(cls, bind, ids, *fields):
+
         pass
 
     @classmethod
-    async def _select(cls, db, *fields):
+    async def _select(cls, bind, *fields):
 
-        return Select(db, cls.__table__)
-
-    @classmethod
-    async def _insert(cls, db, **insert):
-
-        return Insert(db, cls.__table__)
+        return crud.Select(bind, cls.__table__.name, *fields)
 
     @classmethod
-    async def _insert_many(cls, db, rows, fields=None):
+    async def _insert(cls, bind, **values):
 
-        return Insert(db, cls.__table__)
-
-    @classmethod
-    async def _update(cls, db, **update):
-
-        return Update(db, cls.__table__)
+        rows = [values]
+        return crud.Insert(bind, cls.__table__.name, *rows)
 
     @classmethod
-    async def _delete(cls, db, **query):
+    async def _insert_many(cls, bind, *rows):
 
-        return Delete(db, cls.__table__)
+        return crud.Insert(bind, cls.__table__.name, *rows)
+
+    @classmethod
+    async def _update(cls, bind, **values):
+
+        return crud.Update(bind, cls.__table__.name, **values)
+
+    @classmethod
+    async def _delete(cls, bind):
+
+        return crud.Delete(bind, cls.__table__.name)
 
     async def _save(self):
         """ save self
@@ -207,18 +214,18 @@ class _Model(metaclass=_ModelMeta):
             print(a.f) # 2
         """
 
-        return Session(self)
+        return session.Session(self)
 
     async def _remove(self):
         """ delete self """
 
-        return Delete(self)
+        return crud.Delete(self)
 
 
-class Table:
+class Table(db.SQL):
 
     AIPK = 'id'
-    DEFAULT = TrodDict(
+    DEFAULT = utils.TrodDict(
         __table__=None,
         __auto_increment__=1,
         __engine__='InnoDB',
@@ -226,7 +233,7 @@ class Table:
         __comment__='',
     )
 
-    def __init__(self, name, fields, indexs=None, pk=None,
+    def __init__(self, bind, name, fields, indexs=None, pk=None,
                  engine=None, charset=None, comment=None):
         self.name = name
         self.fields = fields
@@ -236,6 +243,10 @@ class Table:
         self.engine = engine or self.DEFAULT.__engine__
         self.charset = charset or self.DEFAULT.__charset__
         self.comment = comment or self.DEFAULT.__comment__
+        super().__init__(bind)
+
+    def do(self):
+        pass
 
     def create(self):
         pass
@@ -246,22 +257,8 @@ class Table:
     def show(self):
         pass
 
+    def exist(self):
+        pass
 
-class Insert:
-    pass
-
-
-class Update:
-    pass
-
-
-class Select:
-    pass
-
-
-class Delete:
-    pass
-
-
-class Session:
-    pass
+    def add_index(self):
+        pass
