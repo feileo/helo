@@ -2,7 +2,7 @@ import warnings
 from collections import OrderedDict
 
 from trod import types_ as types, errors, utils, db_ as db
-from trod.model_ import crud, session
+from trod.model_ import crud
 
 
 class _ModelMeta(type):
@@ -167,40 +167,40 @@ class _Model(metaclass=_ModelMeta):
         pass
 
     @classmethod
-    async def _get(cls, bind, _id):
+    async def _get(cls, _id):
 
         pass
 
     @classmethod
-    async def _get_many(cls, bind, ids, *fields):
+    async def _get_many(cls, ids, *fields):
 
         pass
 
     @classmethod
-    async def _select(cls, bind, *fields):
+    async def _select(cls, *fields):
 
-        return crud.Select(bind, cls.__table__.name, *fields)
+        return crud.Select(cls.__table__.name, *fields)
 
     @classmethod
-    async def _insert(cls, bind, **values):
+    async def _insert(cls, **values):
 
         rows = [values]
-        return crud.Insert(bind, cls.__table__.name, *rows)
+        return crud.Insert(cls.__table__.name, *rows)
 
     @classmethod
-    async def _insert_many(cls, bind, *rows):
+    async def _insert_many(cls, *rows):
 
-        return crud.Insert(bind, cls.__table__.name, *rows)
-
-    @classmethod
-    async def _update(cls, bind, **values):
-
-        return crud.Update(bind, cls.__table__.name, **values)
+        return crud.Insert(cls.__table__.name, *rows)
 
     @classmethod
-    async def _delete(cls, bind):
+    async def _update(cls, **values):
 
-        return crud.Delete(bind, cls.__table__.name)
+        return crud.Update(cls.__table__.name, **values)
+
+    @classmethod
+    async def _delete(cls,):
+
+        return crud.Delete(cls.__table__.name)
 
     async def _save(self):
         """ save self
@@ -214,7 +214,7 @@ class _Model(metaclass=_ModelMeta):
             print(a.f) # 2
         """
 
-        return session.Session(self)
+        return crud.(self)
 
     async def _remove(self):
         """ delete self """
@@ -233,7 +233,7 @@ class Table(db.SQL):
         __comment__='',
     )
 
-    def __init__(self, bind, name, fields, indexs=None, pk=None,
+    def __init__(self, name, fields, indexs=None, pk=None,
                  engine=None, charset=None, comment=None):
         self.name = name
         self.fields = fields
@@ -243,7 +243,7 @@ class Table(db.SQL):
         self.engine = engine or self.DEFAULT.__engine__
         self.charset = charset or self.DEFAULT.__charset__
         self.comment = comment or self.DEFAULT.__comment__
-        super().__init__(bind)
+        super().__init__()
 
     def do(self):
         pass

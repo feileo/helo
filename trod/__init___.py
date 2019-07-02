@@ -8,12 +8,16 @@ __all__ = ('Trod', 'types')
 class Trod:
 
     Model = model.Model
-    Bind = db.Executer
 
-    def bind(self):
-        pass
+    db = None
 
-    def text(self, sql, args=None, rows=None):
+    async def bind(self, *args, **kwargs):
+        self.db = await db.SQL.init(*args, **kwargs)
+
+    async def unbind(self):
+        await self.db.unbind()
+
+    async def text(self):
         pass
 
     def create_tables(self, *models):

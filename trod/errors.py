@@ -11,6 +11,10 @@ class NoBindError(RuntimeError):
     pass
 
 
+class NoExecuterError(RuntimeError):
+    pass
+
+
 class DuplicateFieldNameError(RuntimeError):
     pass
 

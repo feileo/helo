@@ -140,7 +140,7 @@ def to_list(*args):
     return result
 
 
-def tuple_formater(args):
+def tuple_formatter(args):
     """ Arg to tuple """
 
     res_args = None
