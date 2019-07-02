@@ -1,17 +1,27 @@
-from trod.db_.connector import DataBase, Connector
+from trod.db_.connector import Connector
 from trod.db_.executer import Executer
+from trod import errors
 
-__all__ = ('DataBase', 'Connector', 'Executer')
+__all__ = ('Connector', 'Executer')
 
 
 class SQL:
 
-    __slots__ = ('_db', '_sql', '_args')
+    executer = None
 
-    def __init__(self, db):
-        self._db = db
+    __slots__ = ('_sql', '_args')
+
+    def __init__(self):
+        if self.executer is None:
+            raise errors.NoExecuterError()  # TODO
+
         self._sql = []
         self._args = None
+
+    @classmethod
+    def init(cls, *args, **kwargs):
+        cls.executer = Executer.init(*args, **kwargs)
+        return cls.executer
 
     def __str__(self):
         args = f' % {self._args}' if self._args else ''
