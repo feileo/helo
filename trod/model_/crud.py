@@ -57,9 +57,6 @@ class Insert(SQL):
         self._batch = False
         super().__init__()
 
-    def do(self):
-        pass
-
 
 class Update(SQL):
 
@@ -86,3 +83,7 @@ class Delete(SQL):
 
     def where(self, **query):
         pass
+
+class Replace(Insert):
+    pass
+
