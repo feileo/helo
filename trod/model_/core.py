@@ -214,7 +214,7 @@ class _Model(metaclass=_ModelMeta):
             print(a.f) # 2
         """
 
-        return crud.(self)
+        return crud.Replace(self)
 
     async def _remove(self):
         """ delete self """
