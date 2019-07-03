@@ -1,7 +1,7 @@
 from trod import db_ as db
 
 
-class SQL(db.SQL):
+class SQL(db.Doer):
 
     __slots__ = ()
 
@@ -84,6 +84,6 @@ class Delete(SQL):
     def where(self, **query):
         pass
 
+
 class Replace(Insert):
     pass
-
