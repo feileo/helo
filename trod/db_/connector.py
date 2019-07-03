@@ -126,8 +126,8 @@ class Connector(DataBase):
             )
         return ret_kwargs
 
-    def get(self):
-        """ Get a connection """
+    def acquire(self):
+        """ Acquice a connection """
 
         return self.pool.acquire()
 

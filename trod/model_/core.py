@@ -1,8 +1,8 @@
 import warnings
 from collections import OrderedDict
 
-from trod import types_ as types, errors, utils, db_ as db
-from trod.model_ import crud
+from trod import types_ as types, errors, utils
+from trod.model_ import crud, table
 
 
 class _ModelMeta(type):
@@ -59,7 +59,7 @@ class _ModelMeta(type):
                     if field.ai:
                         pk.auto = True
                         pk.ai = int(field.ai)
-                        if field.name != Table.AIPK:
+                        if field.name != table.Table.AIPK:
                             warnings.warn(
                                 "The field name of AUTO_INCREMENT primary key is suggested \
                                 to use `id` instead of {field.name}",
@@ -71,7 +71,7 @@ class _ModelMeta(type):
             elif isinstance(field, types.index.IndexBase):
                 field.name = field.name or attr
                 indexs[attr] = field
-            elif attr not in Table.DEFAULT:
+            elif attr not in table.Table.DEFAULT:
                 raise errors.InvalidFieldType('Invalid model field {}'.format(attr))
 
         if not pk.field:
@@ -79,7 +79,7 @@ class _ModelMeta(type):
                 f"Primary key not found for table `{table_name}`"
             )
 
-        attrs['__table__'] = Table(
+        attrs['__table__'] = table.Table(
             name=table_name, fields=fields, indexs=indexs, pk=pk,
             engine=attrs.pop('__engine__', None),
             charset=attrs.pop('__charset__', None),
@@ -220,45 +220,3 @@ class _Model(metaclass=_ModelMeta):
         """ delete self """
 
         return crud.Delete(self)
-
-
-class Table(db.SQL):
-
-    AIPK = 'id'
-    DEFAULT = utils.TrodDict(
-        __table__=None,
-        __auto_increment__=1,
-        __engine__='InnoDB',
-        __charset__='utf8',
-        __comment__='',
-    )
-
-    def __init__(self, name, fields, indexs=None, pk=None,
-                 engine=None, charset=None, comment=None):
-        self.name = name
-        self.fields = fields
-        self.indexs = indexs
-        self.pk = pk
-        self.auto_increment = pk.ai
-        self.engine = engine or self.DEFAULT.__engine__
-        self.charset = charset or self.DEFAULT.__charset__
-        self.comment = comment or self.DEFAULT.__comment__
-        super().__init__()
-
-    def do(self):
-        pass
-
-    def create(self):
-        pass
-
-    def drop(self):
-        pass
-
-    def show(self):
-        pass
-
-    def exist(self):
-        pass
-
-    def add_index(self):
-        pass

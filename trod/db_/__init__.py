@@ -2,10 +2,10 @@ from trod.db_.connector import Connector
 from trod.db_.executer import Executer
 from trod import errors
 
-__all__ = ('Connector', 'Executer')
+__all__ = ('Connector', 'Executer', 'Doer')
 
 
-class SQL:
+class Doer:
 
     executer = None
 
@@ -19,13 +19,18 @@ class SQL:
         self._args = None
 
     @classmethod
-    def init(cls, *args, **kwargs):
-        cls.executer = Executer.init(*args, **kwargs)
+    async def bind(cls, *args, **kwargs):
+        cls.executer = await Executer.init(*args, **kwargs)
+        return cls.executer
+
+    @classmethod
+    def init(cls, connector):
+        cls.executer = Executer(connector)
         return cls.executer
 
     def __str__(self):
         args = f' % {self._args}' if self._args else ''
-        return f"SQL({self.sql}){args}"
+        return f"Doer of SQL({self.sql}){args}"
 
     __repr__ = __str__
 
