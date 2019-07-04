@@ -55,19 +55,26 @@ def troddict_formatter(is_async=False):
     return decorator
 
 
-def format_troddict(target):
-    if target is None:
-        return target
-    if isinstance(target, dict):
-        return _do_troddict_format(target)
-    if isinstance(target, Iterable):
-        fmt_result = []
-        for item in target:
-            if isinstance(item, (str, int, bool)):
-                raise ValueError(f"Invalid data type '{target}' to convert `TrodDict`")
-            fmt_result.append(format_troddict(item))
-        return fmt_result
-    raise ValueError(f"Invalid data type '{target}' to convert `TrodDict`")
+def singleton(is_async=False):
+    """ A singleton decorator of asyncinit class """
+
+    def decorator(cls):
+
+        instances = {}
+
+        if is_async:
+            async def getinstance(*args, **kw):
+                if cls not in instances:
+                    instances[cls] = await cls(*args, **kw)
+                return instances[cls]
+        else:
+            def getinstance(*args, **kw):
+                if cls not in instances:
+                    instances[cls] = cls(*args, **kw)
+                return instances[cls]
+        return getinstance
+
+    return decorator
 
 
 def asyncinit(obj):
@@ -97,6 +104,21 @@ def asyncinit(obj):
     return obj
 
 
+def format_troddict(target):
+    if target is None:
+        return target
+    if isinstance(target, dict):
+        return _do_troddict_format(target)
+    if isinstance(target, Iterable):
+        fmt_result = []
+        for item in target:
+            if isinstance(item, (str, int, bool)):
+                raise ValueError(f"Invalid data type '{target}' to convert `TrodDict`")
+            fmt_result.append(format_troddict(item))
+        return fmt_result
+    raise ValueError(f"Invalid data type '{target}' to convert `TrodDict`")
+
+
 async def _new(cls, *_args, **_kwargs):
     return object.__new__(cls)
 
@@ -109,19 +131,6 @@ def _force_async(f_n):
         return f_n(*args, **kwargs)
 
     return wrapped
-
-
-def singleton(cls):
-    """ A singleton decorator of asyncinit class """
-
-    instances = {}
-
-    @wraps(cls)
-    async def getinstance(*args, **kw):
-        if cls not in instances:
-            instances[cls] = await cls(*args, **kw)
-        return instances[cls]
-    return getinstance
 
 
 def to_list(*args):
@@ -151,21 +160,6 @@ def tuple_formatter(args):
     elif isinstance(args, str):
         res_args = tuple([args])
     return res_args
-
-
-def logit(logfile='out.log'):
-    def logging_decorator(func):
-        @wraps(func)
-        def wrapped_function(*args, **kwargs):
-            log_string = func.__name__ + " was called"
-            print(log_string)
-            # 打开logfile，并写入内容
-            with open(logfile, 'a') as opened_file:
-                # 现在将日志打到指定的logfile
-                opened_file.write(log_string + '\n')
-            return func(*args, **kwargs)
-        return wrapped_function
-    return logging_decorator
 
 
 def async_troddict_formatter(func):
