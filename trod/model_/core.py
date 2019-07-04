@@ -135,62 +135,74 @@ class _Model(metaclass=_ModelMeta):
         return self.__dict__
 
     @classmethod
-    async def _create(cls, bind):
+    async def _create_table(cls):
         """ Do create table """
 
-        return await cls.__table__.create(bind)
+        return await cls.__table__.create()
 
     @classmethod
-    async def _drop(cls, bind):
+    async def _drop(cls):
         """ Do drop table """
+        return await cls.__table__.drop()
 
-        return await cls.__table__.drop(bind)
+    # @classmethod
+    # async def _exist(cls):
+    #     """ query table is exist """
 
-    @classmethod
-    async def _exist(cls, bind):
-        """ query table is exist """
+    #     return await cls.__table__.exist()
 
-        return await cls.__table__.exist(bind)
+    # @classmethod
+    # async def _show(cls):
 
-    @classmethod
-    async def _show(cls, bind):
+    #     return await cls.__table__.show()
 
-        return await cls.__table__.show(bind)
+    # @classmethod
+    # async def _add_index(cls):
 
-    @classmethod
-    async def _add_index(cls, bind):
+    #     return await cls.__table__.add_index()
 
-        return await cls.__table__.add_index(bind)
-
-    @classmethod
-    def _normalize_data(cls, data, kwargs):
-        pass
+    # @classmethod
+    # def _normalize_data(cls, data, kwargs):
+    #     pass
 
     @classmethod
     async def _get(cls, _id):
 
-        pass
+        fields = [f for f in cls.__table__.fields]
+        return await crud.Select(
+            cls.__table__.name, *fields
+        ).where(
+            cls.__table__.fields[cls.__table__.pk.name] == _id
+        ).all()
 
     @classmethod
     async def _get_many(cls, ids, *fields):
-
         pass
 
     @classmethod
     async def _select(cls, *fields):
 
+        fields = ['`{f.name}`' for f in fields]
         return crud.Select(cls.__table__.name, *fields)
 
     @classmethod
     async def _insert(cls, **values):
 
         rows = [values]
-        return crud.Insert(cls.__table__.name, *rows)
+        return crud.Insert(cls.__table__.name, rows)
 
     @classmethod
-    async def _insert_many(cls, *rows):
+    async def _insert_many(cls, rows, fields=None):
 
-        return crud.Insert(cls.__table__.name, *rows)
+        return crud.Insert(cls.__table__.name, rows, fields=fields)
+
+    @classmethod
+    async def _add(cls, instance):
+        pass
+
+    @classmethod
+    async def _add_many(cls, instances):
+        pass
 
     @classmethod
     async def _update(cls, **values):
@@ -198,7 +210,7 @@ class _Model(metaclass=_ModelMeta):
         return crud.Update(cls.__table__.name, **values)
 
     @classmethod
-    async def _delete(cls,):
+    async def _delete(cls):
 
         return crud.Delete(cls.__table__.name)
 

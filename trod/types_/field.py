@@ -82,6 +82,7 @@ class Expr:
             self.rhs = tuple(self.rhs)
         return Cnt((self.lhs, self.rhs), self.op, encap=self.logic).sql
 
+    @property
     def sql(self):
         return self.__sql__()
 

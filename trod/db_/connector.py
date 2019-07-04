@@ -6,21 +6,12 @@ from trod import utils
 from trod.db_ import schemes
 
 
-Arg = namedtuple('Arg', ['default', 'help'])
-
-
-class DataBase:
-    """ Database connection pool base """
-
-    __slots__ = ('connmeta',)
-
-    def __init__(self, **kwargs):
-        self.connmeta = utils.format_troddict(kwargs)
+Arg = namedtuple('Arg', ['dft', 'help'])
 
 
 @utils.singleton
 @utils.asyncinit
-class Connector(DataBase):
+class Connector:
     """ Create a MySQL connection pool based on `aiomysql.create_pool`.
 
         :param int minsize: Minimum sizes of the pool
@@ -60,21 +51,22 @@ class Connector(DataBase):
     )
     _POOL_KWARGS = ('minsize', 'maxsize', 'echo', 'pool_recycle', 'loop')
 
-    __slots__ = ('pool',)
+    __slots__ = ('pool', 'connmeta')
 
-    async def __init__(self, minsize=1, maxsize=10, echo=False,
+    async def __init__(self, minsize=1, maxsize=15, echo=False,
                        pool_recycle=-1, loop=None, **conn_kwargs):
 
-        conn_kwargs = self._check_conn_kwargs(conn_kwargs)
+        conn_kwargs = utils.format_troddict(self._check_conn_kwargs(conn_kwargs))
         self.pool = await aiomysql.create_pool(
             minsize=minsize, maxsize=maxsize, echo=echo,
             pool_recycle=pool_recycle, loop=loop,
             **conn_kwargs
         )
+        self.connmeta = conn_kwargs
         super().__init__(**conn_kwargs)
 
     @classmethod
-    async def from_url(cls, url, minsize=1, maxsize=10, echo=False,
+    async def from_url(cls, url, minsize=1, maxsize=15, echo=False,
                        pool_recycle=-1, loop=None, **conn_kwargs):
         """ Provide a factory method `from_url` to create a connection pool.
 

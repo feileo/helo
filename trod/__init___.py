@@ -9,18 +9,16 @@ class Trod:
 
     Model = model.Model
 
-    db = None
-
-    def init(self, connector):
-        self.db = db.Doer.init(connector)
-
     async def bind(self, *args, **kwargs):
-        self.db = await db.Doer.bind(*args, **kwargs)
+        await db.bind(*args, **kwargs)
 
     async def unbind(self):
-        await self.db.unbind()
+        await db.finished()
 
-    async def text(self):
+    def init(self, connector):
+        db.init(connector)
+
+    async def text(self, use_model=False):
         pass
 
     def create_tables(self, *models):

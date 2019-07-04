@@ -1,20 +1,13 @@
+
+from functools import reduce
 from trod import db_ as db
 
 
-class SQL(db.Doer):
+class Select(db.Doer):
 
-    __slots__ = ()
-
-    def do(self):
-        if isinstance(self, Select):
-            return self.executer.fetch(self.sql, args=self._args)
-        is_batch = getattr(self, '_batch', False)
-        return self.executer.execute(self.sql, values=self._args, is_batch=is_batch)
-
-
-class Select(SQL):
-
-    __slots__ = ('_table', '_fields', '_where', '_group_by', '_order_by', '_rows')
+    __slots__ = (
+        '_select', '_table', '_fields', '_where', '_group_by', '_order_by', '_rows'
+    )
 
     def __init__(self, table, *fields):
         self._table = table
@@ -23,56 +16,86 @@ class Select(SQL):
         self._group_by = None
         self._order_by = None
         self._rows = None
-        super().__init__()
 
-    def where(self, **query):
-        pass
+        fields = ', '.join(self._fields)
+        self._select = f"SELECT {fields} FROM `{self._table}`"
+        super().__init__(sql=self._select)
+
+    def where(self, *filters):
+        if filters:
+            _where = reduce(lambda f1, f2: f1 & f2, filters)
+            self._where = f"WHERE {_where.sql}"
+
+        if self._where:
+            self._sql.append(self._where)
+
+        return self
 
     def group_by(self, *fields):
-        pass
+        if fields:
+            _group_by = ', '.join([f.name.join('``') for f in fields])
+            self._group_by = f"GROUP BY {_group_by}"
+
+        if self._group_by:
+            self._sql.append(self._group_by)
+
+        return self
 
     def order_by(self, field, desc=False):
-        pass
+        desc = 'DESC' if desc else 'ASC'
+        self._order_by = f"ORDER BY {field.name} {desc}"
+        self._sql.append(self._order_by)
+        return self
 
-    def rows(self, limit=500, offset=0):
-        pass
+    async def all(self):
+        return await self.rows()
 
-    def first(self):
-        pass
+    async def rows(self, limit=1000, offset=0):
+        self._rows = f"LIMIT {limit} OFFSET {offset}"
+        self._sql.append(self._rows)
+        return await self.do()
 
-    def all(self):
-        return self.do()
+    async def first(self):
+        self._rows = "LIMIT 1"
+        self._sql.append(self._rows)
+        return await self.do()
 
     def scalar(self):
         pass
 
 
-class Insert(SQL):
+class Insert(db.Doer):
 
-    __slots__ = ('_table', '_rows', '_batch')
+    __slots__ = ('_insert', '_table', '_rows', '_batch')
 
-    def __init__(self, table, *rows):
+    def __init__(self, table, rows, fields=None):
         self._table = table
         self._rows = rows
         self._batch = False
-        super().__init__()
+
+        rows = Rows(rows, fields)
+        # fields = ', '.join(f.join('``') for f in self._fields)
+        # for r in rows:
+        #     pass
+        self._insert = f"INSERT INTO `{self._table}` () VALUES ();"
+        super().__init__(sql=self._insert, args={})
 
 
-class Update(SQL):
+class Update(db.Doer):
 
     __slots__ = ('_table', '_values', '_where')
 
-    def __init__(self, table, *values):
+    def __init__(self, table, values):
         self._table = table
         self._values = values
         self._where = None
         super().__init__()
 
-    def where(self, **query):
+    def where(self, *filters):
         pass
 
 
-class Delete(SQL):
+class Delete(db.Doer):
 
     __slots__ = ('_table', '_where')
 
@@ -81,9 +104,15 @@ class Delete(SQL):
         self._where = None
         super().__init__()
 
-    def where(self, **query):
+    def where(self, *filters):
         pass
 
 
 class Replace(Insert):
     pass
+
+
+class Rows:
+
+    def __init__(self, rows, fields=None):
+        pass
