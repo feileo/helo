@@ -195,8 +195,8 @@ class _Model(metaclass=_ModelMeta):
     @classmethod
     def _insert_many(cls, rows, fields=None):
 
-        rows = Rows(rows)
-        return crud.Insert(cls.__table__.name, rows, fields=fields)
+        rows = Rows(rows, fields=fields)
+        return crud.Insert(cls.__table__.name, rows)
 
     @classmethod
     async def _add(cls, instance):

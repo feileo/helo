@@ -6,7 +6,8 @@ from trod import db_ as db
 class Select(db.Doer):
 
     __slots__ = (
-        '_select', '_table', '_fields', '_where', '_group_by', '_order_by', '_rows'
+        '_select', '_table', '_fields', '_where', '_group_by', '_order_by',
+        '_rows', '_func'
     )
 
     def __init__(self, table, *fields):
@@ -17,6 +18,7 @@ class Select(db.Doer):
         self._order_by = None
         self._rows = None
 
+        # TODO func
         fields = ', '.join(self._fields)
         self._select = f"SELECT {fields} FROM `{self._table}`"
         super().__init__(sql=self._select)
