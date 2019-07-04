@@ -1,10 +1,10 @@
-import decimal
 import datetime
+import decimal
 import warnings
 from collections.abc import Iterable
 
+from trod import errors, db_ as db
 from trod.utils import TrodDict
-from trod import errors
 
 
 OPER = TrodDict(
@@ -31,6 +31,7 @@ OPER = TrodDict(
     LIKE='LIKE',
     ILIKE='ILIKE',
     EXISTS='EXISTS',
+    NEXISTS='NOT EXISTS',
     BETWEEN='BETWEEN',
     REGEXP='REGEXP',
     IREGEXP='IREGEXP',
@@ -57,9 +58,9 @@ class Expr:
     __slots__ = ('lhs', 'op', 'rhs', 'flat', 'logic')
 
     def __init__(self, lhs, op, rhs, flat=False, logic=False):
-        self.lhs = lhs.name if isinstance(lhs, Column) else lhs
+        self.lhs = self._hs(lhs, _l=True)
         self.op = op
-        self.rhs = rhs.name if isinstance(rhs, Column) else rhs
+        self.rhs = self._hs(rhs)
         self.flat = flat
         self.logic = logic
 
@@ -85,6 +86,16 @@ class Expr:
     @property
     def sql(self):
         return self.__sql__()
+
+    def _hs(self, hs, _l=False):
+
+        if isinstance(hs, Column):
+            hs = hs.name
+        elif isinstance(hs, db.Doer):
+            if _l:
+                raise RuntimeError()
+            hs = f'({hs.sql})'
+        return hs
 
 
 class Column:
@@ -147,6 +158,7 @@ class Column:
     regexp = _expr(OPER.REGEXP)
     iregexp = _expr(OPER.IREGEXP)
     exists = _expr(OPER.EXISTS)
+    not_exists = _expr(OPER.NEXISTS)
     like = _expr(OPER.LIKE)
 
     def is_null(self, is_null=True):

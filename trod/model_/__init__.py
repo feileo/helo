@@ -6,24 +6,12 @@ __all__ = ('Model')
 class Model(_Model):
 
     @classmethod
-    async def get(cls, pk):
-        return await cls._get(pk)
+    async def create(cls):
+        return await cls._create_table()
 
     @classmethod
-    async def mget(cls, pks, *fields):
-        return await cls._get_many(pks, *fields)
-
-    @classmethod
-    async def select(cls, *fields):
-        return await cls._select(*fields)
-
-    @classmethod
-    async def insert(cls, **values):
-        return await cls._insert(**values)
-
-    @classmethod
-    async def minsert(cls, rows, fields=None):
-        return await cls._insert_many(rows, fields=fields)
+    async def drop(cls):
+        return await cls._drop_table()
 
     @classmethod
     async def add(cls, model):
@@ -34,12 +22,32 @@ class Model(_Model):
         return await cls._add_many(models)
 
     @classmethod
-    async def update(cls, **values):
-        return await cls._update(**values)
+    async def get(cls, pk):
+        return await cls._get(pk)
 
     @classmethod
-    async def delete(cls):
-        return await cls._delete()
+    async def mget(cls, pks, *fields):
+        return await cls._get_many(pks, *fields)
+
+    @classmethod
+    def select(cls, *fields):
+        return cls._select(*fields)
+
+    @classmethod
+    def insert(cls, **values):
+        return cls._insert(**values)
+
+    @classmethod
+    def minsert(cls, rows, fields=None):
+        return cls._insert_many(rows, fields=fields)
+
+    @classmethod
+    def update(cls, **values):
+        return cls._update(**values)
+
+    @classmethod
+    def delete(cls):
+        return cls._delete()
 
     async def save(self):
         return await self._save()

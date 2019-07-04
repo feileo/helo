@@ -22,13 +22,12 @@ def init(connector):
 
 
 async def finished():
-    """ A coroutine that call `clint.close()` to unbind connector"""
 
     if Executer.connector:
         Executer.connector = await Executer.connector.close()
         return True
 
-    warnings.warn('No binding db connection or closed', errors.ProgrammingWarning)
+    warnings.warn('No binding db connector or closed', errors.ProgrammingWarning)
     return False
 
 
@@ -48,7 +47,7 @@ class Doer:
 
     def __str__(self):
         args = f' % {self._args}' if self._args else ''
-        return f"Doer({Executer.connector}) for SQL({self.sql}){args}"
+        return f"Doer({Executer.connector}) for SQL({self.sql}{args})"
 
     __repr__ = __str__
 

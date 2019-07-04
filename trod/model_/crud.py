@@ -1,5 +1,5 @@
-
 from functools import reduce
+
 from trod import db_ as db
 
 
@@ -68,17 +68,19 @@ class Insert(db.Doer):
 
     __slots__ = ('_insert', '_table', '_rows', '_batch')
 
-    def __init__(self, table, rows, fields=None):
+    def __init__(self, table, rows):
         self._table = table
         self._rows = rows
         self._batch = False
 
-        rows = Rows(rows, fields)
         # fields = ', '.join(f.join('``') for f in self._fields)
-        # for r in rows:
-        #     pass
-        self._insert = f"INSERT INTO `{self._table}` () VALUES ();"
-        super().__init__(sql=self._insert, args={})
+        # self._insert = f"INSERT INTO `{self._table}` () VALUES ();"
+        # super().__init__(sql=self._insert, args={})
+
+        super().__init__()
+
+    def select(self):
+        pass
 
 
 class Update(db.Doer):
@@ -110,9 +112,3 @@ class Delete(db.Doer):
 
 class Replace(Insert):
     pass
-
-
-class Rows:
-
-    def __init__(self, rows, fields=None):
-        pass

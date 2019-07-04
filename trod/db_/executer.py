@@ -71,17 +71,13 @@ class Executer:
     async def fetch(cls, sql, args=None, rows=None):
         """ A coroutine that proxy fetch sql request """
 
-        return await cls._fetch(
-            sql, args=args, rows=rows
-        )
+        return await cls._fetch(sql, args=args, rows=rows)
 
     @classmethod
     async def execute(cls, sql, values=None, is_batch=False):
         """ A coroutine that proxy execute sql request """
 
-        return await cls._execute(
-            sql, args=values, batch=is_batch
-        )
+        return await cls._execute(sql, args=values, batch=is_batch)
 
     @classmethod
     async def exist(cls, exist_sql):
