@@ -46,6 +46,3 @@ class Table(db.Doer):
 
     def exist(self):
         pass
-
-    def add_index(self):
-        pass

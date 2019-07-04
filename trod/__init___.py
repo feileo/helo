@@ -18,7 +18,7 @@ class Trod:
     def init(self, connector):
         db.init(connector)
 
-    async def text(self, use_model=False):
+    def text(self, use_model=False):
         pass
 
     def create_tables(self, *models):

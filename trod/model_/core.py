@@ -141,8 +141,9 @@ class _Model(metaclass=_ModelMeta):
         return await cls.__table__.create()
 
     @classmethod
-    async def _drop(cls):
+    async def _drop_table(cls):
         """ Do drop table """
+
         return await cls.__table__.drop()
 
     # @classmethod
@@ -180,20 +181,21 @@ class _Model(metaclass=_ModelMeta):
         pass
 
     @classmethod
-    async def _select(cls, *fields):
+    def _select(cls, *fields):
 
         fields = ['`{f.name}`' for f in fields]
         return crud.Select(cls.__table__.name, *fields)
 
     @classmethod
-    async def _insert(cls, **values):
+    def _insert(cls, **values):
 
-        rows = [values]
+        rows = Rows([values])
         return crud.Insert(cls.__table__.name, rows)
 
     @classmethod
-    async def _insert_many(cls, rows, fields=None):
+    def _insert_many(cls, rows, fields=None):
 
+        rows = Rows(rows)
         return crud.Insert(cls.__table__.name, rows, fields=fields)
 
     @classmethod
@@ -205,12 +207,12 @@ class _Model(metaclass=_ModelMeta):
         pass
 
     @classmethod
-    async def _update(cls, **values):
+    def _update(cls, **values):
 
         return crud.Update(cls.__table__.name, **values)
 
     @classmethod
-    async def _delete(cls):
+    def _delete(cls):
 
         return crud.Delete(cls.__table__.name)
 
@@ -232,3 +234,9 @@ class _Model(metaclass=_ModelMeta):
         """ delete self """
 
         return crud.Delete(self)
+
+
+class Rows:
+
+    def __init__(self, rows, fields=None):
+        pass
