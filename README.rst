@@ -17,7 +17,8 @@ trod
 .. image:: https://img.shields.io/pypi/l/trod.svg
         :target: https://img.shields.io/pypi/l/trod.svg
 
-.. image:: https://img.shields.io/static/v1.svg?label=status&message=👨‍💻rewriting&color=brightgreen
+.. image:: https://img.shields.io/static/v1.svg?label=status&message=rewriting&color=brightgreen
+         :target: ''
 
 🌻 **Trod** is a very simple asynchronous Python ORM based on asyncio_. 
 Now it only supports MySQL and uses aiomysql_ as the access 'driver' for the database.
