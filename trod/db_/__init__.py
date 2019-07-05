@@ -1,9 +1,19 @@
 import warnings
+
+from trod import errors
 from trod.db_.connector import Connector
 from trod.db_.executer import Executer
-from trod import errors
 
-__all__ = ('Connector', 'Executer', 'Doer')
+
+__all__ = (
+    'Connector',
+    'Executer',
+    'Doer',
+    'bind',
+    'init',
+    'finished',
+    'state'
+)
 
 
 async def bind(*args, **kwargs):

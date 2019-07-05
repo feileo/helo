@@ -7,16 +7,18 @@ class Select(db.Doer):
 
     __slots__ = (
         '_select', '_table', '_fields', '_where', '_group_by', '_order_by',
-        '_rows', '_func'
+        '_rows', '_func', '_having', '_distinct',
     )
 
-    def __init__(self, table, *fields):
+    def __init__(self, table, *fields, distinct=False):
         self._table = table
         self._fields = fields
         self._where = None
         self._group_by = None
+        self._having = None
         self._order_by = None
         self._rows = None
+        self._distinct = " DISTINCT" if distinct else ""
 
         # TODO func
         # SELECT
@@ -27,7 +29,7 @@ class Select(db.Doer):
         # GROUP BY orderNumber
 
         fields = ', '.join(self._fields)
-        self._select = f"SELECT {fields} FROM `{self._table}`"
+        self._select = f"SELECT{self._distinct} {fields} FROM `{self._table}`"
         super().__init__(sql=self._select)
 
     def where(self, *filters):
@@ -50,9 +52,18 @@ class Select(db.Doer):
 
         return self
 
-    def order_by(self, field, desc=False):
-        desc = 'DESC' if desc else 'ASC'
-        self._order_by = f"ORDER BY {field.name} {desc}"
+    def having(self, *fields):
+        pass
+
+    def order_by(self, fields):
+        fs = []
+        for f in fields:
+            if isinstance(f, str):
+                fs.append(f)
+            else:
+                fs.append(f.sname)
+        fs = ', '.join(fs)
+        self._order_by = f"ORDER BY {fs}"
         self._sql.append(self._order_by)
         return self
 
@@ -116,6 +127,9 @@ class Delete(db.Doer):
         super().__init__()
 
     def where(self, *filters):
+        pass
+
+    def limit(self):
         pass
 
 

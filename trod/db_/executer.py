@@ -6,6 +6,30 @@ from trod.db_.connector import Connector
 from trod import utils
 
 
+class Result:
+
+    def __init__(self, exec_ret):
+        self.ret = exec_ret
+        self.fetch = None
+        self.use_troddict = None
+
+
+class FetchRet(Result):
+
+    def __init__(self, exec_ret):
+        self.fetch = True
+        super().__init__(exec_ret)
+
+    def tdicts(self):
+        self.use_troddict = True
+
+
+class ExecRet(Result):
+    def __init__(self, exec_ret):
+        self.fetch = False
+        super().__init__(exec_ret)
+
+
 class Executer:
     """ MySQL SQL executer """
 
@@ -19,7 +43,6 @@ class Executer:
         cls.autocommit = cls.connector.connmeta.autocommit
 
     @classmethod
-    @utils.troddict_formatter(is_async=True)
     async def _fetch(cls, sql, args=None, rows=None):
 
         if args:
@@ -35,7 +58,7 @@ class Executer:
                         result = await cur.fetchmany(rows)
                     else:
                         result = await cur.fetchall()
-                    return result
+                    return FetchRet(result)
                 except BaseException:
                     exc_type, exc_value, _ = sys.exc_info()
                     error = exc_type(exc_value)
@@ -65,7 +88,7 @@ class Executer:
                 exc_type, exc_value, _ = sys.exc_info()
                 error = exc_type(exc_value)
                 raise error
-            return utils.TrodDict(last_id=last_id, affected=affected)
+            return ExecRet(utils.TrodDict(last_id=last_id, affected=affected))
 
     @classmethod
     async def fetch(cls, sql, args=None, rows=None):

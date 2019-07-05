@@ -1,6 +1,6 @@
 from trod.model_.core import _Model
 
-__all__ = ('Model')
+__all__ = ('Model',)
 
 
 class Model(_Model):

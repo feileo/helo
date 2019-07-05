@@ -24,13 +24,17 @@ class Table(db.Doer):
         self.comment = comment or self.DEFAULT.__comment__
         super().__init__()
 
+    @property
+    def sname(self):
+        return f"`{self.name}`"
+
     async def create(self):
-        fdefs = [f.sql() for f in self.fields]
-        fdefs.append(f"PRIMARY KEY(`{self.pk.name}`)")
+        fdefs = [f.sql for f in self.fields]
+        fdefs.append(f"PRIMARY KEY({self.pk.sname})")
         for index in self.indexs:
-            fdefs.append(index.sql())
+            fdefs.append(index.sql)
         fdefs = ', '.join(fdefs)
-        syntax = f"CREATE TABLE `{self.name}` ({fdefs}) ENGINE={self.engine}\
+        syntax = f"CREATE TABLE {self.sname} ({fdefs}) ENGINE={self.engine}\
             AUTO_INCREMENT={self.auto_increment} DEFAULT CHARSET={self.charset}\
             COMMENT='{self.comment}';"
         self.create_syntax = syntax
@@ -38,11 +42,15 @@ class Table(db.Doer):
         return await self.do()
 
     async def drop(self):
-        self._sql = f"DROP TABLE `{self.name}`;"
+        self._sql = f"DROP TABLE {self.sname};"
         return await self.do()
 
     def show(self):
-        pass
+        return Show()
 
     def exist(self):
         pass
+
+
+class Show:
+    pass
