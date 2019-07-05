@@ -33,6 +33,7 @@ OPER = TrodDict(
     EXISTS='EXISTS',
     NEXISTS='NOT EXISTS',
     BETWEEN='BETWEEN',
+    NBETWEEN='NOT BETWEEN',
     REGEXP='REGEXP',
     IREGEXP='IREGEXP',
     BITWISE_NEGATION='~'
@@ -95,6 +96,8 @@ class Expr:
             if _l:
                 raise RuntimeError()
             hs = f'({hs.sql})'
+        elif isinstance(hs, self.__class__):
+            hs = hs.sql
         return hs
 
 
@@ -177,6 +180,9 @@ class Column:
     def between(self, low, hig):
         return Expr(self, OPER.BETWEEN, Cnt((low, hig), OPER.AND).sql)
 
+    def not_between(self, low, hig):
+        return Expr(self, OPER.NBETWEEN, Cnt((low, hig), OPER.AND).sql)
+
     def __getitem__(self, item):
         if isinstance(item, slice):
             if item.start is None or item.stop is None:
@@ -185,6 +191,9 @@ class Column:
                 )
             return self.between(item.start, item.stop)
         return self == item
+
+    def desc(self):
+        return f"{self.sname} DESC"
 
 
 class Defi:
@@ -197,7 +206,7 @@ class Defi:
         self._sql = []
 
     @property
-    def _name(self):
+    def sname(self):
         raise NotImplementedError
 
     @property
@@ -232,8 +241,9 @@ class Defi:
     def _ai(self):
         raise NotImplementedError
 
+    @property
     def sql(self):
-        self._sql.extend([self._name, self._type])
+        self._sql.extend([self.sname, self._type])
         if self._unsigned:
             self._sql.append(self._unsigned)
         if self._encoding:
@@ -272,7 +282,7 @@ class FieldBase(Column, Defi):
         super().__init__(name)
 
     @property
-    def _name(self):
+    def sname(self):
         return f'`{self.name}`'
 
     @property
@@ -645,3 +655,20 @@ class Timestamp(Datetime):
         elif self.default:
             return "DEFAULT '{}'".format(self.default.strftime(self._format))
         return 'DEFAULT NULL'
+
+
+class Func:
+
+    def __init__(self, field):
+        if isinstance(field, Expr):
+            pass
+        elif isinstance(field, Column):
+            pass
+
+    @property
+    def sname(self):
+        pass
+
+    @property
+    def sql(self):
+        pass
