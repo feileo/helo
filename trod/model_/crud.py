@@ -19,6 +19,13 @@ class Select(db.Doer):
         self._rows = None
 
         # TODO func
+        # SELECT
+        # orderNumber,
+        # COUNT(orderNumber) AS items
+        # FROM
+        # orderdetails
+        # GROUP BY orderNumber
+
         fields = ', '.join(self._fields)
         self._select = f"SELECT {fields} FROM `{self._table}`"
         super().__init__(sql=self._select)
@@ -35,7 +42,7 @@ class Select(db.Doer):
 
     def group_by(self, *fields):
         if fields:
-            _group_by = ', '.join([f.name.join('``') for f in fields])
+            _group_by = ', '.join([f.sname for f in fields])
             self._group_by = f"GROUP BY {_group_by}"
 
         if self._group_by:

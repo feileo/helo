@@ -183,6 +183,7 @@ class _Model(metaclass=_ModelMeta):
     @classmethod
     def _select(cls, *fields):
 
+        # TODO
         fields = ['`{f.name}`' for f in fields]
         return crud.Select(cls.__table__.name, *fields)
 
