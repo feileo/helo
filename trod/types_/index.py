@@ -33,11 +33,12 @@ class IndexBase(ABC):
         )
     __repr__ = __str__
 
+    @property
     def sql(self):
 
         return self._type_tpl.format(
             key_name=self.name,
-            cols=','.join(self.columns),
+            cols=', '.join(self.columns),
             comment=self.comment
         )
 

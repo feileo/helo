@@ -181,10 +181,10 @@ class _Model(metaclass=_ModelMeta):
         pass
 
     @classmethod
-    def _select(cls, *fields):
+    def _select(cls, *fields, distinct=False):
 
-        fields = ['`{f.name}`' for f in fields]
-        return crud.Select(cls.__table__.name, *fields)
+        fields = [f.sname for f in fields]
+        return crud.Select(cls.__table__.name, *fields, distinct=distinct)
 
     @classmethod
     def _insert(cls, **values):

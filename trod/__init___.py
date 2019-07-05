@@ -1,8 +1,13 @@
-from trod import model_ as model, types
+from trod import model_ as model, types_ as types
 from trod import db_ as db
 
 __version__ = '0.0.15'
-__all__ = ('Trod', 'types', 'db')
+
+__all__ = (
+    'Trod',
+    'types',
+    'db'
+)
 
 
 class Trod:
