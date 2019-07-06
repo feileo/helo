@@ -11,7 +11,7 @@ Arg = namedtuple('Arg', ['dft', 'help'])
 
 @utils.singleton
 @utils.asyncinit
-class Connector:
+class Pool:
     """ Create a MySQL connection pool based on `aiomysql.create_pool`.
 
         :param int minsize: Minimum sizes of the pool
@@ -24,7 +24,7 @@ class Connector:
             asyncio.get_event_loop() is used if loop is not specified.
         :param conn_kwargs: See `_CONN_KWARGS`.
 
-        :Returns : `Connector` instance
+        :Returns : `Pool` instance
     """
     _CONN_KWARGS = utils.TrodDict(
         host=Arg(dft="localhost", help='Host where the database server is located'),
@@ -51,13 +51,13 @@ class Connector:
     )
     _POOL_KWARGS = ('minsize', 'maxsize', 'echo', 'pool_recycle', 'loop')
 
-    __slots__ = ('pool', 'connmeta')
+    __slots__ = ('_pool', 'connmeta')
 
     async def __init__(self, minsize=1, maxsize=15, echo=False,
                        pool_recycle=-1, loop=None, **conn_kwargs):
 
         conn_kwargs = utils.format_troddict(self._check_conn_kwargs(conn_kwargs))
-        self.pool = await aiomysql.create_pool(
+        self._pool = await aiomysql.create_pool(
             minsize=minsize, maxsize=maxsize, echo=echo,
             pool_recycle=pool_recycle, loop=loop,
             **conn_kwargs
@@ -72,7 +72,7 @@ class Connector:
 
         :params see `__init__` for information
 
-        :Returns : `Connector` instance
+        :Returns : `Pool` instance
         """
         if not url:
             raise ValueError('Db url cannot be empty')
@@ -89,7 +89,7 @@ class Connector:
         )
 
     def __repr__(self):
-        return "<Class '{0}'[{1}:{2}] for {3}:{4}/{5}>".format(
+        return "<{0}[{1}:{2}] for {3}:{4}/{5}>".format(
             self.__class__.__name__, self.state.minsize, self.state.maxsize,
             self.connmeta.host, self.connmeta.port, self.connmeta.db
         )
@@ -101,10 +101,10 @@ class Connector:
         """ Connection pool state """
 
         return utils.TrodDict(
-            minsize=self.pool.minsize,
-            maxsize=self.pool.maxsize,
-            size=self.pool.size,
-            freesize=self.pool.freesize
+            minsize=self._pool.minsize,
+            maxsize=self._pool.maxsize,
+            size=self._pool.size,
+            freesize=self._pool.freesize
         )
 
     def _check_conn_kwargs(self, conn_kwargs):
@@ -121,19 +121,19 @@ class Connector:
     def acquire(self):
         """ Acquice a connection """
 
-        return self.pool.acquire()
+        return self._pool.acquire()
 
     def release(self, connect):
         """ Reverts connection conn to free pool for future recycling. """
 
-        return self.pool.release(connect)
+        return self._pool.release(connect)
 
     async def clear(self):
         """ A coroutine that closes all free connections in the pool.
             At next connection acquiring at least minsize of them will be recreated
         """
 
-        await self.pool.clear()
+        await self._pool.clear()
 
     async def close(self):
         """ A coroutine that close pool.
@@ -142,9 +142,9 @@ class Connector:
         Closed pool doesn't allow to acquire new connections.
         """
 
-        if self.pool is not None:
-            self.pool.close()
-            await self.pool.wait_closed()
+        if self._pool is not None:
+            self._pool.close()
+            await self._pool.wait_closed()
 
     async def terminate(self):
         """ A coroutine that terminate pool.
@@ -152,4 +152,4 @@ class Connector:
         Close pool with instantly closing all acquired connections also.
         """
 
-        await self.pool.terminate()
+        await self._pool.terminate()

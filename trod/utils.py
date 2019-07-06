@@ -2,6 +2,13 @@ import inspect
 from functools import wraps
 from collections.abc import Iterable
 
+__all__ = (
+    'TrodDict',
+    'troddict_formatter',
+    'singleton',
+    'asyncinit',
+)
+
 
 class TrodDict(dict):
     """ Is a class that makes it easier to access the elements of the dict
@@ -26,6 +33,20 @@ class TrodDict(dict):
 
     def __setattr__(self, key, value):
         self[key] = value
+
+    def __str__(self):
+        pass
+
+    __repr__ = __str__
+
+    def __iadd__(self, rhs):
+        self.update(rhs)
+        return self
+
+    def __add__(self, rhs):
+        td = TrodDict(self)
+        td.update(rhs)
+        return td
 
     def from_object(self, obj):
         if not isinstance(obj, type):
@@ -53,6 +74,30 @@ def troddict_formatter(is_async=False):
                 return format_troddict(result)
         return convert
     return decorator
+
+
+class _Result:
+
+    def __init__(self, exec_ret):
+        self.ret = exec_ret
+        self.fetch = None
+        self.use_troddict = None
+
+
+class FetchResult(_Result):
+
+    def __init__(self, exec_ret):
+        self.fetch = True
+        super().__init__(exec_ret)
+
+    def tdicts(self):
+        self.use_troddict = True
+
+
+class ExecResult(_Result):
+    def __init__(self, exec_ret):
+        self.fetch = False
+        super().__init__(exec_ret)
 
 
 def singleton(is_async=False):
@@ -160,17 +205,6 @@ def tuple_formatter(args):
     elif isinstance(args, str):
         res_args = tuple([args])
     return res_args
-
-
-def async_troddict_formatter(func):
-    """ A coroutine decorator of dict_formatter """
-
-    @wraps(func)
-    async def convert(*args, **kwargs):
-        result = await func(*args, **kwargs)
-        return format_troddict(result)
-
-    return convert
 
 
 def _do_troddict_format(ori_dict):

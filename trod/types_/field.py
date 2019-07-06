@@ -3,11 +3,10 @@ import decimal
 import warnings
 from collections.abc import Iterable
 
-from trod import errors, db_ as db
-from trod.utils import TrodDict
+from trod import errors, db_ as db, utils
 
 
-OPER = TrodDict(
+OPER = utils.TrodDict(
     AND='AND',
     OR='OR',
     ADD='+',
@@ -96,8 +95,8 @@ class Expr:
             if _l:
                 raise RuntimeError()
             hs = f'({hs.sql})'
-        elif isinstance(hs, self.__class__):
-            hs = hs.sql
+        # elif isinstance(hs, self.__class__):
+        #     hs = hs.sql
         return hs
 
 
@@ -629,7 +628,10 @@ class Timestamp(Datetime):
     __slots__ = ()
 
     _db_type = 'timestamp'
-    _auto = ('on_create', 'on_update')
+    _auto = utils.TrodDict(
+        on_create="CURRENT_TIMESTAMP",
+        on_update="CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
+    )
 
     def __init__(self,
                  null=True,
@@ -649,9 +651,7 @@ class Timestamp(Datetime):
     @property
     def _default(self):
         if self.default in self._auto:
-            if self.default == self._auto[0]:
-                return 'DEFAULT CURRENT_TIMESTAMP'
-            return 'DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'
+            return f'DEFAULT {self._auto[self.default]}'
         elif self.default:
             return "DEFAULT '{}'".format(self.default.strftime(self._format))
         return 'DEFAULT NULL'
