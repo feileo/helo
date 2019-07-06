@@ -1,50 +1,56 @@
 import warnings
 
 from trod import errors
-from trod.db_.connector import Connector
-from trod.db_.executer import Executer
+from trod.db_.connpool import Pool
+from trod.db_.executer import fetch, execute
 
 
 __all__ = (
     'Connector',
-    'Executer',
     'Doer',
-    'bind',
-    'init',
-    'finished',
-    'state'
 )
 
 
-async def bind(*args, **kwargs):
-    if Executer.connector is not None:
-        raise RuntimeError()
+class Connector:
 
-    if args or kwargs.get('url'):
-        connector = await Connector.from_url(*args, **kwargs)
-    else:
-        connector = await Connector(*args, **kwargs)
-    init(connector)
+    __slots__ = ()
 
+    _pool = None
 
-def init(connector):
-    Executer.init(connector)
+    @classmethod
+    def pool(cls):
+        if cls._pool is None:
+            raise errors.NoConnectorError(
+                "Connector has not been created, maybe you should call \
+                `trod.bind()` before."
+            )
+        return cls._pool
 
+    @classmethod
+    async def create(cls, *args, **kwargs):
+        if cls._pool is not None:
+            raise RuntimeError()
 
-async def finished():
+        if args or kwargs.get('url'):
+            cls._pool = await Pool.from_url(*args, **kwargs)
+        else:
+            cls._pool = await Pool(*args, **kwargs)
 
-    if Executer.connector:
-        Executer.connector = await Executer.connector.close()
-        return True
+    @classmethod
+    async def close(cls):
 
-    warnings.warn('No binding db connector or closed', errors.ProgrammingWarning)
-    return False
+        if cls._pool:
+            cls._pool = await cls._pool.close()
+            return True
 
+        warnings.warn('No binding db connector or closed', errors.ProgrammingWarning)
+        return False
 
-def state():
-    if Executer.connector:
-        return Executer.connector.state
-    return None
+    @classmethod
+    def state(cls):
+        if cls._pool:
+            return cls._pool.state
+        return None
 
 
 class Doer:
@@ -57,7 +63,7 @@ class Doer:
 
     def __str__(self):
         args = f' % {self._args}' if self._args else ''
-        return f"Doer({Executer.connector}) for SQL({self.sql}{args})"
+        return f"Doer by {Connector.pool()}\n For SQL({self.sql}{args})"
 
     __repr__ = __str__
 
@@ -69,11 +75,11 @@ class Doer:
         return self._sql
 
     async def do(self):
-        if Executer.connector is None:
-            raise errors.NoExecuterError()
+
+        pool = Connector.pool()
 
         if getattr(self, '_select', False):
-            return await Executer.fetch(self.sql, args=self._args)
-        return await Executer.execute(
-            self.sql, values=self._args, is_batch=getattr(self, '_batch', False)
+            return await fetch(pool, self.sql, args=self._args)
+        return await execute(
+            pool, self.sql, values=self._args, is_batch=getattr(self, '_batch', False)
         )

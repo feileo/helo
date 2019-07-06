@@ -1,7 +1,8 @@
 from trod.types_.field import (
     Tinyint, Smallint, Int, Bigint, Text, Char, VarChar,
     Float, Double, Decimal, Datetime, Timestamp,
-    Func
+
+    Auto, Func,
 )
 from trod.types_.index import Key, UKey
 
@@ -20,5 +21,6 @@ __all__ = (
     "Timestamp",
     "Key",
     "UKey",
+    "Auto",
     "Func",
 )

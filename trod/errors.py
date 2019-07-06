@@ -1,13 +1,10 @@
 
-class InvaildDBUrlError(RuntimeError):
-    pass
-
 
 class DuplicateBindError(RuntimeError):
     pass
 
 
-class NoBindError(RuntimeError):
+class NoConnectorError(RuntimeError):
     pass
 
 

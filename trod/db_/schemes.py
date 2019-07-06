@@ -1,7 +1,7 @@
 import urllib.parse as urlparse
 
 from trod import utils
-from trod.errors import InvaildDBUrlError
+
 
 SCHEMES = ('mysql',)
 
@@ -19,7 +19,7 @@ class UrlParser:
         """ do parse database url """
 
         if not self._is_illegal_url():
-            raise InvaildDBUrlError(f'Invalid db url {self.url}')
+            raise ValueError(f'Invalid db url {self.url}')
         self._register()
 
         url = urlparse.urlparse(self.url)

@@ -1,12 +1,14 @@
 from trod import model_ as model, types_ as types
 from trod import db_ as db
+from trod import utils
 
 __version__ = '0.0.15'
 
 __all__ = (
     'Trod',
     'types',
-    'db'
+    'db',
+    'utils'
 )
 
 
@@ -15,13 +17,10 @@ class Trod:
     Model = model.Model
 
     async def bind(self, *args, **kwargs):
-        await db.bind(*args, **kwargs)
+        await db.Connector.create(*args, **kwargs)
 
     async def unbind(self):
-        await db.finished()
-
-    def init(self, connector):
-        db.init(connector)
+        await db.Connector.close()
 
     def text(self, use_model=False):
         pass
