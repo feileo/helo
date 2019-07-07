@@ -100,6 +100,16 @@ class Expr:
         return hs
 
 
+class Asc:
+    # return f"{self.sname} ASC"
+    pass
+
+
+class Desc:
+    # return f"{self.sname} DESC"
+    pass
+
+
 class Column:
 
     __slots__ = ('name',)
@@ -192,7 +202,11 @@ class Column:
         return self == item
 
     def desc(self):
-        return f"{self.sname} DESC"
+
+        return Desc()
+
+    def asc(self):
+        return Asc()
 
 
 class Defi:
