@@ -64,20 +64,14 @@ load-plugins=
 # I0011: *Locally disabling %s*
 disable-msg=I0011
 
-# 跳过一些无伤大雅的警告, pylint 默认检太严格, http://pylint-messages.wikidot.com/all-codes
-# https://stackoverflow.com/questions/47348786/how-to-break-a-long-line-in-pylintrc-file
-#
-# Disable the message(s) with the given id(s).
-# [C0111(missing-docstring), ] Missing module docstring
-# [E1120(no-value-for-parameter), update_embedded_vi [R0201(no-self-use), Attacher.make_dom] Method could be a function[W0235(useless-super-delegation), AttacherPin.__init__] Useless super delegation in method '__init__'
-# [R0201(Method could be a function)
-# [R0903(too-few-public-methods), ParentType] Too few public methods (0/2)
+# http://pylint-messages.wikidot.com/all-codes
 
 disable=C0111,
         E1120,
         R0201,
         R0903,
-        W0201
+        W0201,
+        W0511
 
 
 [REPORTS]
@@ -140,7 +134,7 @@ max-nested-blocks=5
 argument-naming-style=snake_case
 
 # Regular expression which should only match correct argument names
-argument-rgx=[a-z_][a-z0-9_]{0,30}$
+argument-rgx=[a-z_][a-z0-9_]{2,30}$
 
 # Naming style matching correct attribute names.
 attr-naming-style=snake_case
@@ -166,7 +160,7 @@ class-naming-style=PascalCase
 class-rgx=[A-Z_][a-zA-Z0-9]+$
 
 # Regular expression which should only match correct method names
-method-rgx=[a-z_][a-z0-9_]{0,30}$
+method-rgx=[a-z_][a-z0-9_]{2,30}$
 
 # Naming style matching correct constant names.
 const-naming-style=UPPER_CASE
@@ -178,7 +172,7 @@ const-rgx=(([A-Z_][A-Z0-9_]*)|(__.*__))$
 function-naming-style=snake_case
 
 # Regular expression which should only match correct function names
-function-rgx=[a-z_][a-z0-9_]{0,30}$
+function-rgx=[a-z_][a-z0-9_]{2,30}$
 
 # Good variable names which should always be accepted, separated by a comma.
 good-names=i,
@@ -401,7 +395,7 @@ indent-string='    '
 # List of note tags to take in consideration, separated by a comma.
 # * warning notes in the code like FIXME, XXX
 # * PEP 263: source code with non ascii character but no encoding declaration
-#
+
 notes=FIXME,
       XXX,
       TODO
