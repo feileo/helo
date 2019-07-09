@@ -76,30 +76,6 @@ def troddict_formatter(is_async=False):
     return decorator
 
 
-class _Result:
-
-    def __init__(self, exec_ret):
-        self.ret = exec_ret
-        self.fetch = None
-        self.use_troddict = None
-
-
-class FetchResult(_Result):
-
-    def __init__(self, exec_ret):
-        self.fetch = True
-        super().__init__(exec_ret)
-
-    def tdicts(self):
-        self.use_troddict = True
-
-
-class ExecResult(_Result):
-    def __init__(self, exec_ret):
-        self.fetch = False
-        super().__init__(exec_ret)
-
-
 def singleton(is_async=False):
     """ A singleton decorator of asyncinit class """
 
