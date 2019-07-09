@@ -6,12 +6,12 @@ from trod import db_ as db
 class Select(db.Doer):
 
     __slots__ = (
-        '_select', '_table', '_fields', '_where', '_group_by', '_order_by',
+        '_select', '_model', '_fields', '_where', '_group_by', '_order_by',
         '_rows', '_func', '_having', '_distinct',
     )
 
-    def __init__(self, table, *fields, distinct=False):
-        self._table = table
+    def __init__(self, model, *fields, distinct=False):
+        self._model = model
         self._fields = fields
         self._where = None
         self._group_by = None
@@ -86,10 +86,10 @@ class Select(db.Doer):
 
 class Insert(db.Doer):
 
-    __slots__ = ('_insert', '_table', '_rows', '_batch')
+    __slots__ = ('_insert', '_model', '_rows', '_batch')
 
-    def __init__(self, table, rows):
-        self._table = table
+    def __init__(self, model, rows):
+        self._model = model
         self._rows = rows
         self._batch = False
 
@@ -105,10 +105,10 @@ class Insert(db.Doer):
 
 class Update(db.Doer):
 
-    __slots__ = ('_table', '_values', '_where')
+    __slots__ = ('_model', '_values', '_where')
 
-    def __init__(self, table, values):
-        self._table = table
+    def __init__(self, model, values):
+        self._model = model
         self._values = values
         self._where = None
         super().__init__()
@@ -119,10 +119,10 @@ class Update(db.Doer):
 
 class Delete(db.Doer):
 
-    __slots__ = ('_table', '_where')
+    __slots__ = ('_model', '_where')
 
-    def __init__(self, table):
-        self._table = table
+    def __init__(self, model):
+        self._model = model
         self._where = None
         super().__init__()
 

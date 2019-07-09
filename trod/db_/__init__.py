@@ -28,6 +28,8 @@ class Connector:
 
     @classmethod
     async def create(cls, *args, **kwargs):
+
+        # TODO test
         if cls._pool is not None:
             raise RuntimeError()
 

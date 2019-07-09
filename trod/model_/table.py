@@ -53,4 +53,18 @@ class Table(db.Doer):
 
 
 class Show:
-    pass
+
+    def tables(self):
+        pass
+
+    def status(self):
+        pass
+
+    def create_syntax(self):
+        pass
+
+    def cloums(self):
+        pass
+
+    def indexs(self):
+        pass

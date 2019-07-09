@@ -28,6 +28,7 @@ SQL = TrodDict(
         by_ids="SELECT {cols} FROM `{table_name}` WHERE `{condition}` IN {data};",
     )
 )
+
 Auto = TrodDict(
     on_create='on_create',
     on_update='on_update'
