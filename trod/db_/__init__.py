@@ -3,6 +3,7 @@ import warnings
 from trod import errors
 from trod.db_.connpool import Pool
 from trod.db_.executer import fetch, execute
+from trod.model_ import loader
 
 
 __all__ = (
@@ -57,9 +58,10 @@ class Connector:
 
 class Doer:
 
-    __slots__ = ('_sql', '_args')
+    __slots__ = ('_model', '_sql', '_args')
 
-    def __init__(self, sql=None, args=None):
+    def __init__(self, model, sql=None, args=None):
+        self._model = model
         self._sql = sql or []
         self._args = args
 
@@ -81,7 +83,9 @@ class Doer:
         pool = Connector.pool()
 
         if getattr(self, '_select', False):
-            return await fetch(pool, self.sql, args=self._args)
-        return await execute(
+            fetch_results = await fetch(pool, self.sql, args=self._args)
+            return loader.load(self._model, fetch_results, use_td=self._use_td)
+        exec_results = await execute(
             pool, self.sql, values=self._args, is_batch=getattr(self, '_batch', False)
         )
+        return loader.ExecResults(*exec_results)
