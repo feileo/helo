@@ -6,8 +6,8 @@ from trod import db_ as db
 class Select(db.Doer):
 
     __slots__ = (
-        '_select', '_model', '_fields', '_where', '_group_by', '_order_by',
-        '_rows', '_func', '_having', '_distinct',
+        '_select', '_fields', '_where', '_group_by', '_order_by',
+        '_limit', '_func', '_having', '_distinct', '_use_td'
     )
 
     def __init__(self, model, *fields, distinct=False):
@@ -17,20 +17,13 @@ class Select(db.Doer):
         self._group_by = None
         self._having = None
         self._order_by = None
-        self._rows = None
+        self._limit = None
         self._distinct = " DISTINCT" if distinct else ""
-
-        # TODO func
-        # SELECT
-        # orderNumber,
-        # COUNT(orderNumber) AS items
-        # FROM
-        # orderdetails
-        # GROUP BY orderNumber
+        table = self._model.__table__
 
         fields = ', '.join(self._fields)
-        self._select = f"SELECT{self._distinct} {fields} FROM `{self._table}`"
-        super().__init__(sql=self._select)
+        self._select = f"SELECT{self._distinct} {fields} FROM `{table}`"
+        super().__init__(model, sql=self._select)
 
     def where(self, *filters):
         if filters:
@@ -67,18 +60,25 @@ class Select(db.Doer):
         self._sql.append(self._order_by)
         return self
 
-    async def all(self):
-        return await self.rows()
+    def limit(self, limit=1000, offset=0):
 
-    async def rows(self, limit=1000, offset=0):
-        self._rows = f"LIMIT {limit} OFFSET {offset}"
-        self._sql.append(self._rows)
-        return await self.do()
+        offset = f' OFFSET {offset}' if offset else ''
+        self._limit = f"LIMIT {limit}{offset}"
+        self._sql.append(self._limit)
+        return self
 
-    async def first(self):
-        self._rows = "LIMIT 1"
-        self._sql.append(self._rows)
-        return await self.do()
+    def do(self):
+        raise AttributeError()
+
+    async def all(self, use_td=False):
+
+        self._use_td = use_td
+        return await super().do()
+
+    async def first(self, use_td=False):
+        self._use_td = use_td
+        self.limit(1)
+        return await super().do()
 
     def scalar(self):
         pass
@@ -86,10 +86,9 @@ class Select(db.Doer):
 
 class Insert(db.Doer):
 
-    __slots__ = ('_insert', '_model', '_rows', '_batch')
+    __slots__ = ('_insert', '_rows', '_batch')
 
     def __init__(self, model, rows):
-        self._model = model
         self._rows = rows
         self._batch = False
 
@@ -97,7 +96,7 @@ class Insert(db.Doer):
         # self._insert = f"INSERT INTO `{self._table}` () VALUES ();"
         # super().__init__(sql=self._insert, args={})
 
-        super().__init__()
+        super().__init__(model)
 
     def select(self):
         pass
@@ -105,13 +104,12 @@ class Insert(db.Doer):
 
 class Update(db.Doer):
 
-    __slots__ = ('_model', '_values', '_where')
+    __slots__ = ('_values', '_where')
 
     def __init__(self, model, values):
-        self._model = model
         self._values = values
         self._where = None
-        super().__init__()
+        super().__init__(model)
 
     def where(self, *filters):
         pass
@@ -119,12 +117,12 @@ class Update(db.Doer):
 
 class Delete(db.Doer):
 
-    __slots__ = ('_model', '_where')
+    __slots__ = ('_where',)
 
     def __init__(self, model):
         self._model = model
         self._where = None
-        super().__init__()
+        super().__init__(model)
 
     def where(self, *filters):
         pass
