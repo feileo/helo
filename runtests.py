@@ -1,7 +1,7 @@
 import unittest
 
 from tests import test_model, test_crud, test_db
-from tests.base import AsyncioTestBase
+from tests.base import AsyncioTestBase, Tester
 
 
 def runtests():
@@ -17,10 +17,9 @@ def runtests():
     #         unittest.makeSuite(test_crud.TestCRUD),
     #     ]
     # )
-    # TODO with
-    # AsyncioTestBase.prepare()
-    # unittest.TextTestRunner(verbosity=2).run(suite)
-    # AsyncioTestBase.end()
+    # TODO
+    # async with Tester() as t:
+    #     t.run(2, suite)
 
 
 if __name__ == '__main__':

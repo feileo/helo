@@ -54,3 +54,6 @@ class ModelSetAttrError(AttributeError):
 
 class ProgrammingWarning(RuntimeWarning):
     pass
+
+class  UninitializedError(RuntimeError):
+    pass
