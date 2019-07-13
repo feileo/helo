@@ -58,3 +58,17 @@ class AsyncioTestBase(unittest.TestCase):
 
         cls.loop.run_until_complete(do_unbind())
         cls.loop.close()
+
+
+class Tester:
+
+    async def __aenter__(self):
+        """ Must be explicitly call before run all tests """
+        await db.bind(get_test_db_url(), echo=True)
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """ Must be explicitly call after run all tests """
+        await db.unbind()
+
+    def run(self, verbosity, suite):
+        unittest.TextTestRunner(verbosity=verbosity).run(suite)
