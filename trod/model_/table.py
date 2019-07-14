@@ -22,7 +22,7 @@ class Table(db.Doer):
         self.engine = engine or self.DEFAULT.__engine__
         self.charset = charset or self.DEFAULT.__charset__
         self.comment = comment or self.DEFAULT.__comment__
-        super().__init__(model=None)
+        super().__init__(None)
 
     @property
     def sname(self):
@@ -47,29 +47,47 @@ class Table(db.Doer):
         return await self.do()
 
     def show(self):
-        return self.Show()
+        return self.Show(self)
 
-    def exist(self):
-        pass
+    async def exist(self):
+        database = None
+        connmeta = db.Connector.get_connmeta()
+        if connmeta:
+            database = connmeta.db
+        if not database:
+            database = db.Connector.selected
+        if not database:
+            raise RuntimeError()  # TODO
+        self._sql = f"SELECT table_name FROM information_schema.tables WHERE \
+            table_schema = '{database}' AND table_name = '{self.name}'"
+        return await self.do()
 
     class Show:
 
-        def tables(self):
-            self._sql = "SHOW TABLES"
-            return await Table.do()
+        def __init__(self, table):
+            self._table = table
 
-        def status(self):
-            self._sql = "SHOW TABLE STATUS"
-            return await Table.do()
+        def __str__(self):
+            return f"<Class {self.__class__.__name__}>"
 
-        def create_syntax(self):
-            self._sql = "SHOW CREATE TABLE `{Table.sname}`;"
-            return await Table.do()
+        __repr__ = __str__
 
-        def cloums(self):
-            self._sql = "SHOW FULL COLUMNS FROM `{Table.sname}`;"
-            return await Table.do()
+        async def tables(self):
+            self._table._sql = "SHOW TABLES"
+            return await self._table.do()
 
-        def indexs(self):
-            self._sql = "SHOW INDEX FROM `{Table.sname}`;"
-            return await Table.do()
+        async def status(self):
+            self._table._sql = "SHOW TABLE STATUS"
+            return await self._table.do()
+
+        async def create_syntax(self):
+            self._table._sql = "SHOW CREATE TABLE `{self._table.sname}`;"
+            return await self._table.do()
+
+        async def cloums(self):
+            self._table._sql = "SHOW FULL COLUMNS FROM `{self._table.sname}`;"
+            return await self._table.do()
+
+        async def indexs(self):
+            self._table._sql = "SHOW INDEX FROM `{self._table.sname}`;"
+            return await self._table.do()

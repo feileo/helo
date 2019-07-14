@@ -10,7 +10,7 @@ class Select(db.Doer):
         '_limit', '_func', '_having', '_distinct', '_use_td'
     )
 
-    def __init__(self, model, *fields, distinct=False):
+    def __init__(self, model, fields, distinct=False):
         self._model = model
         self._fields = fields
         self._where = None
@@ -19,7 +19,7 @@ class Select(db.Doer):
         self._order_by = None
         self._limit = None
         self._distinct = " DISTINCT" if distinct else ""
-        table = self._model.__table__
+        table = self._model.__table__.name
 
         fields = ', '.join(self._fields)
         self._select = f"SELECT{self._distinct} {fields} FROM `{table}`"
@@ -70,13 +70,13 @@ class Select(db.Doer):
     def do(self):
         raise AttributeError()
 
-    async def all(self, use_td=False):
+    async def all(self, tdicts=False):
 
-        self._use_td = use_td
+        self._use_td = tdicts
         return await super().do()
 
-    async def first(self, use_td=False):
-        self._use_td = use_td
+    async def first(self, tdicts=False):
+        self._use_td = tdicts
         self.limit(1)
         return await super().do()
 
@@ -86,30 +86,39 @@ class Select(db.Doer):
 
 class Insert(db.Doer):
 
-    __slots__ = ('_insert', '_rows', '_batch')
+    __slots__ = ('_table', '_rows')
 
-    def __init__(self, model, rows):
+    def __init__(self, table, rows):
+        self._table = table
         self._rows = rows
-        self._batch = False
 
-        # fields = ', '.join(f.join('``') for f in self._fields)
-        # self._insert = f"INSERT INTO `{self._table}` () VALUES ();"
-        # super().__init__(sql=self._insert, args={})
-
-        super().__init__(model)
+        insert = f"INSERT INTO `{self._table}` ({self._rows.fields}) VALUES ({self._rows.values});"
+        super().__init__(None, sql=insert, args={})
 
     def select(self):
         pass
 
 
+class Replace(db.Doer):
+
+    __slots__ = ('_replace', '_table', '_rows')
+
+    def __init__(self, table, rows):
+        self._table = table
+        self._rows = rows
+
+        super().__init__(None)
+
+
 class Update(db.Doer):
 
-    __slots__ = ('_values', '_where')
+    __slots__ = ('_table', '_values', '_where')
 
-    def __init__(self, model, values):
+    def __init__(self, table, values):
+        self._table = table
         self._values = values
         self._where = None
-        super().__init__(model)
+        super().__init__(None)
 
     def where(self, *filters):
         pass
@@ -117,19 +126,15 @@ class Update(db.Doer):
 
 class Delete(db.Doer):
 
-    __slots__ = ('_where',)
+    __slots__ = ('_table', '_where',)
 
-    def __init__(self, model):
-        self._model = model
+    def __init__(self, table):
+        self._table = table
         self._where = None
-        super().__init__(model)
+        super().__init__(None)
 
     def where(self, *filters):
         pass
 
     def limit(self):
         pass
-
-
-class Replace(Insert):
-    pass

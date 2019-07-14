@@ -133,9 +133,19 @@ class _Model(metaclass=_ModelMeta):
 
         self.__dict__[key] = value
 
+    # TODO
+    @property
     @utils.troddict_formatter
     def __self__(self):
-        return self.__dict__
+        fields = [f for f in self.__table__.fields]
+        values = {}
+        for f in fields:
+            v = self.__getattr__(f.name)
+            if v is None and callable(f):
+                v = f()
+            if v is not None:
+                values[f.name] = v
+        return values
 
     @classmethod
     async def _create_table(cls):
@@ -156,8 +166,8 @@ class _Model(metaclass=_ModelMeta):
 
     @classmethod
     async def _exist(cls):
-        """ query table is exist
-        """
+        """ query table is exist"""
+
         return await cls.__table__.exist()
 
     @classmethod
@@ -165,24 +175,46 @@ class _Model(metaclass=_ModelMeta):
         pass
 
     @classmethod
-    async def _get(cls, _id):
+    async def _get(cls, pk, tdicts=False):
 
-        fields = [f for f in cls.__table__.fields]
+        fields = [f.sname for f in cls.__table__.fields]
         return await crud.Select(
-            cls.__table__.name, *fields
+            cls, fields
         ).where(
-            cls.__table__.fields[cls.__table__.pk.name] == _id
-        ).all()
+            cls.__table__.fields[cls.__table__.pk.name] == pk
+        ).all(tdicts)
 
     @classmethod
-    async def _get_many(cls, ids, *fields):
-        pass
+    async def _get_many(cls, pks, *fields, tdicts=False):
+
+        fields = fields or cls.__table__.fields
+        fields = [f.sname for f in fields]
+
+        return await crud.Select(
+            cls, fields
+        ).where(
+            cls.__table__.fields[cls.__table__.pk.name].in_(pks)
+        ).all(tdicts)
 
     @classmethod
     def _select(cls, *fields, distinct=False):
 
+        fields = fields or cls.__table__.fields
         fields = [f.sname for f in fields]
-        return crud.Select(cls.__table__.name, *fields, distinct=distinct)
+
+        return crud.Select(cls, fields, distinct=distinct)
+
+    @classmethod
+    def _add(cls, instance):
+
+        rows = Rows([instance.__self__])
+        return crud.Insert(cls.__table__.name, rows)
+
+    @classmethod
+    def _add_many(cls, instances):
+
+        rows = Rows([instance.__self__ for instance in instances])
+        return crud.Insert(cls.__table__.name, rows)
 
     @classmethod
     def _insert(cls, **values):
@@ -197,44 +229,47 @@ class _Model(metaclass=_ModelMeta):
         return crud.Insert(cls.__table__.name, rows)
 
     @classmethod
-    async def _add(cls, instance):
-        pass
-
-    @classmethod
-    async def _add_many(cls, instances):
-        pass
-
-    @classmethod
     def _update(cls, **values):
 
-        return crud.Update(cls.__table__.name, **values)
+        return crud.Update(cls.__table__.name, values)
 
     @classmethod
     def _delete(cls):
 
         return crud.Delete(cls.__table__.name)
 
+    @classmethod
+    def _replace(cls, **values):
+
+        rows = Rows([values])
+        return crud.Replace(cls.__table__.name, rows)
+
     async def _save(self):
-        """ save self
-            a = M()
-            a.f = 1
-            a.save()
-            print(a.f)  # 1
+        """ save self """
 
-            a.f=2
-            a.save()
-            print(a.f) # 2
-        """
-
-        return crud.Replace(self)
+        rows = Rows([self.__self__])
+        return await crud.Replace(self.__table__.name, rows).do()
 
     async def _remove(self):
         """ delete self """
 
-        return crud.Delete(self)
+        pk = self.__getattr__(self.__table__.pk.field.name)
+        if not pk:
+            raise RuntimeError()  # TODO
+        return await crud.Delete(
+            self.__table__.name
+        ).where(self.__table__.pk.field == pk).do()
 
 
 class Rows:
 
     def __init__(self, rows, fields=None):
+        pass
+
+    @property
+    def fields(self):
+        pass
+
+    @property
+    def values(self):
         pass
