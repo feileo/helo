@@ -9,12 +9,18 @@ class TrodDictCursor(aiomysql.DictCursor):
     dict_type = utils.TrodDict
 
 
-async def _fetch(pool, sql, args=None, rows=None):
+async def _fetch(pool, sql, args=None, rows=None, db=None):
 
     if args:
         args = utils.tuple_formatter(args)
 
     async with pool.acquire() as connect:
+
+        if db:
+            await connect.select_db(db)
+        elif not pool.connmeta.db:
+            raise RuntimeError()  # TODO
+
         async with connect.cursor(aiomysql.DictCursor) as cur:
             try:
                 await cur.execute(sql.strip(), args or ())
@@ -31,12 +37,18 @@ async def _fetch(pool, sql, args=None, rows=None):
     return result
 
 
-async def _execute(pool, sql, args=None, batch=False):
+async def _execute(pool, sql, args=None, batch=False, db=None):
     sql = sql.strip()
     if args:
         args = utils.tuple_formatter(args)
 
     async with pool.acquire() as connect:
+
+        if db:
+            await connect.select_db(db)
+        elif not pool.connmeta.db:
+            raise RuntimeError()  # TODO
+
         if not pool.connectmeta.autocommit:
             await connect.begin()
         try:
@@ -58,13 +70,13 @@ async def _execute(pool, sql, args=None, batch=False):
     return affected, last_id
 
 
-async def fetch(sql, pool, args=None, rows=None):
+async def fetch(sql, pool, args=None, rows=None, db=None):
     """ A coroutine that proxy fetch sql request """
 
-    return await _fetch(pool, sql, args=args, rows=rows)
+    return await _fetch(pool, sql, args=args, rows=rows, db=db)
 
 
-async def execute(pool, sql, values=None, is_batch=False):
+async def execute(pool, sql, values=None, is_batch=False, db=None):
     """ A coroutine that proxy execute sql request """
 
-    return await _execute(pool, sql, args=values, batch=is_batch)
+    return await _execute(pool, sql, args=values, batch=is_batch, db=db)

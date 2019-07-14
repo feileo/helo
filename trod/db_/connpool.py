@@ -51,7 +51,7 @@ class Pool:
     )
     _POOL_KWARGS = ('minsize', 'maxsize', 'echo', 'pool_recycle', 'loop')
 
-    __slots__ = ('_pool', 'connmeta')
+    __slots__ = ('_pool', '_connmeta')
 
     async def __init__(self, minsize=1, maxsize=15, echo=False,
                        pool_recycle=-1, loop=None, **conn_kwargs):
@@ -62,7 +62,7 @@ class Pool:
             pool_recycle=pool_recycle, loop=loop,
             **conn_kwargs
         )
-        self.connmeta = conn_kwargs
+        self._connmeta = conn_kwargs
         super().__init__(**conn_kwargs)
 
     @classmethod
@@ -95,6 +95,10 @@ class Pool:
         )
 
     __str__ = __repr__
+
+    @property
+    def connmeta(self):
+        return self._connmeta
 
     @property
     def state(self):

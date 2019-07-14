@@ -1,4 +1,4 @@
-from trod import model_ as model, types_ as types
+from trod import model_ as _model, types_ as types
 from trod import db_ as db
 from trod import utils
 
@@ -14,7 +14,7 @@ __all__ = (
 
 class Trod:
 
-    Model = model.Model
+    Model = _model.Model
 
     async def bind(self, *args, **kwargs):
         await db.Connector.create(*args, **kwargs)
@@ -22,7 +22,13 @@ class Trod:
     async def unbind(self):
         await db.Connector.close()
 
-    def text(self, use_model=False):
+    def select_db(self, database):
+        db.Connector.select_db(database)
+
+    async def table_exist(self, database, table):
+        pass
+
+    async def text(self, use_model=False):
         pass
 
     def create_tables(self, *models):

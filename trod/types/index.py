@@ -8,7 +8,7 @@ class BaseIndex:
     _type_sql_tpl = None
     _attr_key_num = 0
 
-    def __init__(self, column, comment='', name=None):
+    def __init__(self, column, comment='', name=None, engine=None):
         if name is None:
             (_, _, _, text) = traceback.extract_stack()[-2]
             self.name = text[:text.find('=')].strip()

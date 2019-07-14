@@ -14,24 +14,32 @@ class Model(_Model):
         return await cls._drop_table()
 
     @classmethod
-    async def add(cls, model):
-        return await cls._add(model)
+    async def show(cls):
+        return await cls._show()
 
     @classmethod
-    async def madd(cls, models):
-        return await cls._add_many(models)
+    async def exist(cls):
+        return await cls._exist()
 
     @classmethod
-    async def get(cls, pk):
-        return await cls._get(pk)
+    async def get(cls, pk, tdicts=False):
+        return await cls._get(pk, tdicts=tdicts)
 
     @classmethod
-    async def mget(cls, pks, *fields):
-        return await cls._get_many(pks, *fields)
+    async def mget(cls, pks, *fields, tdicts=False):
+        return await cls._get_many(pks, *fields, tdicts=tdicts)
 
     @classmethod
-    def select(cls, *fields):
-        return cls._select(*fields)
+    def select(cls, *fields, distinct=False):
+        return cls._select(*fields, distinct=distinct)
+
+    @classmethod
+    def add(cls, model):
+        return cls._add(model)
+
+    @classmethod
+    def madd(cls, models):
+        return cls._add_many(models)
 
     @classmethod
     def insert(cls, **values):
@@ -48,6 +56,10 @@ class Model(_Model):
     @classmethod
     def delete(cls):
         return cls._delete()
+
+    @classmethod
+    def replace(cls, **values):
+        return cls._replace(**values)
 
     async def save(self):
         return await self._save()
