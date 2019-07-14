@@ -101,6 +101,9 @@ class _Model(metaclass=_ModelMeta):
 
     __str__ = __repr__
 
+    def __hash__(self):
+        pass
+
     def __getattr__(self, key):
         try:
             return self.__dict__[key]
@@ -146,25 +149,20 @@ class _Model(metaclass=_ModelMeta):
 
         return await cls.__table__.drop()
 
-    # @classmethod
-    # async def _exist(cls):
-    #     """ query table is exist """
+    @classmethod
+    async def _show(cls):
 
-    #     return await cls.__table__.exist()
+        return await cls.__table__.show()
 
-    # @classmethod
-    # async def _show(cls):
+    @classmethod
+    async def _exist(cls):
+        """ query table is exist
+        """
+        return await cls.__table__.exist()
 
-    #     return await cls.__table__.show()
-
-    # @classmethod
-    # async def _add_index(cls):
-
-    #     return await cls.__table__.add_index()
-
-    # @classmethod
-    # def _normalize_data(cls, data, kwargs):
-    #     pass
+    @classmethod
+    def _normalize_data(cls, data, kwargs):
+        pass
 
     @classmethod
     async def _get(cls, _id):

@@ -44,9 +44,15 @@ class FetchResult(list):
     __str__ = __repr__
 
     def __iter__(self):
+        """ for x in self """
         pass
 
     def __getitem__(self, idx):
+        """ self[key] """
+        pass
+
+    def __contains__(self, value):
+        """ value in self, value not in self """
         pass
 
 

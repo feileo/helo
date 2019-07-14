@@ -14,6 +14,10 @@ class Model(_Model):
         return await cls._drop_table()
 
     @classmethod
+    async def show(cls):
+        return await cls._show()
+
+    @classmethod
     async def add(cls, model):
         return await cls._add(model)
 

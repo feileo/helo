@@ -22,6 +22,9 @@ class Trod:
     async def unbind(self):
         await db.Connector.close()
 
+    def select_db(self, database):
+        db.Connector.select_db(database)
+
     def text(self, use_model=False):
         pass
 

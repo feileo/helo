@@ -18,14 +18,7 @@ class Connector:
 
     _pool = None
 
-    @classmethod
-    def pool(cls):
-        if cls._pool is None:
-            raise errors.NoConnectorError(
-                "Connector has not been created, maybe you should call \
-                `trod.bind()` before."
-            )
-        return cls._pool
+    selected = None
 
     @classmethod
     async def create(cls, *args, **kwargs):
@@ -50,9 +43,28 @@ class Connector:
         return False
 
     @classmethod
-    def state(cls):
+    def select_db(cls, db):
+        cls.selected = db
+
+    @classmethod
+    def get_pool(cls):
+        if cls._pool is None:
+            raise errors.NoConnectorError(
+                "Connector has not been created, maybe you should call \
+                `trod.bind()` before."
+            )
+        return cls._pool
+
+    @classmethod
+    def get_state(cls):
         if cls._pool:
             return cls._pool.state
+        return None
+
+    @classmethod
+    def get_connmeta(cls):
+        if cls._pool:
+            return cls._pool.connmeta
         return None
 
 
@@ -67,7 +79,7 @@ class Doer:
 
     def __str__(self):
         args = f' % {self._args}' if self._args else ''
-        return f"Doer by {Connector.pool()}\n For SQL({self.sql}{args})"
+        return f"Doer by {Connector.get_pool()}\n For SQL({self.sql}{args})"
 
     __repr__ = __str__
 
@@ -80,12 +92,14 @@ class Doer:
 
     async def do(self):
 
-        pool = Connector.pool()
+        pool = Connector.get_pool()
+        db = Connector.selected
 
         if getattr(self, '_select', False):
-            fetch_results = await fetch(pool, self.sql, args=self._args)
+            fetch_results = await fetch(pool, self.sql, args=self._args, db=db)
             return loader.load(self._model, fetch_results, use_td=self._use_td)
         exec_results = await execute(
-            pool, self.sql, values=self._args, is_batch=getattr(self, '_batch', False)
+            pool, self.sql, values=self._args,
+            is_batch=getattr(self, '_batch', False), db=db
         )
         return loader.ExecResults(*exec_results)
