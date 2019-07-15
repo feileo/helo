@@ -10,7 +10,7 @@ class Select(db.Doer):
         '_limit', '_func', '_having', '_distinct', '_use_td'
     )
 
-    def __init__(self, model, fields, distinct=False):
+    def __init__(self, model, fields, distinct=False, table=None):
         self._model = model
         self._fields = fields
         self._where = None
@@ -19,7 +19,7 @@ class Select(db.Doer):
         self._order_by = None
         self._limit = None
         self._distinct = " DISTINCT" if distinct else ""
-        table = self._model.__table__.name
+        table = self._model.__table__.name or table
 
         fields = ', '.join(self._fields)
         self._select = f"SELECT{self._distinct} {fields} FROM `{table}`"
@@ -99,7 +99,7 @@ class Insert(db.Doer):
 
     def select(self, *fields):
         fields = [f.sname for f in fields]
-        return Select(None, fields)
+        return Select(None, fields, table=self._table)
 
 
 class Replace(Insert):
