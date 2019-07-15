@@ -88,26 +88,25 @@ class Insert(db.Doer):
 
     __slots__ = ('_table', '_rows')
 
+    _c = "INSERT INTO"
+
     def __init__(self, table, rows):
         self._table = table
         self._rows = rows
 
-        insert = f"INSERT INTO `{self._table}` ({self._rows.fields}) VALUES ({self._rows.values});"
+        insert = f"{self._c} `{self._table}` ({self._rows.fields}) VALUES ({self._rows.values});"
         super().__init__(None, sql=insert, args={})
 
-    def select(self):
-        pass
+    def select(self, *fields):
+        fields = [f.sname for f in fields]
+        return Select(None, fields)
 
 
-class Replace(db.Doer):
+class Replace(Insert):
 
     __slots__ = ('_replace', '_table', '_rows')
 
-    def __init__(self, table, rows):
-        self._table = table
-        self._rows = rows
-
-        super().__init__(None)
+    _c = "REPLACE INTO"
 
 
 class Update(db.Doer):

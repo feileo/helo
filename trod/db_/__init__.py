@@ -1,3 +1,5 @@
+import asyncio
+import atexit
 import warnings
 
 from trod import errors
@@ -66,6 +68,11 @@ class Connector:
         if cls._pool:
             return cls._pool.connmeta
         return None
+
+
+atexit.register(
+    lambda: asyncio.get_event_loop().run_until_complete(Connector.close())
+)
 
 
 class Doer:

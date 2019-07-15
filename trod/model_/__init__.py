@@ -30,16 +30,16 @@ class Model(_Model):
         return await cls._get_many(pks, *fields, tdicts=tdicts)
 
     @classmethod
+    def add(cls, instance):
+        return cls._add(instance)
+
+    @classmethod
+    def madd(cls, instances):
+        return cls._add_many(instances)
+
+    @classmethod
     def select(cls, *fields, distinct=False):
         return cls._select(*fields, distinct=distinct)
-
-    @classmethod
-    def add(cls, model):
-        return cls._add(model)
-
-    @classmethod
-    def madd(cls, models):
-        return cls._add_many(models)
 
     @classmethod
     def insert(cls, **values):
