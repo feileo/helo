@@ -168,7 +168,7 @@ class _Model(metaclass=_ModelMeta):
     async def _exist(cls):
         """ query table is exist"""
 
-        return await cls.__table__.exist()
+        return await bool(cls.__table__.exist())
 
     @classmethod
     def _normalize_data(cls, data, kwargs):
@@ -197,14 +197,6 @@ class _Model(metaclass=_ModelMeta):
         ).all(tdicts)
 
     @classmethod
-    def _select(cls, *fields, distinct=False):
-
-        fields = fields or cls.__table__.fields
-        fields = [f.sname for f in fields]
-
-        return crud.Select(cls, fields, distinct=distinct)
-
-    @classmethod
     def _add(cls, instance):
 
         rows = Rows([instance.__self__])
@@ -215,6 +207,14 @@ class _Model(metaclass=_ModelMeta):
 
         rows = Rows([instance.__self__ for instance in instances])
         return crud.Insert(cls.__table__.name, rows)
+
+    @classmethod
+    def _select(cls, *fields, distinct=False):
+
+        fields = fields or cls.__table__.fields
+        fields = [f.sname for f in fields]
+
+        return crud.Select(cls, fields, distinct=distinct)
 
     @classmethod
     def _insert(cls, **values):
@@ -248,7 +248,9 @@ class _Model(metaclass=_ModelMeta):
         """ save self """
 
         rows = Rows([self.__self__])
-        return await crud.Replace(self.__table__.name, rows).do()
+        result = await crud.Replace(self.__table__.name, rows).do()
+        self.__setattr__(self.__table__.name, result.last_id)
+        return result
 
     async def _remove(self):
         """ delete self """
@@ -256,6 +258,7 @@ class _Model(metaclass=_ModelMeta):
         pk = self.__getattr__(self.__table__.pk.field.name)
         if not pk:
             raise RuntimeError()  # TODO
+
         return await crud.Delete(
             self.__table__.name
         ).where(self.__table__.pk.field == pk).do()
