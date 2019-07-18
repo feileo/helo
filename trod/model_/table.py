@@ -28,6 +28,9 @@ class Table(db.Doer):
     def sname(self):
         return f"`{self.name}`"
 
+    def set_sql(self, sql):
+        self._sql = sql
+
     async def create(self, strict=True):
         fdefs = [f.sql for f in self.fields]
         fdefs.append(f"PRIMARY KEY({self.pk.sname})")
@@ -46,9 +49,6 @@ class Table(db.Doer):
         self._sql = f"DROP TABLE {self.sname};"
         return await self.do()
 
-    def show(self):
-        return self.Show(self)
-
     async def exist(self):
         database = None
         connmeta = db.Connector.get_connmeta()
@@ -62,32 +62,46 @@ class Table(db.Doer):
             table_schema = '{database}' AND table_name = '{self.name}'"
         return await self.do()
 
-    class Show:
+    def show(self):
+        return _Show(self)
 
-        def __init__(self, table):
-            self._table = table
 
-        def __str__(self):
-            return f"<Class {self.__class__.__name__}>"
+class _Show:
 
-        __repr__ = __str__
+    def __init__(self, table):
+        self._table = table
 
-        async def tables(self):
-            self._table._sql = "SHOW TABLES"
-            return await self._table.do()
+    def __str__(self):
+        return f"<Class {self.__class__.__name__}>"
 
-        async def status(self):
-            self._table._sql = "SHOW TABLE STATUS"
-            return await self._table.do()
+    __repr__ = __str__
 
-        async def create_syntax(self):
-            self._table._sql = "SHOW CREATE TABLE `{self._table.sname}`;"
-            return await self._table.do()
+    async def tables(self):
+        self._table.set_sql("SHOW TABLES")
+        return await self._table.do()
 
-        async def cloums(self):
-            self._table._sql = "SHOW FULL COLUMNS FROM `{self._table.sname}`;"
-            return await self._table.do()
+    async def status(self):
+        self._table.set_sql("SHOW TABLE STATUS")
+        return await self._table.do()
 
-        async def indexs(self):
-            self._table._sql = "SHOW INDEX FROM `{self._table.sname}`;"
-            return await self._table.do()
+    async def create_syntax(self):
+        self._table.set_sql("SHOW CREATE TABLE `{self._table.sname}`;")
+        return await self._table.do()
+
+    async def cloums(self):
+        self._table.set_sql("SHOW FULL COLUMNS FROM `{self._table.sname}`;")
+        return await self._table.do()
+
+    async def indexs(self):
+        self._table.set_sql("SHOW INDEX FROM `{self._table.sname}`;")
+        return await self._table.do()
+
+
+class Alter(db.Doer):
+
+    def __init__(self, model, modifys=None, adds=None, drops=None):
+        self._model = model
+        self._modifys = modifys
+        self._adds = adds
+        self._drops = drops
+        super().__init__(None)

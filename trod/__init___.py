@@ -31,6 +31,9 @@ class Trod:
     async def text(self, use_model=False):
         pass
 
+    def alter(self, *args, **kwargs):
+        return _model.table.Alter(*args, **kwargs)
+
     def create_tables(self, *models):
         pass
 
