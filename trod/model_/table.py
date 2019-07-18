@@ -100,8 +100,13 @@ class _Show:
 class Alter(db.Doer):
 
     def __init__(self, model, modifys=None, adds=None, drops=None):
+        super().__init__(None)
         self._model = model
         self._modifys = modifys
         self._adds = adds
         self._drops = drops
-        super().__init__(None)
+
+        self._prepare()
+
+    def _prepare(self):
+        pass

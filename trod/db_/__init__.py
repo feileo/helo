@@ -75,6 +75,16 @@ atexit.register(
 )
 
 
+async def text(sql, *args, **kwargs):  # TODO
+    pool = Connector.get_pool()
+
+    if 'SELECT' in sql or 'select' in sql:
+        result = await fetch(pool, sql, *args, **kwargs)
+    else:
+        result = await execute(pool, sql, *args, **kwargs)
+    return result
+
+
 class Doer:
 
     __slots__ = ('_model', '_sql', '_args')
