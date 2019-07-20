@@ -39,7 +39,7 @@ class _ModelMeta(type):
         table_name = name
 
         fields, indexs = OrderedDict(), OrderedDict()
-        pk = utils.TrodDict(auto=False, field=None, ai=None)
+        pk = utils.Tdict(auto=False, field=None, ai=None)
 
         for attr in attrs.copy():
             if pk.field and attr == pk.field.name:
@@ -135,7 +135,7 @@ class _Model(metaclass=_ModelMeta):
 
     # TODO
     @property
-    @utils.troddict_formatter
+    @utils.tdictformatter
     def __self__(self):
         fields = [f for f in self.__table__.fields]
         values = {}
@@ -148,10 +148,10 @@ class _Model(metaclass=_ModelMeta):
         return values
 
     @classmethod
-    async def _create_table(cls):
+    async def _create_table(cls, ignore):
         """ Do create table """
 
-        return await cls.__table__.create()
+        return await cls.__table__.create(ignore)
 
     @classmethod
     async def _drop_table(cls):

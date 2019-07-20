@@ -26,7 +26,7 @@ class Pool:
 
         :Returns : `Pool` instance
     """
-    _CONN_KWARGS = utils.TrodDict(
+    _CONN_KWARGS = utils.Tdict(
         host=Arg(dft="localhost", help='Host where the database server is located'),
         user=Arg(dft=None, help='Username to log in as'),
         password=Arg(dft="", help='Password to use'),
@@ -104,7 +104,7 @@ class Pool:
     def state(self):
         """ Connection pool state """
 
-        return utils.TrodDict(
+        return utils.Tdict(
             minsize=self._pool.minsize,
             maxsize=self._pool.maxsize,
             size=self._pool.size,

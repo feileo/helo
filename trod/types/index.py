@@ -1,5 +1,5 @@
 import traceback
-from trod.utils import TrodDict
+from trod.utils import Tdict
 
 
 class BaseIndex:
@@ -22,7 +22,7 @@ class BaseIndex:
             self.column = [column]
         self.column = [f'`{c}`' for c in self.column]
 
-        self.options = TrodDict(
+        self.options = Tdict(
             key_name=self.name,
             cols=','.join(self.column),
             comment=self.comment

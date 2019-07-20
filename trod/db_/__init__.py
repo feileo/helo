@@ -45,8 +45,15 @@ class Connector:
         return False
 
     @classmethod
-    def select_db(cls, db):
+    def select_db(cls, db=None):
+        if db is None:
+            if not cls._pool:
+                raise RuntimeError()
+            return cls.get_connmeta().db
+        if not db or not isinstance(db, str):
+            raise ValueError()
         cls.selected = db
+        return cls.selected
 
     @classmethod
     def get_pool(cls):
@@ -83,6 +90,10 @@ async def text(sql, *args, **kwargs):  # TODO
     else:
         result = await execute(pool, sql, *args, **kwargs)
     return result
+
+
+def current():
+    return Connector.select_db()
 
 
 class Doer:

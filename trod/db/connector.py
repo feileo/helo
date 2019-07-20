@@ -5,7 +5,7 @@ import aiomysql
 
 from trod.errors import InvaildDBUrlError
 from trod.extra.logger import Logger
-from trod.utils import troddict_formatter, singleton, asyncinit
+from trod.utils import tdictformatter, singleton, asyncinit
 
 
 @unique
@@ -138,7 +138,7 @@ class Connector:
     __str__ = __repr__
 
     @property
-    @troddict_formatter()
+    @tdictformatter()
     def status(self):
         """ connection pool status """
 
@@ -151,7 +151,7 @@ class Connector:
         }
 
     @property
-    @troddict_formatter()
+    @tdictformatter()
     def db(self):
         """ Db info """
 
@@ -303,7 +303,7 @@ class ParseUrl:
             return True
         return False
 
-    @troddict_formatter()
+    @tdictformatter()
     def parse(self):
         """ do parse database url """
 

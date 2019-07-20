@@ -14,7 +14,7 @@ class UrlParser:
     def __init__(self, url):
         self.url = url
 
-    @utils.troddict_formatter()
+    @utils.tdictformatter()
     def parse(self):
         """ do parse database url """
 

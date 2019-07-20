@@ -6,8 +6,8 @@ __all__ = ('Model',)
 class Model(_Model):
 
     @classmethod
-    async def create(cls):
-        return await cls._create_table()
+    async def create(cls, ignore=False):
+        return await cls._create_table(ignore)
 
     @classmethod
     async def drop(cls):

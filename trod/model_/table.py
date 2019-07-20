@@ -1,10 +1,12 @@
+import logging
+import inspect
 from trod import utils, db_ as db
 
 
 class Table(db.Doer):
 
     AIPK = 'id'
-    DEFAULT = utils.TrodDict(
+    DEFAULT = utils.Tdict(
         __table__=None,
         __auto_increment__=1,
         __engine__='InnoDB',
@@ -31,14 +33,16 @@ class Table(db.Doer):
     def set_sql(self, sql):
         self._sql = sql
 
-    async def create(self, strict=True):
+    async def create(self, safe=True, **options):
+        is_temp = options.pop('temporary', False)
+        c = 'CREATE TEMPORARY TABLE' if is_temp else 'CREATE TABLE'
         fdefs = [f.sql for f in self.fields]
         fdefs.append(f"PRIMARY KEY({self.pk.sname})")
         for index in self.indexs:
             fdefs.append(index.sql)
         fdefs = ", ".join(fdefs)
-        strict = "" if strict else "IF NOT EXISTS"
-        syntax = f"CREATE TABLE {strict} {self.sname} ({fdefs}) ENGINE={self.engine}\
+        exist = "" if safe else "IF NOT EXISTS"
+        syntax = f"{c} {exist} {self.sname} ({fdefs}) ENGINE={self.engine}\
             AUTO_INCREMENT={self.auto_increment} DEFAULT CHARSET={self.charset}\
             COMMENT='{self.comment}';"
         self.create_syntax = syntax
@@ -110,3 +114,28 @@ class Alter(db.Doer):
 
     def _prepare(self):
         pass
+
+
+def _find_models(module, md):
+    if not module:
+        return []
+    if not inspect.ismodule(module):
+        raise ValueError()
+
+    return [m for _, m in vars(module).items() if issubclass(m, md)]
+
+
+async def create_tables(md, *models, module=None, **options):
+
+    models = list(models)
+    models.extend(_find_models(module, md))
+
+    if not models:
+        raise RuntimeError()
+
+    for model in models:
+        await model.create(**options)
+
+
+async def drop_tables(*models, module=None):
+    pass
