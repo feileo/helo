@@ -5,8 +5,8 @@ import aiomysql
 from trod import utils
 
 
-class TrodDictCursor(aiomysql.DictCursor):
-    dict_type = utils.TrodDict
+class TdictCursor(aiomysql.DictCursor):
+    dict_type = utils.Tdict
 
 
 async def _fetch(pool, sql, args=None, rows=None, db=None):
@@ -52,7 +52,7 @@ async def _execute(pool, sql, args=None, batch=False, db=None):
         if not pool.connectmeta.autocommit:
             await connect.begin()
         try:
-            async with connect.cursor(TrodDictCursor) as cur:
+            async with connect.cursor(TdictCursor) as cur:
                 if batch is True:
                     await cur.executemany(sql, args or ())
                 else:

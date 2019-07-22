@@ -5,9 +5,9 @@ from trod import utils
 
 def load(model, result_dict, use_td=False):
 
-    if isinstance(result_dict, utils.TrodDict):
+    if isinstance(result_dict, utils.Tdict):
         if not result_dict:
-            return utils.TrodDict()
+            return utils.Tdict()
         return _do_load(result_dict, model)
     # elif isinstance(result_dict, (list, tuple)):
     # if not result_dict:
@@ -20,7 +20,7 @@ def load(model, result_dict, use_td=False):
 
 def _do_load(result_dict, model):
 
-    if not isinstance(result_dict, utils.TrodDict):
+    if not isinstance(result_dict, utils.Tdict):
         raise ValueError(f'Invalid loader data: {result_dict}')
     model = model()
     for key, value in result_dict.items():

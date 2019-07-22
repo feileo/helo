@@ -6,7 +6,7 @@ from collections.abc import Iterable
 from trod import errors, db_ as db, utils
 
 
-OPER = utils.TrodDict(
+OPER = utils.Tdict(
     AND='AND',
     OR='OR',
     ADD='+',
@@ -98,16 +98,6 @@ class Expr:
         # elif isinstance(hs, self.__class__):
         #     hs = hs.sql
         return hs
-
-
-class Asc:
-    # return f"{self.sname} ASC"
-    pass
-
-
-class Desc:
-    # return f"{self.sname} DESC"
-    pass
 
 
 class Column:
@@ -202,11 +192,14 @@ class Column:
         return self == item
 
     def desc(self):
-
-        return Desc()
+        return _Desc(self)
 
     def asc(self):
-        return Asc()
+        return _Asc()
+
+    @utils.argschecker(alias=str, nullable=False)
+    def as_(self, alias):
+        return _Alias(self, alias)
 
 
 class Defi:
@@ -280,11 +273,8 @@ class FieldBase(Column, Defi):
 
     _field_counter = 0
 
-    # TODO params checker
+    @utils.argschecker(null=bool)
     def __init__(self, null, default, comment, name=None):
-
-        if not isinstance(null, bool):
-            raise ValueError(f"Unexpected `null` type: {null}")
 
         self.null = null
         self.default = default
@@ -642,7 +632,7 @@ class Timestamp(Datetime):
     __slots__ = ()
 
     _db_type = 'timestamp'
-    _auto = utils.TrodDict(
+    _auto = utils.Tdict(
         on_create="CURRENT_TIMESTAMP",
         on_update="CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
     )
@@ -679,6 +669,10 @@ class Func:
         elif isinstance(field, Column):
             pass
 
+    @utils.argschecker(alias=str, nullable=False)
+    def as_(self, alias):
+        return _Alias(self, alias)
+
     @property
     def sname(self):
         pass
@@ -686,3 +680,34 @@ class Func:
     @property
     def sql(self):
         pass
+
+
+class _Asc:
+
+    def __init__(self, field):
+        self.f = field
+
+    @property
+    def sname(self):
+        return f"{self.f.sname} ASC"
+
+
+class _Desc:
+
+    def __init__(self, field):
+        self.f = field
+
+    @property
+    def sname(self):
+        return f"{self.f.sname} DESC"
+
+
+class _Alias:
+
+    def __init__(self, field, alias):
+        self.f = field
+        self.alias = alias
+
+    @property
+    def sname(self, alias):
+        return f"{self.f.sname} AS {self.alias}"

@@ -3,18 +3,19 @@ from functools import wraps
 from collections.abc import Iterable
 
 __all__ = (
-    'TrodDict',
-    'troddict_formatter',
+    'Tdict',
+    'tdictformatter',
     'singleton',
     'asyncinit',
+    'argschecker',
 )
 
 
-class TrodDict(dict):
+class Tdict(dict):
     """ Is a class that makes it easier to access the elements of the dict
 
         EX::
-            dict_ = TrodDict(key=1)
+            dict_ = Tdict(key=1)
             dict_.k
     """
 
@@ -28,7 +29,7 @@ class TrodDict(dict):
             return self[key]
         except KeyError:
             raise AttributeError(
-                f"TrodDict object has not attribute {key}."
+                f"Tdict object has not attribute {key}."
             )
 
     def __setattr__(self, key, value):
@@ -44,21 +45,21 @@ class TrodDict(dict):
         return self
 
     def __add__(self, rhs):
-        td = TrodDict(self)
+        td = Tdict(self)
         td.update(rhs)
         return td
 
     def from_object(self, obj):
         if not isinstance(obj, type):
-            raise ValueError(f'Invalid obj type: {obj}')
+            raise TypeError(f'Invalid obj type: {obj}')
 
         for key in dir(obj):
             if key.isupper():
                 self[key] = getattr(obj, key)
 
 
-def troddict_formatter(is_async=False):
-    """ A function decorator that convert the returned dict object to TrodDict
+def tdictformatter(is_async=False):
+    """ A function decorator that convert the returned dict object to Tdict
         If it is a list, recursively convert its elements
     """
     def decorator(func):
@@ -66,12 +67,12 @@ def troddict_formatter(is_async=False):
             @wraps(func)
             def convert(*args, **kwargs):
                 result = func(*args, **kwargs)
-                return format_troddict(result)
+                return formattdict(result)
         else:
             @wraps(func)
             async def convert(*args, **kwargs):
                 result = await func(*args, **kwargs)
-                return format_troddict(result)
+                return formattdict(result)
         return convert
     return decorator
 
@@ -84,11 +85,13 @@ def singleton(is_async=False):
         instances = {}
 
         if is_async:
+            @wraps(cls)
             async def getinstance(*args, **kw):
                 if cls not in instances:
                     instances[cls] = await cls(*args, **kw)
                 return instances[cls]
         else:
+            @wraps(cls)
             def getinstance(*args, **kw):
                 if cls not in instances:
                     instances[cls] = cls(*args, **kw)
@@ -96,6 +99,21 @@ def singleton(is_async=False):
         return getinstance
 
     return decorator
+
+
+def node(cls):
+
+    @wraps(cls)
+    def wraper(*args, **kwargs):
+
+        def sname(self):
+            return f"`{self.name}`"
+
+        cls.sname = property(sname)
+        instance = cls(*args, **kwargs)
+        return instance
+
+    return wraper
 
 
 def asyncinit(obj):
@@ -125,7 +143,38 @@ def asyncinit(obj):
     return obj
 
 
-def format_troddict(target):
+def argschecker(*cargs, **ckwargs):
+
+    def decorator(func):
+        # If in optimized mode, disable type checking
+        if not __debug__:
+            return func
+
+        nullable = ckwargs.pop('nullable', True)
+
+        # Map function argument names to supplied types
+        sig = inspect.signature(func)
+        bound_args = sig.bind_partial(*cargs, **ckwargs).arguments
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            bound_values = sig.bind(*args, **kwargs)
+            # Enforce type assertions across supplied arguments
+            for name, value in bound_values.arguments.items():
+                if name in bound_args:
+                    if not isinstance(value, bound_args[name]):
+                        raise TypeError(
+                            f"Argument {name} must be {bound_args[name]}"
+                        )
+                    if not nullable and not value:
+                        raise ValueError(f"Arguments {name} cannot be empty")
+            return func(*args, **kwargs)
+        return wrapper
+
+    return decorator
+
+
+def formattdict(target):
     if target is None:
         return target
     if isinstance(target, dict):
@@ -134,10 +183,10 @@ def format_troddict(target):
         fmt_result = []
         for item in target:
             if isinstance(item, (str, int, bool)):
-                raise ValueError(f"Invalid data type '{target}' to convert `TrodDict`")
-            fmt_result.append(format_troddict(item))
+                raise ValueError(f"Invalid data type '{target}' to convert `Tdict`")
+            fmt_result.append(formattdict(item))
         return fmt_result
-    raise ValueError(f"Invalid data type '{target}' to convert `TrodDict`")
+    raise ValueError(f"Invalid data type '{target}' to convert `Tdict`")
 
 
 async def _new(cls, *_args, **_kwargs):
@@ -184,7 +233,7 @@ def tuple_formatter(args):
 
 
 def _do_troddict_format(ori_dict):
-    tdict = TrodDict()
+    tdict = Tdict()
     for key, value in ori_dict.items():
         tdict[key] = _do_troddict_format(value) if isinstance(value, dict) else value
     return tdict

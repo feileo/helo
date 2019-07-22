@@ -1,13 +1,13 @@
 from trod.db.executer import RequestClient
 from trod.model.loader import Loader
 from trod.types.index import Key, UniqueKey
-from trod.utils import TrodDict, troddict_formatter, format_troddict
+from trod.utils import Tdict, tdictformatter, formattdict
 
 
-SQL = TrodDict(
+SQL = Tdict(
     create="CREATE TABLE `{tn}` ({cd}) ENGINE={eg} DEFAULT CHARSET={cs} COMMENT='{cm}';",
     drop="DROP TABLE `{table_name}`;",
-    show=TrodDict(
+    show=Tdict(
         tables='SHOW TABLES',
         status='SHOW TABLE STATUS',
         create="SHOW CREATE TABLE `{table_name}`;",
@@ -18,18 +18,18 @@ SQL = TrodDict(
     alter="ALTER TABLE `{table_name}` {clause};",
     insert="INSERT INTO `{table_name}` ({cols}) VALUES ({values});",
     delete="DELETE FROM `{table_name}` WHERE {condition};",
-    update_=TrodDict(
+    update_=Tdict(
         complete="UPDATE `{table_name}` SET {kv} WHERE {condition};",
         no_where="UPDATE `{table_name}` SET {kv}"
     ),
-    select=TrodDict(
+    select=Tdict(
         complete="SELECT {cols} FROM `{table_name}` {where_clause} {group_clause} {order_clause} {limit_clause}",
         by_id="SELECT {cols} FROM `{table_name}` WHERE `{condition}`=%s;",
         by_ids="SELECT {cols} FROM `{table_name}` WHERE `{condition}` IN {data};",
     )
 )
 
-Auto = TrodDict(
+Auto = Tdict(
     on_create='on_create',
     on_update='on_update'
 )
@@ -66,7 +66,7 @@ class _Where:
                 )
             value = tuple(value)
 
-        self.where = TrodDict(
+        self.where = Tdict(
             column=column,
             operator=self.OPERATORS[operator],
             value=value
@@ -89,7 +89,7 @@ class _Where:
             )
             _arg = '{}'.format(self.where.value)
 
-        return TrodDict(
+        return Tdict(
             where=_where_stmt,
             arg=_arg,
             col=self.where.column
@@ -126,7 +126,7 @@ class _Logic:
 
     def format_(self):
 
-        return TrodDict(
+        return Tdict(
             where=self._LOGIC.join(self._all_cdtns),
             arg=self._args,
             col=self._cols
@@ -136,7 +136,7 @@ class _Logic:
 class _Generator:
 
     _sql_template = SQL.select.complete
-    _render_data_default = TrodDict(
+    _render_data_default = Tdict(
         where_clause='',
         group_clause='',
         order_clause='',
@@ -144,7 +144,7 @@ class _Generator:
     )
 
     @property
-    @troddict_formatter
+    @tdictformatter
     def _tpl(self):
         return self._render_data_default.copy()
 
@@ -228,7 +228,7 @@ class _Generator:
         )
         result = await RequestClient().fetch(self._render(), args=self._values)
         if self._has_func:
-            return format_troddict(result)
+            return formattdict(result)
         return Loader(self._model, result).load()
 
     async def first(self):
@@ -240,7 +240,7 @@ class _Generator:
             self._render(), args=self._values, rows=1
         )
         if self._has_func:
-            return format_troddict(result)
+            return formattdict(result)
         return Loader(self._model, result).load()
 
     async def all(self):
@@ -248,7 +248,7 @@ class _Generator:
 
         result = await RequestClient().fetch(self._render(), args=self._values)
         if self._has_func:
-            return format_troddict(result)
+            return formattdict(result)
         return Loader(self._model, result).load()
 
     async def scalar(self):
@@ -262,7 +262,7 @@ class _Generator:
         if len(result) == 1:
             result = list(result.values())[0]
         else:
-            result = format_troddict(result)
+            result = formattdict(result)
         return result
 
     @classmethod

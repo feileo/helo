@@ -26,7 +26,7 @@ class Pool:
 
         :Returns : `Pool` instance
     """
-    _CONN_KWARGS = utils.TrodDict(
+    _CONN_KWARGS = utils.Tdict(
         host=Arg(dft="localhost", help='Host where the database server is located'),
         user=Arg(dft=None, help='Username to log in as'),
         password=Arg(dft="", help='Password to use'),
@@ -56,7 +56,7 @@ class Pool:
     async def __init__(self, minsize=1, maxsize=15, echo=False,
                        pool_recycle=-1, loop=None, **conn_kwargs):
 
-        conn_kwargs = utils.format_troddict(self._check_conn_kwargs(conn_kwargs))
+        conn_kwargs = utils.formattdict(self._check_conn_kwargs(conn_kwargs))
         self._pool = await aiomysql.create_pool(
             minsize=minsize, maxsize=maxsize, echo=echo,
             pool_recycle=pool_recycle, loop=loop,
@@ -104,7 +104,7 @@ class Pool:
     def state(self):
         """ Connection pool state """
 
-        return utils.TrodDict(
+        return utils.Tdict(
             minsize=self._pool.minsize,
             maxsize=self._pool.maxsize,
             size=self._pool.size,

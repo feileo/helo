@@ -17,31 +17,41 @@ class Trod:
     Model = _model.Model
 
     async def bind(self, *args, **kwargs):
-        await db.Connector.create(*args, **kwargs)
+
+        return await db.Connector.create(*args, **kwargs)
 
     async def unbind(self):
-        await db.Connector.close()
 
-    async def create_tables(self, *models):
-        pass
-
-    async def create_all(self, module):
-        pass
-
-    async def drop_tables(self, *models):
-        pass
-
-    async def drop_all(self, module):
-        pass
+        return await db.Connector.close()
 
     def select_db(self, database):
+
         db.Connector.select_db(database)
 
-    async def table_exist(self, table, database=None):
-        pass
+    async def create_tables(self, *models, **options):
+        """
+        safe
+        temporary
+        """
+
+        return await _model.table.create_tables(self.Model, *models, **options)
+
+    async def create_all(self, module):
+
+        return await _model.table.create_tables(self.Model, module=module)
+
+    async def drop_tables(self, *models):
+
+        return await _model.table.drop_tables(self.Model, *models)
+
+    async def drop_all(self, module):
+
+        return await _model.table.drop_tables(self.Model, module=module)
 
     async def alter(self, *args, **kwargs):
         return await _model.table.Alter(*args, **kwargs).do()
 
     async def text(self, *args, **kwargs):
+        """ A coroutine that used to directly execute SQL statements """
+
         return await db.text(*args, **kwargs)

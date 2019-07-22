@@ -51,10 +51,7 @@ class Select(db.Doer):
     def order_by(self, fields):
         fs = []
         for f in fields:
-            if isinstance(f, str):
-                fs.append(f)
-            else:
-                fs.append(f.sname)
+            fs.append(f.sname)
         fs = ', '.join(fs)
         self._order_by = f"ORDER BY {fs}"
         self._sql.append(self._order_by)

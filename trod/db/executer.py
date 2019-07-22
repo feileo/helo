@@ -5,7 +5,7 @@ import aiomysql
 from trod.db.connector import Connector
 from trod.errors import DuplicateBindError, NoBindError
 from trod.extra.logger import Logger
-from trod.utils import troddict_formatter, TrodDict, tuple_formater
+from trod.utils import tdictformatter, Tdict, tuple_formater
 
 
 class Executer:
@@ -28,7 +28,7 @@ class Executer:
 
         return self.conn_pool.db.extra.autocommit
 
-    @troddict_formatter(is_async=True)
+    @tdictformatter(is_async=True)
     async def fetch(self, sql, args=None, rows=None):
         if args:
             args = tuple_formater(args)
@@ -73,7 +73,7 @@ class Executer:
                 exc_type, exc_value, _ = sys.exc_info()
                 error = exc_type(exc_value)
                 raise error
-            return TrodDict(last_id=last_id, affected=affected)
+            return Tdict(last_id=last_id, affected=affected)
 
     async def close(self):
         """ A coroutine that close self.conn_pool. """
@@ -198,4 +198,5 @@ class RequestClient:
         else:
             is_fetch = False
             result = await self.executer.execute(sql, args=args, batch=batch)
-        return TrodDict(is_fetch=is_fetch, data=result)
+        return Tdict(is_fetch=is_fetch, data=result)
+
