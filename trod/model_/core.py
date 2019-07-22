@@ -133,7 +133,6 @@ class _Model(metaclass=_ModelMeta):
 
         self.__dict__[key] = value
 
-    # TODO
     @property
     @utils.tdictformatter
     def __self__(self):
@@ -148,27 +147,27 @@ class _Model(metaclass=_ModelMeta):
         return values
 
     @classmethod
-    async def _create_table(cls, ignore):
+    async def _create_table(cls, **options):
         """ Do create table """
 
-        return await cls.__table__.create(ignore)
+        return await cls.__table__.create(**options)
 
     @classmethod
-    async def _drop_table(cls):
+    async def _drop_table(cls, **options):
         """ Do drop table """
 
-        return await cls.__table__.drop()
+        return await cls.__table__.drop(**options)
 
     @classmethod
-    async def _show(cls):
+    def _show(cls):
 
-        return await cls.__table__.show()
+        return cls.__table__.show()
 
     @classmethod
     async def _exist(cls):
         """ query table is exist"""
 
-        return await bool(cls.__table__.exist())
+        return await cls.__table__.exist()
 
     @classmethod
     def _normalize_data(cls, data, kwargs):

@@ -67,12 +67,12 @@ def tdictformatter(is_async=False):
             @wraps(func)
             def convert(*args, **kwargs):
                 result = func(*args, **kwargs)
-                return format_troddict(result)
+                return formattdict(result)
         else:
             @wraps(func)
             async def convert(*args, **kwargs):
                 result = await func(*args, **kwargs)
-                return format_troddict(result)
+                return formattdict(result)
         return convert
     return decorator
 
@@ -85,11 +85,13 @@ def singleton(is_async=False):
         instances = {}
 
         if is_async:
+            @wraps(cls)
             async def getinstance(*args, **kw):
                 if cls not in instances:
                     instances[cls] = await cls(*args, **kw)
                 return instances[cls]
         else:
+            @wraps(cls)
             def getinstance(*args, **kw):
                 if cls not in instances:
                     instances[cls] = cls(*args, **kw)
@@ -97,6 +99,21 @@ def singleton(is_async=False):
         return getinstance
 
     return decorator
+
+
+def node(cls):
+
+    @wraps(cls)
+    def wraper(*args, **kwargs):
+
+        def sname(self):
+            return f"`{self.name}`"
+
+        cls.sname = property(sname)
+        instance = cls(*args, **kwargs)
+        return instance
+
+    return wraper
 
 
 def asyncinit(obj):
@@ -157,7 +174,7 @@ def argschecker(*cargs, **ckwargs):
     return decorator
 
 
-def format_troddict(target):
+def formattdict(target):
     if target is None:
         return target
     if isinstance(target, dict):
@@ -167,7 +184,7 @@ def format_troddict(target):
         for item in target:
             if isinstance(item, (str, int, bool)):
                 raise ValueError(f"Invalid data type '{target}' to convert `Tdict`")
-            fmt_result.append(format_troddict(item))
+            fmt_result.append(formattdict(item))
         return fmt_result
     raise ValueError(f"Invalid data type '{target}' to convert `Tdict`")
 

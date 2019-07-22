@@ -6,16 +6,16 @@ __all__ = ('Model',)
 class Model(_Model):
 
     @classmethod
-    async def create(cls, ignore=False):
-        return await cls._create_table(ignore)
+    async def create(cls, **options):
+        return await cls._create_table(**options)
 
     @classmethod
-    async def drop(cls):
-        return await cls._drop_table()
+    async def drop(cls, **options):
+        return await cls._drop_table(**options)
 
     @classmethod
-    async def show(cls):
-        return await cls._show()
+    def show(cls):
+        return cls._show()
 
     @classmethod
     async def exist(cls):

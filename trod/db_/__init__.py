@@ -1,5 +1,6 @@
 import asyncio
 import atexit
+import threading
 import warnings
 
 from trod import errors
@@ -21,6 +22,7 @@ class Connector:
     _pool = None
 
     selected = None
+    dblock = threading.Lock()
 
     @classmethod
     async def create(cls, *args, **kwargs):
@@ -46,13 +48,16 @@ class Connector:
 
     @classmethod
     def select_db(cls, db=None):
-        if db is None:
+        if db is None:  # pylint: disable=
             if not cls._pool:
                 raise RuntimeError()
             return cls.get_connmeta().db
-        if not db or not isinstance(db, str):
+        elif not db or not isinstance(db, str):
             raise ValueError()
-        cls.selected = db
+
+        with cls.dblock:
+            cls.selected = db
+
         return cls.selected
 
     @classmethod
@@ -93,7 +98,14 @@ async def text(sql, *args, **kwargs):  # TODO
 
 
 def current():
-    return Connector.select_db()
+    c_db = None
+    if Connector.selected:
+        c_db = Connector.selected
+    else:
+        connmeta = Connector.get_connmeta()
+        if connmeta:
+            c_db = connmeta.db
+    return c_db
 
 
 class Doer:
@@ -114,8 +126,9 @@ class Doer:
     @property
     def sql(self):
         if isinstance(self._sql, (list, tuple)):
-            self._sql.append(';')
-            self._sql = ' '.join(self._sql)
+            if self._sql:
+                self._sql.append(';')
+                self._sql = ' '.join(self._sql)
         return self._sql
 
     async def do(self):

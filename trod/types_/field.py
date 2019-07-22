@@ -273,11 +273,8 @@ class FieldBase(Column, Defi):
 
     _field_counter = 0
 
-    # TODO params checker
+    @utils.argschecker(null=bool)
     def __init__(self, null, default, comment, name=None):
-
-        if not isinstance(null, bool):
-            raise ValueError(f"Unexpected `null` type: {null}")
 
         self.null = null
         self.default = default

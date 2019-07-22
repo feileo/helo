@@ -56,7 +56,7 @@ class Pool:
     async def __init__(self, minsize=1, maxsize=15, echo=False,
                        pool_recycle=-1, loop=None, **conn_kwargs):
 
-        conn_kwargs = utils.format_troddict(self._check_conn_kwargs(conn_kwargs))
+        conn_kwargs = utils.formattdict(self._check_conn_kwargs(conn_kwargs))
         self._pool = await aiomysql.create_pool(
             minsize=minsize, maxsize=maxsize, echo=echo,
             pool_recycle=pool_recycle, loop=loop,

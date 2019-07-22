@@ -1,7 +1,7 @@
 from trod.db.executer import RequestClient
 from trod.model.loader import Loader
 from trod.types.index import Key, UniqueKey
-from trod.utils import Tdict, tdictformatter, format_troddict
+from trod.utils import Tdict, tdictformatter, formattdict
 
 
 SQL = Tdict(
@@ -228,7 +228,7 @@ class _Generator:
         )
         result = await RequestClient().fetch(self._render(), args=self._values)
         if self._has_func:
-            return format_troddict(result)
+            return formattdict(result)
         return Loader(self._model, result).load()
 
     async def first(self):
@@ -240,7 +240,7 @@ class _Generator:
             self._render(), args=self._values, rows=1
         )
         if self._has_func:
-            return format_troddict(result)
+            return formattdict(result)
         return Loader(self._model, result).load()
 
     async def all(self):
@@ -248,7 +248,7 @@ class _Generator:
 
         result = await RequestClient().fetch(self._render(), args=self._values)
         if self._has_func:
-            return format_troddict(result)
+            return formattdict(result)
         return Loader(self._model, result).load()
 
     async def scalar(self):
@@ -262,7 +262,7 @@ class _Generator:
         if len(result) == 1:
             result = list(result.values())[0]
         else:
-            result = format_troddict(result)
+            result = formattdict(result)
         return result
 
     @classmethod
