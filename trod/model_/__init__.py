@@ -18,8 +18,8 @@ class Model(_Model):
         return cls._show()
 
     @classmethod
-    async def get(cls, id_, tdicts=False):
-        return await cls._get(id_, tdicts=tdicts)
+    async def get(cls, _id, tdicts=False):
+        return await cls._get(_id, tdicts=tdicts)
 
     @classmethod
     async def mget(cls, ids, *fields, tdicts=False):
