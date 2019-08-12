@@ -1,6 +1,8 @@
 import datetime
 import decimal
 import warnings
+import time
+import calendar
 from abc import ABC
 
 from .. import errors, utils
@@ -36,14 +38,14 @@ class Column:
         NOT_IN='NOT IN',
         IS='IS',
         IS_NOT='IS NOT',
-        LIKE='LIKE',
-        ILIKE='ILIKE',
+        LIKE='LIKE BINARY',
+        ILIKE='LIKE',
         EXISTS='EXISTS',
         NEXISTS='NOT EXISTS',
         BETWEEN='BETWEEN',
         NBETWEEN='NOT BETWEEN',
-        REGEXP='REGEXP',
-        IREGEXP='IREGEXP',
+        REGEXP='REGEXP BINARY',
+        IREGEXP='REGEXP',
         BITWISE_NEGATION='~',
         CONCAT='||',
     )
@@ -452,9 +454,13 @@ class FieldBase(Column):
         """
 
         if default:
-            if not isinstance(
-                    default, (self.py_type, SQL)
-            ) and not callable(default):
+            if isinstance(self.py_type, SEQUENCE):
+                py_type = list(self.py_type)
+                py_type.append(SQL)
+                py_type = tuple(py_type)
+            else:
+                py_type = (self.py_type, SQL)
+            if not isinstance(default, py_type) and not callable(default):
                 raise TypeError(
                     f"Invalid {self.__class__.__name__} default value ({default})"
                 )
@@ -478,8 +484,11 @@ class FieldBase(Column):
 
     __str__ = __repr__
 
+    def __hash__(self):
+        pass
+
     def custom_wain(self):
-        if not self.default and not self.null:
+        if not self.null and not self.default:
             warnings.warn(
                 f'Not to give default value for NOT NULL field {self.__class__.__name__}'
             )
@@ -733,8 +742,35 @@ class Decimal(Float):
         return None
 
 
-class Bool(FieldBase):
+class Auto(FieldBase):
     pass
+
+
+class BigAuto(FieldBase):
+    pass
+
+
+class UUID(FieldBase):
+    pass
+
+
+class Bool(FieldBase):
+    __slots__ = ()
+
+    py_type = bool
+    db_type = 'bool'
+
+    def __init__(self,
+                 null=True,
+                 default=None,
+                 comment='',
+                 name=None):
+        super().__init__(
+            null=null, default=default, comment=comment, name=name
+        )
+
+    def adapt(self, value):
+        return self.py_type(value)
 
 
 def format_datetime(value, formats, extractor=None):
@@ -754,30 +790,30 @@ def simple_datetime(value):
         return value
 
 
-class _TimeBase(FieldBase):
+class Date(FieldBase):
 
     __slots__ = ('formats',)
 
     py_type = datetime.datetime
-    formats = None
-
-    def __init__(self, *args, formats=None, **kwargs):
-        if formats is not None:
-            self.formats = formats
-        super().__init__(*args, **kwargs)
-
-
-class Date(_TimeBase):
-
-    __slots__ = ()
-
     db_type = 'date'
 
-    formats = [
+    formats = (
         '%Y-%m-%d',
         '%Y-%m-%d %H:%M:%S',
         '%Y-%m-%d %H:%M:%S.%f',
-    ]
+    )
+
+    def __init__(self,
+                 formats=None,
+                 null=True,
+                 default=None,
+                 comment='',
+                 name=None):
+        if formats is not None:
+            self.formats = formats
+        super().__init__(
+            null=null, default=default, comment=comment, name=name
+        )
 
     def __call__(self, *args, **kwargs):
         return datetime.datetime.now().date()
@@ -790,18 +826,18 @@ class Date(_TimeBase):
         return value
 
 
-class Time(_TimeBase):
+class Time(Date):
     __slots__ = ()
 
-    db_type = 'time'
+    db_type = 'time(6)'
 
-    formats = [
+    formats = (
         '%H:%M:%S.%f',
         '%H:%M:%S',
         '%H:%M',
         '%Y-%m-%d %H:%M:%S.%f',
         '%Y-%m-%d %H:%M:%S',
-    ]
+    )
 
     def __call__(self, *args, **kwargs):
         return datetime.datetime.now().time()
@@ -817,26 +853,17 @@ class Time(_TimeBase):
         return value
 
 
-class DateTime(_TimeBase):
+class DateTime(Date):
 
     __slots__ = ()
 
-    db_type = 'datetime'
+    db_type = 'datetime(6)'
 
-    formats = [
+    formats = (
         '%Y-%m-%d %H:%M:%S.%f',
         '%Y-%m-%d %H:%M:%S',
         '%Y-%m-%d',
-    ]
-
-    def __init__(self,
-                 null=True,
-                 default=None,
-                 comment='',
-                 name=None):
-        super().__init__(
-            null=null, default=default, comment=comment, name=name
-        )
+    )
 
     def __call__(self, *args, **kwargs):
         return datetime.datetime.now()
@@ -847,20 +874,51 @@ class DateTime(_TimeBase):
         return value
 
 
-class Timestamp(DateTime):
+class Timestamp(FieldBase):
 
-    __slots__ = ()
+    __slots__ = ('utc',)
 
+    py_type = (datetime.datetime, int)
     db_type = 'timestamp'
 
     def __init__(self,
+                 utc=False,
                  null=True,
                  default=None,
                  comment='',
                  name=None):
+        self.utc = utc
+        if not default:
+            default = datetime.datetime.utcnow if self.utc else datetime.datetime.now
         super().__init__(
             null=null, default=default, comment=comment, name=name
         )
+
+    def custom_wain(self):
+        return True
+
+    def db_value(self, value):
+        if value is None:
+            return value
+        if isinstance(value, datetime.date):
+            value = datetime.datetime(value.year, value.month, value.day)
+        elif not isinstance(value, datetime.datetime):
+            return int(round(value))
+
+        if self.utc:
+            timestamp = calendar.timegm(value.utctimetuple())
+        else:
+            timestamp = time.mktime(value.timetuple())
+
+        return int(round(timestamp))
+
+    def py_value(self, value):
+        if value is not None and isinstance(value, (int, float)):
+            if self.utc:
+                value = datetime.datetime.utcfromtimestamp(value)
+            else:
+                value = datetime.datetime.fromtimestamp(value)
+        return value
 
 
 class Func:
@@ -929,6 +987,9 @@ class IndexBase(ABC):
 
         IndexBase._field_counter += 1
         self._seq_num = IndexBase._field_counter
+
+    def __hash__(self):
+        pass
 
     @property
     def __sname__(self):
