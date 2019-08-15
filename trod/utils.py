@@ -1,6 +1,7 @@
 import inspect
-from functools import wraps
 from collections.abc import Iterable
+from functools import wraps
+
 
 __all__ = (
     'Tdict',

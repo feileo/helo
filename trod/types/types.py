@@ -1,8 +1,9 @@
+import calendar
 import datetime
 import decimal
-import warnings
 import time
-import calendar
+import uuid
+import warnings
 from abc import ABC
 
 from .. import errors, utils
@@ -10,7 +11,14 @@ from .. import errors, utils
 
 SEQUENCE = (list, tuple)
 
-ENCODINGS = {"utf8"}
+ENCODINGS = utils.Tdict(
+    utf8="utf8",
+    utf16="utf16",
+    utf32="utf32",
+    utf8mb4="utf8mb4",
+    gbk="gbk",
+    gb2312="gb2312",
+)
 
 
 class Column:
@@ -158,32 +166,40 @@ class Column:
     def nin_(self, rhs):
         return Expression(self, self.OPERATOR.NOT_IN, rhs)
 
-    def regexp(self, rhs):
-        return Expression(self, self.OPERATOR.REGEXP, rhs)
-
-    def iregexp(self, rhs):
-        return Expression(self, self.OPERATOR.IREGEXP, rhs)
-
     def exists(self, rhs):
         return Expression(self, self.OPERATOR.EXISTS, rhs)
 
     def nexists(self, rhs):
         return Expression(self, self.OPERATOR.NEXISTS, rhs)
 
-    def like(self, rhs):
-        return Expression(self, self.OPERATOR.LIKE, rhs)
-
     def isnull(self, is_null=True):
         op = self.OPERATOR.IS if is_null else self.OPERATOR.IS_NOT
         return Expression(self, op, None)
 
-    def contains(self, rhs):
+    def regexp(self, rhs):
+        return Expression(self, self.OPERATOR.REGEXP, rhs)
+
+    def iregexp(self, rhs):
+        return Expression(self, self.OPERATOR.IREGEXP, rhs)
+
+    def like(self, rhs, i=True):
+        if i:
+            return Expression(self, self.OPERATOR.ILIKE, rhs)
+        return Expression(self, self.OPERATOR.LIKE, rhs)
+
+    def contains(self, rhs, i=False):
+        if not i:
+            return Expression(self, self.OPERATOR.LIKE, f"%{rhs}%")
         return Expression(self, self.OPERATOR.ILIKE, f"%{rhs}%")
 
-    def startswith(self, rhs):
+    def startswith(self, rhs, i=False):
+        if not i:
+            return Expression(self, self.OPERATOR.LIKE, f"{rhs}%")
         return Expression(self, self.OPERATOR.ILIKE, f"{rhs}%")
 
-    def endswith(self, rhs):
+    def endswith(self, rhs, i=False):
+        if not i:
+            return Expression(self, self.OPERATOR.LIKE, f"%{rhs}")
         return Expression(self, self.OPERATOR.ILIKE, f"%{rhs}")
 
     def between(self, low, hig):
@@ -196,15 +212,47 @@ class Column:
             self, self.OPERATOR.NBETWEEN, NodeList([low, self.OPERATOR.AND, hig])
         )
 
-    def desc(self):
-        return _Desc(self)
-
     def asc(self):
-        return _Asc()
+        return _Ordering(self, ASC)
 
-    @utils.argschecker(alias=str, nullable=False)
+    def desc(self):
+        return _Ordering(self, DESC)
+
     def as_(self, alias):
         return _Alias(self, alias)
+
+
+class _Ordering:
+
+    def __init__(self, f, k):
+        self.f = f
+        self.k = k
+
+    def __repr__(self):
+        return self.__sname__
+
+    __str__ = __repr__
+
+    @property
+    def __sname__(self):
+        return f"{self.f.__sname__} {self.k}"
+
+
+class _Alias:
+
+    @utils.argschecker(alias=str, nullable=False)
+    def __init__(self, field, alias):
+        self.f = field
+        self.a = alias
+
+    def __repr__(self):
+        return self.__sname__
+
+    __str__ = __repr__
+
+    @property
+    def __sname__(self):
+        return f"{self.f.__sname__} AS `{self.a}`"
 
 
 class SQL:
@@ -215,13 +263,14 @@ class SQL:
     def __init__(self, sql):
         self._sql = sql
 
+    def __repr__(self):
+        return self.sql
+
+    __str__ = __repr__
+
     @property
     def sql(self):
         return self._sql
-
-
-ON_CREATE = SQL("CURRENT_TIMESTAMP")
-ON_UPDATE = SQL("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
 
 
 class NodeList:
@@ -256,9 +305,14 @@ class NodeList:
 
     def complete(self):
         with self:
-            self._sql.append(self.glue.join(
-                [n.sql if isinstance(n, SQL) else n for n in self.nodes]
-            ))
+            nl = []
+            for n in self.nodes:
+                if n is not None:
+                    if isinstance(n, SQL):
+                        nl.append(n.sql)
+                    else:
+                        nl.append(n)
+            self._sql.append(self.glue.join(nl))
         return SQL(self._sql)
 
 
@@ -328,8 +382,8 @@ class Expression(Column, Query):
     def _adapt(self, lhs, rhs, op):
 
         def converter(hs):
-            if isinstance(hs, FieldBase):
-                hs = hs.name
+            if isinstance(hs, Column):
+                hs = hs.__sname__
                 if hs is None:
                     raise errors.NoColumnNameError()
             elif isinstance(hs, Expression):
@@ -480,18 +534,27 @@ class FieldBase(Column):
         return Syntax(self).defi
 
     def __repr__(self):
-        return f"types.{self.__class__.__name__}({self.__def__})"
+        ispk = getattr(self, 'pk', False)
+        extra = ""
+        if ispk:
+            extra = " [PRIMARY KEY]"
+            if getattr(self, 'ai', False):
+                extra = " [PRIMARY KEY, AUTO_INCREMENT]"
+        return f"types.{self.__class__.__name__}({self.__def__}{extra})"
 
     __str__ = __repr__
 
     def __hash__(self):
-        pass
+        if self.name:
+            return hash(self.name)
+        raise errors.NoColumnNameError()
 
     def custom_wain(self):
         if not self.null and not self.default:
-            warnings.warn(
-                f'Not to give default value for NOT NULL field {self.__class__.__name__}'
-            )
+            if not getattr(self, 'pk', False):
+                warnings.warn(
+                    f'Not to give default value for NOT NULL field {self.__class__.__name__}'
+                )
 
     @property
     def seqnum(self):
@@ -501,7 +564,9 @@ class FieldBase(Column):
         return value
 
     def to_str(self, value):
-        return str(self.adapt(value))
+        if value is None:
+            return value
+        return str(self.db_value(value))
 
     def py_value(self, value):
         return value if value is None else self.adapt(value)
@@ -563,18 +628,13 @@ class Int(Tinyint):
         self.ai = ai
         if self.pk is True:
             if null or default:
-                warnings.warn(
-                    "Not allow null or default, corrected to 'null=False, default=None'",
-                    errors.ProgrammingWarning
-                )
-            null = False
-            default = None
+                raise errors.ProgrammingError("Primary key field not allow null")
+            if default:
+                raise errors.ProgrammingError("Primary key field not allow set default")
         elif self.ai:
-            warnings.warn(
-                "'AUTO_INCREMENT' cannot be set for non-primary key fields, corrected to 'ai=False'",
-                errors.ProgrammingWarning
+            raise errors.ProgrammingError(
+                "'AUTO_INCREMENT' cannot be set for non-primary key fields",
             )
-            self.ai = False
 
         super().__init__(
             length=length, unsigned=unsigned, zerofill=zerofill,
@@ -586,76 +646,81 @@ class Bigint(Int):
 
     __slots__ = ()
 
-    _db_type = 'bigint'
+    db_type = 'bigint'
 
 
-class Text(FieldBase):
+class Auto(Int):
 
-    __slots__ = ('encoding',)
-
-    py_type = str
-    db_type = 'text'
+    __slots__ = ()
 
     def __init__(self,
-                 encoding=None,
-                 null=True,
+                 length=11,
+                 unsigned=False,
+                 zerofill=False,
                  comment='',
                  name=None):
-        if encoding not in ENCODINGS:
-            raise ValueError(f"Unsupported encoding '{encoding}'")
-        self.encoding = encoding
         super().__init__(
-            null=null, default=None, comment=comment, name=name
+            length=length, unsigned=unsigned, zerofill=zerofill,
+            pk=True, ai=True,
+            null=False, default=None, comment=comment, name=name
         )
 
-    def __add__(self, other):
-        return StrExpression(self, self.OPERATOR.CONCAT, other)
 
-    def __radd__(self, other):
-        return StrExpression(other, self.OPERATOR.CONCAT, self)
+class BigAuto(Auto):
 
-    def custom_wain(self):
-        return True
+    __slots__ = ()
 
-    def adapt(self, value):
-        return self.py_type(value)
+    db_type = 'bigint'
 
 
-class Char(FieldBase):
+class UUID(FieldBase):
 
-    __slots__ = ('length', 'encoding',)
+    __slots__ = ()
 
-    py_type = str
-    db_type = 'char'
+    py_type = uuid.UUID
+    db_type = "varchar(40)"
+
+    def db_value(self, value):
+        if isinstance(value, str) and len(value) == 32:
+            return value
+        elif isinstance(value, bytes) and len(value) == 16:
+            value = self.py_type(bytes=value)
+
+        if isinstance(value, self.py_type):
+            return value.hex
+        try:
+            return self.py_type(value).hex
+        except Exception:
+            return value
+
+    def py_value(self, value):
+        if isinstance(value, self.py_type):
+            return value
+        return self.py_value(value) if value is not None else None
+
+
+class Bool(FieldBase):
+    __slots__ = ()
+
+    py_type = bool
+    db_type = 'bool'
 
     def __init__(self,
-                 length=255,
-                 encoding=None,
                  null=True,
                  default=None,
                  comment='',
                  name=None):
-        self.length = length
-        self.encoding = encoding
         super().__init__(
             null=null, default=default, comment=comment, name=name
         )
 
-    def __add__(self, other):
-        return StrExpression(self, self.OPERATOR.CONCAT, other)
-
-    def __radd__(self, other):
-        return StrExpression(other, self.OPERATOR.CONCAT, self)
-
     def adapt(self, value):
         return self.py_type(value)
 
-
-class VarChar(Char):
-
-    __slots__ = ()
-
-    db_type = 'varchar'
+    def to_str(self, value):
+        if self.py_value(value):
+            return "1"
+        return "0"
 
 
 class Float(FieldBase):
@@ -742,35 +807,73 @@ class Decimal(Float):
         return None
 
 
-class Auto(FieldBase):
-    pass
+class Text(FieldBase):
 
+    __slots__ = ('encoding',)
 
-class BigAuto(FieldBase):
-    pass
-
-
-class UUID(FieldBase):
-    pass
-
-
-class Bool(FieldBase):
-    __slots__ = ()
-
-    py_type = bool
-    db_type = 'bool'
+    py_type = str
+    db_type = 'text'
 
     def __init__(self,
+                 encoding=None,
+                 null=True,
+                 comment='',
+                 name=None):
+        if encoding not in ENCODINGS:
+            raise ValueError(f"Unsupported encoding '{encoding}'")
+        self.encoding = encoding
+        super().__init__(
+            null=null, default=None, comment=comment, name=name
+        )
+
+    def __add__(self, other):
+        return StrExpression(self, self.OPERATOR.CONCAT, other)
+
+    def __radd__(self, other):
+        return StrExpression(other, self.OPERATOR.CONCAT, self)
+
+    def custom_wain(self):
+        return True
+
+    def adapt(self, value):
+        return self.py_type(value)
+
+
+class Char(FieldBase):
+
+    __slots__ = ('length', 'encoding',)
+
+    py_type = str
+    db_type = 'char'
+
+    def __init__(self,
+                 length=255,
+                 encoding=None,
                  null=True,
                  default=None,
                  comment='',
                  name=None):
+        self.length = length
+        self.encoding = encoding
         super().__init__(
             null=null, default=default, comment=comment, name=name
         )
 
+    def __add__(self, other):
+        return StrExpression(self, self.OPERATOR.CONCAT, other)
+
+    def __radd__(self, other):
+        return StrExpression(other, self.OPERATOR.CONCAT, self)
+
     def adapt(self, value):
         return self.py_type(value)
+
+
+class VarChar(Char):
+
+    __slots__ = ()
+
+    db_type = 'varchar'
 
 
 def format_datetime(value, formats, extractor=None):
@@ -790,9 +893,17 @@ def simple_datetime(value):
         return value
 
 
-class Date(FieldBase):
+def dt_strftime(value, formats):
+    if hasattr(value, 'strftime'):
+        for fmt in formats:
+            try:
+                return value.strftime(fmt)
+            except (TypeError, ValueError):
+                pass
+    return value
 
-    __slots__ = ('formats',)
+
+class Date(FieldBase):
 
     py_type = datetime.datetime
     db_type = 'date'
@@ -824,6 +935,9 @@ class Date(FieldBase):
         elif value and isinstance(value, datetime.datetime):
             value = value.date()
         return value
+
+    def to_str(self, value):
+        return dt_strftime(self.db_value(value), self.formats)
 
 
 class Time(Date):
@@ -921,7 +1035,13 @@ class Timestamp(FieldBase):
         return value
 
 
-class Func:
+ASC = SQL("ASC")
+DESC = SQL("DESC")
+ON_CREATE = SQL("CURRENT_TIMESTAMP")
+ON_UPDATE = SQL("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
+
+
+class Funcs:
 
     def __init__(self, field):
         if isinstance(field, Expression):
@@ -932,37 +1052,6 @@ class Func:
     @utils.argschecker(alias=str, nullable=False)
     def as_(self, alias):
         return _Alias(self, alias)
-
-
-class _Asc:
-
-    def __init__(self, field):
-        self.fi = field
-
-    @property
-    def __sname__(self):
-        return f"{self.fi.sname} ASC"
-
-
-class _Desc:
-
-    def __init__(self, field):
-        self.fi = field
-
-    @property
-    def __sname__(self):
-        return f"{self.fi.sname} DESC"
-
-
-class _Alias:
-
-    def __init__(self, field, alias):
-        self.fi = field
-        self.alias = alias
-
-    @property
-    def __sname__(self):
-        return f"{self.fi.sname} AS {self.alias}"
 
 
 class IndexBase(ABC):

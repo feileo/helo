@@ -5,10 +5,8 @@ from functools import reduce
 
 from trod import db, errors, utils
 
-from ..types_ import Query
 
-
-class BaseQuery(Query):
+class BaseQuery:
     pass
 
 
@@ -20,6 +18,7 @@ class Table:
     DEFAULT = utils.Tdict(
         __db__=None,
         __table__=None,
+        __indexes__=None,
         __auto_increment__=1,
         __engine__='InnoDB',
         __charset__='utf8',

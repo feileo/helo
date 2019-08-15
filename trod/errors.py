@@ -20,6 +20,10 @@ class NoColumnNameError(RuntimeError):
         super().__init__(msg or self.description)
 
 
+class ProgrammingError(RuntimeError):
+    pass
+
+
 class DuplicateFieldNameError(RuntimeError):
     pass
 
