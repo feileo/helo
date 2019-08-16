@@ -57,3 +57,9 @@ class Trod:
         """ A coroutine that used to directly execute SQL statements """
 
         return await db.text(*args, **kwargs)
+
+    async def get_tables():
+        return await db.exec(SQL("SHOW TABLES"))
+
+    async def get_tables_status():
+        return await db.exec(SQL("SHOW TABLE STATUS"))

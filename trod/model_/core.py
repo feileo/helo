@@ -1,65 +1,49 @@
+import inspect
 import warnings
 from collections import OrderedDict
 
-from trod import types_ as types, errors, utils
-from trod.model_ import crud, table
+from trod import types, errors, utils
+from trod.model_ import tables
 
 
 class _ModelMeta(type):
 
     def __new__(cls, name, bases, attrs):
-        if name in ('_Model', '_TrodModel'):
+        if name in ("_Model", "Model"):
             return type.__new__(cls, name, bases, attrs)
 
         attrs = cls.__prepare__(name, attrs)
         return type.__new__(cls, name, bases, attrs)
 
-    def __getattr__(cls, key):
-        if key in cls.__table__.fields:
-            value = cls.__table__.fields[key]
-        elif key in cls.__table__.indexs:
-            value = cls.__table__.indexs[key]
-        else:
-            raise AttributeError(
-                f"'{cls.__name__}' class does not have `{key}` attribute"
-            )
-        return value
-
-    def __setattr__(cls, _key, _value):
-        raise errors.ModelSetAttrError(
-            f"'{cls.__name__}' class not allow set attribute")
-
     def __prepare__(cls, name, attrs):
-        table_name = attrs.pop('__table__', None)
+        bound = attrs.pop("__db__", None)
+        table_name = attrs.pop("__table__", None)
         if not table_name:
             warnings.warn(
-                f'Did not give the table name, use the model name `{name}`',
+                f"Did not give the table name, use the model name `{name}`",
                 errors.ProgrammingWarning
             )
-        table_name = name
+        table_name = name.lower()
 
-        fields, indexs = OrderedDict(), OrderedDict()
+        fields = OrderedDict()
         pk = utils.Tdict(auto=False, field=None, ai=None)
 
         for attr in attrs.copy():
             if pk.field and attr == pk.field.name:
-                raise errors.DuplicateFieldNameError(f'Duplicate field name `{attr}`')
-
+                raise errors.DuplicateFieldNameError(f"Duplicate field name `{attr}`")
             field = attrs.pop(attr)
-
-            if isinstance(field, types.field.FieldBase):
+            if isinstance(field, types.__real__.FieldBase):
                 field.name = field.name or attr
                 if getattr(field, 'pk', None):
-                    # if hasattr(field, 'pk') and field.pk:
                     if pk.field is not None:
                         raise errors.DuplicatePKError(
-                            f'Duplicate primary key found for field {field.name}'
+                            f"Duplicate primary key found for field {field.name}"
                         )
                     pk.field = field
                     if field.ai:
                         pk.auto = True
                         pk.ai = int(field.ai)
-                        if field.name != table.Table.AIPK:
+                        if field.name != tables.Table.AIPK:
                             warnings.warn(
                                 "The field name of AUTO_INCREMENT primary key is suggested \
                                 to use `id` instead of {field.name}",
@@ -67,25 +51,44 @@ class _ModelMeta(type):
                             )
 
                 fields[attr] = field
-
-            elif isinstance(field, types.index.IndexBase):
-                field.name = field.name or attr
-                indexs[attr] = field
-            elif attr not in table.Table.DEFAULT:
-                raise errors.InvalidFieldType('Invalid model field {}'.format(attr))
+            elif attr not in tables.Table.DEFAULT:
+                raise errors.InvalidFieldType(f"Invalid model field {attr}")
 
         if not pk.field:
             raise errors.NoPKError(
                 f"Primary key not found for table `{table_name}`"
             )
 
-        attrs['__table__'] = table.Table(
-            name=table_name, fields=fields, indexs=indexs, pk=pk,
-            engine=attrs.pop('__engine__', None),
+        indexes = attrs.pop("__indexes__", ())
+        if not isinstance(types.SEQUENCE):
+            raise TypeError("")
+        for index in indexes:
+            if not isinstance(index, types.__real__.IndexBase):
+                raise errors.InvalidFieldType()
+
+        attrs['__table__'] = tables.Table(
+            database=bound, name=table_name,
+            fields=fields, pk=pk, indexes=tuple(indexes),
             charset=attrs.pop('__charset__', None),
             comment=attrs.pop('__comment__', None),
         )
         return attrs
+
+    def __getattr__(cls, key):
+        try:
+            value = getattr(cls, key)
+        except AttributeError:
+            if key in cls.__table__.fields:
+                value = cls.__table__.fields[key]
+            else:
+                raise AttributeError(
+                    f"'{cls.__name__}' class does not have `{key}` attribute"
+                )
+        return value
+
+    def __setattr__(cls, _key, _value):
+        raise errors.ModelSetAttrError(
+            f"'{cls.__name__}' class not allow set attribute")
 
 
 class _Model(metaclass=_ModelMeta):
@@ -110,8 +113,6 @@ class _Model(metaclass=_ModelMeta):
         except KeyError:
             if key == self.__table__.pk.field.name or key in self.__table__.fields:
                 value = None
-            elif key in self.__table__.indexs:
-                value = self.__table__.indexs[key]
             else:
                 raise AttributeError(
                     f"'{self.__class__.__name__}' object has no attribute '{key}'"
@@ -119,10 +120,8 @@ class _Model(metaclass=_ModelMeta):
             return value
 
     def __setattr__(self, key, value, is_loader=False):
-        if key in self.__table__.indexs:
-            raise errors.IllegalModelAttrAssigendError("'Key' type cannot be assigned")
         if self.__table__.pk.auto is True:
-            if key == self.__table__.pk.field.name and not is_loader:
+            if key == self.__table__.pk.field.name:
                 raise errors.ModifyAutoPkError(
                     'AUTO_INCREMENT table not allowed modify primary key'
                 )
@@ -150,18 +149,18 @@ class _Model(metaclass=_ModelMeta):
     async def _create_table(cls, **options):
         """ Do create table """
 
-        return await cls.__table__.create(**options)
+        return await tables.create(cls.__table__, **options)
 
     @classmethod
     async def _drop_table(cls, **options):
         """ Do drop table """
 
-        return await cls.__table__.drop(**options)
+        return await tables.drop(cls.__table__, **options)
 
     @classmethod
     def _show(cls):
 
-        return table.Show(cls.__table__)
+        return tables.Show(cls.__table__)
 
     @classmethod
     def _normalize_data(cls, data, kwargs):
@@ -341,3 +340,28 @@ class ExecResults:
         pass
 
     __str__ = __repr__
+
+
+def _find_models(module, md):
+    if not module:
+        return []
+    if not inspect.ismodule(module):
+        raise ValueError()
+
+    return [m for _, m in vars(module).items() if issubclass(m, md)]
+
+
+async def create_tables(md, *models, module=None, **options):
+
+    models = list(models)
+    models.extend(_find_models(module, md))
+
+    if not models:
+        raise RuntimeError()
+
+    for model in models:
+        await model.create(**options)
+
+
+async def drop_tables(*models, module=None):
+    pass

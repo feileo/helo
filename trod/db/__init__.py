@@ -3,7 +3,7 @@
     ~~~~~~~
 """
 
-from .db import Pool, Executer, __ensure__
+from . import __real__
 
 
 __all__ = (
@@ -13,32 +13,33 @@ __all__ = (
 )
 
 
-@__ensure__(needbind=False)
+@__real__.__ensure__(needbind=False)
 async def binding(*args, **kwargs):
 
     if args or kwargs.get("url"):
-        pool = await Pool.from_url(*args, **kwargs)
+        pool = await __real__.Pool.from_url(*args, **kwargs)
     else:
-        pool = await Pool(*args, **kwargs)
+        pool = await __real__.Pool(*args, **kwargs)
 
-    Executer.activate(pool)
+    __real__.Executer.activate(pool)
     return True
 
 
-@__ensure__(needbind=True)
+@__real__.__ensure__(needbind=True)
 async def exec(sql, params=None, **kwargs):
 
     fetch = kwargs.get("fetch")
     db = kwargs.get("db")
     many = kwargs.get("many")
 
+    sql = getattr(sql, "sql", sql)
     if fetch:
-        return await Executer.fetch(sql, params=params, db=db)
-    return await Executer.execute(sql, params=params, many=many, db=db)
+        return await __real__.Executer.fetch(sql, params=params, db=db)
+    return await __real__.Executer.execute(sql, params=params, many=many, db=db)
 
 
 async def close():
-    return await Executer.death()
+    return await __real__.Executer.death()
 
 
 #     @classmethod

@@ -23,6 +23,10 @@ class Model(_Model):
         return cls._show()
 
     @classmethod
+    def alter(cls):
+        return cls._alter()
+
+    @classmethod
     async def get(cls, _id, tdicts=False):
         return await cls._get(_id, tdicts=tdicts)
 

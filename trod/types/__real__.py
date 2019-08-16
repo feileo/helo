@@ -293,11 +293,13 @@ class NodeList:
             self._sql.append(')')
         self._sql = ''.join(self._sql)
 
-    def append(self, nodes):
-        if isinstance(nodes, list):
-            self.nodes.extend(nodes)
+    def append(self, node):
+        if isinstance(node, list):
+            self.nodes.extend(node)
+        elif isinstance(node, NodeList):
+            self.nodes.append(node.nodes)
         else:
-            self.nodes.append(nodes)
+            self.nodes.append(node)
         return self
 
     def pop(self):
@@ -355,8 +357,8 @@ class Query:
         return self.sql, self.values
 
     @classmethod
-    def isself(cls, obj):
-        return hasattr(obj, "sql") and hasattr(obj, "values")
+    def isquery(cls, obj):
+        return hasattr(obj, "__sql__") and hasattr(obj, "__params__")
 
 
 class Expression(Column, Query):
@@ -390,9 +392,9 @@ class Expression(Column, Query):
                 if hs.values:
                     self._add_values(hs.values)
                 hs = NodeList([hs.sql], parens=True).complete().sql
-            elif self.isself(hs):
-                self._add_values(hs.values)
-                hs = hs.sql
+            elif self.isquery(hs):
+                self._add_values(hs.__params__)
+                hs = hs.__sql__
             else:
                 if op in (self.OPERATOR.IN, self.OPERATOR.NOT_IN, self.OPERATOR.EXISTS,
                           self.OPERATOR.NEXISTS):
