@@ -13,16 +13,11 @@ __all__ = (
 
 
 class Tdict(dict):
-    """ Is a class that makes it easier to access the elements of the dict
+    """ Is a class that makes it easier to access the elements of the dict """
 
-        EX::
-            dict_ = Tdict(key=1)
-            dict_.k
-    """
-
-    def __init__(self, names=(), values=(), **kwargs):
+    def __init__(self, keys=(), values=(), **kwargs):
         super().__init__(**kwargs)
-        for key, value in zip(names, values):
+        for key, value in zip(keys, values):
             self[key] = value
 
     def __getattr__(self, key):
@@ -36,10 +31,10 @@ class Tdict(dict):
     def __setattr__(self, key, value):
         self[key] = value
 
-    def __str__(self):
-        pass
+    def __repr__(self):
+        return f"Tdict({super().__repr__()})"
 
-    __repr__ = __str__
+    __str__ = __repr__
 
     def __iadd__(self, rhs):
         self.update(rhs)

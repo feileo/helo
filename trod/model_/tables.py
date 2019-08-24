@@ -1,64 +1,21 @@
 import warnings
 from functools import reduce
+from collections import OrderedDict
 import operator
 
 from .. import db, errors, utils, types
 
 
-NL = types.__real__.NodeList
+NC = types.__real__.NodesComper
 SQL = types.SQL
-
-
-class Query:
-
-    __slots__ = ('_sql', '_values',)
-
-    def __init__(self, sql=None, values=None):
-        if sql and isinstance(sql, str):
-            sql = [sql]
-        self._sql = sql or []
-        self._values = values or []
-
-    def __str__(self):
-        return f"Query{self.query}"
-
-    __repr__ = __str__
-
-    @property
-    def sql(self):
-        if isinstance(self._sql, list):
-            self._sql = " ".join(self._sql)
-        return self._sql
-
-    @property
-    def values(self):
-        return tuple(self._values)
-
-    @property
-    def query(self):
-        return self.sql, self.values
-
-    def add_query(self, query):
-        self._sql.append(query)
-        return self
-
-    def add_value(self, value, nesting=False):
-        if isinstance(value, types.SEQUENCE):
-            if not nesting:
-                self._values.extend(value)
-                return self
-        self._values.append(value)
-        return self
-
-    def complete(self):
-        return self
 
 
 class Table:
 
     __slots__ = (
-        "db", "name", "fields", "pk", "indexes", "auto_increment",
-        "engine", "charset", "comment",
+        "db", "name", "fields", "fields_dict", "primary_key",
+        "indexes_dict", "auto_increment", "engine", "charset",
+        "comment",
     )
 
     AIPK = 'id'
@@ -76,9 +33,10 @@ class Table:
                  engine=None, charset=None, comment=None):
         self.db = database
         self.name = name
-        self.fields = fields
-        self.pk = pk
-        self.indexes = indexes or {}
+        self.fields_dict = fields
+        self.fields = tuple(fields.values())
+        self.primary_key = pk
+        self.indexes_dict = indexes or {}
         self.auto_increment = pk.ai or self.DEFAULT.__auto_increment__
         self.engine = engine or self.DEFAULT.__engine__
         self.charset = charset or self.DEFAULT.__charset__
@@ -90,6 +48,83 @@ class Table:
         if self.db:
             return f"`{self.db}`.`{self.name}`"
         return f"`{self.name}`"
+
+
+class Query:
+
+    __slots__ = ('_nodes', '_sql', '_values',)
+
+    def __init__(self, node=None):
+        self._nodes = OrderedDict(node or {})
+        self._sql = None
+        self._values = []
+
+    def __str__(self):
+        return f"Query{self.query}"
+
+    __repr__ = __str__
+
+    @property
+    def sql(self):
+        self._sql = " ".join(list(self._nodes.values()))
+        return f"{self._sql};"
+
+    @property
+    def values(self):
+        return tuple(self._values)
+
+    @property
+    def query(self):
+        return self.sql, self.values
+
+    def completing(self, key, query):
+        self._nodes[key] = query
+        return self
+
+    def with_value(self, value, nesting=False):
+        if value:
+            if isinstance(value, types.SEQUENCE):
+                if not nesting:
+                    self._values.extend(value)
+                    return self
+            self._values.append(value)
+        return self
+
+    def has(self, key):
+        return key in self._nodes
+
+    def get(self, key):
+        return self._nodes.get(key)
+
+
+class QueryBase:
+
+    __slots__ = ('_q',)
+
+    def __init__(self, key=None, query=None):
+        if key and query:
+            self._q = Query({key, query})
+        else:
+            self._q = Query()
+
+    def __repr__(self):
+        return str(self._q)
+
+    __str__ = __repr__
+
+    @property
+    def __sql__(self):
+        return self._q.sql
+
+    @property
+    def __values__(self):
+        return self._q.values
+
+
+class WriteQuery(QueryBase):
+
+    async def do(self):
+        return await db.exec(self.__sql__, self.__values__)
 
 
 class Show:
@@ -109,7 +144,7 @@ class Show:
     async def create_syntax(self):
         return await db.exec("SHOW CREATE TABLE {self._t.__sfn__};")
 
-    async def fields(self):
+    async def columns(self):
         return await db.exec("SHOW FULL COLUMNS FROM {self._t.__sfn__};")
 
     async def indexs(self):
@@ -130,73 +165,77 @@ class Alter:
         pass
 
 
-class Select:
+class Select(QueryBase):
 
-    __slots__ = (
-        '_fields', '_where', '_group_by', '_order_by',
-        '_limit', '_func', '_having', '_distinct', '_tdicts',
-        '_args',
-        '_query', '_model',
-    )
+    __slots__ = ('_model',)
     __fetch__ = True
 
-    def __init__(self, model, fields, distinct=False, _table=None):
+    _CLAUSE = utils.Tdict(
+        select="select",
+        where="where",
+        group_by="group_by",
+        having="having",
+        order_by="order_by",
+        limit="limit",
+    )
 
-        distinct = " DISTINCT" if distinct else ""
-        table_name = model.__table__.__sfn__
-        fields = ', '.join(fields)
+    def __init__(self, model, columns, database=None, table=None, distinct=False):
+
         self._model = model
-        self._query = Query(f"SELECT{distinct} {fields} FROM {table_name}")
 
-    @property
-    def __sql__(self):
-        return self._query.sql
-
-    @property
-    def __values__(self):
-        return self._query.values
+        if model:
+            table_name = model.__table__.__sfn__ if model else table
+        else:
+            if not table:
+                raise ValueError()
+            table_name = f"{database}.{table}" if database else table
+        columns = ", ".join([f.__sfn__ for f in columns])
+        distinct = " DISTINCT" if distinct else ""
+        super().__init__(self._CLAUSE.select, f"SELECT{distinct} {columns} FROM {table_name}")
 
     def where(self, *filters):
-        if filters:
-            _where = reduce(operator.and_, filters)
-            self._query.add_query(f"WHERE {_where.sql}")
-            self._query.add_value(_where.values)
+        if not filters:
+            raise ValueError("Where clause cannot be empty")
+        expr = reduce(operator.and_, filters)
+        self._q.completing(self._CLAUSE.where, f"WHERE {expr.sql}").with_value(expr.values)
         return self
 
-    def group_by(self, *fields):
-        if fields:
-            _group_by = ', '.join([f.__sfn__ for f in fields])
-            self._query.add_query(f"GROUP BY {_group_by}")
+    def group_by(self, *columns):
+        if not columns:
+            raise ValueError("Group by clause cannot be empty")
+        _group_by = ', '.join([f.__sfn__ for f in columns])
+        self._q.completing(self.group_by, f"GROUP BY {_group_by}")
         return self
 
-    def having(self, *fields):
-        pass
+    def having(self, *filters):
+        if not filters:
+            raise ValueError("Having clause cannot be empty")
+        expr = reduce(operator.and_, filters)
+        self._q.completing(self._CLAUSE.having, f"HAVING {expr.sql}").with_value(expr.values)
+        return self
 
-    def order_by(self, *fields):
-        if not fields:
-            raise ValueError()
-        fs = ', '.join([f.__sfn__ for f in fields])
-        self._query.add_query(f"ORDER BY {fs}")
+    def order_by(self, *columns):
+        if not columns:
+            raise ValueError("Order by clause cannot be empty")
+        fs = ', '.join([f.__sfn__ for f in columns])
+        self._q.completing(self._CLAUSE.order_by, f"ORDER BY {fs}")
         return self
 
     def limit(self, limit=1000, offset=0):
-        offset = f' OFFSET {offset}' if offset else ''
-        self._query.add_query(f"LIMIT {limit}{offset}")
+        offset = f" OFFSET {offset}" if offset else ""
+        self._q.completing(self._CLAUSE.limit, f"LIMIT {limit}{offset}")
         return self
 
-    async def first(self, tdicts=False):
-        self._tdicts = tdicts
+    async def first(self):
         self.limit(1)
-        return await db.exec(self.__sql__)
+        return await db.exec(self.__sql__, params=self.__values__, model=self._model)
 
-    async def rows(self, rows, start=0, tdicts=False):
-        self._tdicts = tdicts
+    async def rows(self, rows, start=0):
         self.limit(rows, start)
-        return await db.exec(self.__sql__)
+        return await db.exec(self.__sql__, params=self.__values__, model=self._model)
 
-    async def all(self, tdicts=False):
-        self._tdicts = tdicts
-        return await db.exec(self.__sql__)
+    async def all(self):
+        return await db.exec(self.__sql__, params=self.__values__, model=self._model)
 
     async def scalar(self):
         pass
@@ -208,71 +247,131 @@ class Select:
         pass
 
 
-class Insert():
+class Insert(WriteQuery):
 
     __slots__ = ('_table', '_rows')
 
-    _c = "INSERT INTO"
+    _CLAUSE = utils.Tdict(
+        insert="insert",
+        columns="columns",
+        values="values",
+    )
 
     def __init__(self, table, rows):
-        self._table = table
+        self._table = table.__sfn__
         self._rows = rows
+        super().__init__(self._CLAUSE.insert, f"INSERT INTO {self._table}")
 
-        insert = f"{self._c} `{self._table}` ({self._rows.fields}) VALUES ({self._rows.values});"
-        super().__init__(None, sql=insert, args={})
+        columns = tuple([r.__sfn__ for r in self._rows.columns])
+        placeholders = ", ".join(["'%s'"] * self._rows.num)
+        self._q.completing(
+            self._CLAUSE.columns, str(columns)
+        ).completing(
+            self._CLAUSE.values, f"VALUES ({placeholders})"
+        ).with_value(self._rows.values)
 
-    def select(self, *fields):
-        fields = [f.sname for f in fields]
-        return Select(None, fields, table=self._table)
+    def select(self, *columns):
+        if self._q.get(self._CLAUSE.columns) or self._q.get(self._CLAUSE.values):
+            raise errors.ProgrammingError()
+        # TODO
+        return Select(None, columns, table=self._table)
 
 
-class Replace(Insert):
+class Replace(WriteQuery):
 
-    __slots__ = ('_replace', '_table', '_rows')
+    __slots__ = ('_table', '_rows')
 
-    _c = "REPLACE INTO"
+    _CLAUSE = utils.Tdict(
+        replace="replace",
+        columns="columns",
+        values="values",
+    )
 
+    def __init__(self, table, rows):
+        self._table = table.__sfn__
+        self._rows = rows
+        super().__init__(self._CLAUSE.replace, f"REPLACE INTO {self._table}")
 
-class Update():
+        columns = tuple([r.__sfn__ for r in self._rows.columns])
+        placeholders = ", ".join(["'%s'"] * self._rows.num)
+        self._q.completing(
+            self._CLAUSE.columns, str(columns)
+        ).completing(
+            self._CLAUSE.values, f"VALUES ({placeholders})"
+        ).with_value(self._rows.values)
 
-    __slots__ = ('_table', '_values', '_where')
-
-    def __init__(self, table, values):
-        self._table = table
-        self._values = values
-        self._where = None
-        super().__init__(None)
-
-    def where(self, *filters):
+    def select(self):
         pass
 
 
-class Delete():
+class Update(WriteQuery):
 
-    __slots__ = ('_table', '_where',)
+    __slots__ = ('_table',)
+
+    _CLAUSE = utils.Tdict(
+        update="update",
+        columns="columns",
+        where="where",
+    )
+
+    def __init__(self, table, update):
+        self._table = table.__sfn__
+        self._update = update
+        super().__init__(self._CLAUSE.update, f"UPDATE {self._table} SET")
+
+        columns, values = [], []
+        for k, v in update.items():
+            columns.append(f"{k}='%s'")
+            values.append(v)
+        columns = ', '.join(columns)
+        self._q.completing(
+            self._CLAUSE.columns, columns
+        ).with_value(values)
+
+    def where(self, *filters):
+        if not filters:
+            raise ValueError("Where clause cannot be empty")
+        expr = reduce(operator.and_, filters)
+        self._q.completing(self._CLAUSE.where, f"WHERE {expr.sql}").with_value(expr.values)
+        return self
+
+
+class Delete(WriteQuery):
+
+    __slots__ = ('_table', '_where')
+
+    _CLAUSE = utils.Tdict(
+        delete="delete",
+        where="where",
+        limit="limit",
+    )
 
     def __init__(self, table):
-        self._table = table
-        self._where = None
-        super().__init__(None)
+        self._table = table.__sfn__
+        super().__init__(self._CLAUSE.delete, f"DELETE FROM {self._table}")
 
     def where(self, *filters):
-        pass
+        if not filters:
+            raise ValueError("Where clause cannot be empty")
+        expr = reduce(operator.and_, filters)
+        self._q.completing(self._CLAUSE.where, f"WHERE {expr.sql}").with_value(expr.values)
+        return self
 
-    def limit(self):
-        pass
+    def limit(self, row_count):
+        self._q.completing(self._CLAUSE.limit, f"LIMIT {row_count}")
+        return self
 
 
 @utils.argschecker(table=Table, nullable=False)
 async def create(table, **options):
 
-    defs = NL([f.__def__ for _, f in table.fields.items()], glue=", ", parens=True)
+    defs = NC([f.__def__ for _, f in table.fields], glue=", ", parens=True)
     defs.append(SQL(f"PRIMARY KEY({table.pk.field.__sfn__})"))
     defs.append([i.__def__ for _, i in table.indexes.items()])
     defs = defs.complete()
     safe = "IF NOT EXISTS " if options.pop("safe", True) else ""
     temp = "CREATE TEMPORARY TABLE" if options.pop('temporary', False) else "CREATE TABLE"
-    create_syntax = NL([
+    create_syntax = NC([
         SQL(f"{temp} {safe}{table.__sfn__}"),
         defs,
         SQL(f"ENGINE={table.engine} AUTO_INCREMENT={table.auto_increment}"),

@@ -27,12 +27,12 @@ class Model(_Model):
         return cls._alter()
 
     @classmethod
-    async def get(cls, _id, tdicts=False):
-        return await cls._get(_id, tdicts=tdicts)
+    async def get(cls, _id):
+        return await cls._get(_id)
 
     @classmethod
-    async def mget(cls, ids, *fields, tdicts=False):
-        return await cls._get_many(ids, *fields, tdicts=tdicts)
+    async def mget(cls, ids, *columns):
+        return await cls._get_many(ids, *columns)
 
     @classmethod
     def add(cls, instance):
@@ -43,16 +43,16 @@ class Model(_Model):
         return cls._add_many(instances)
 
     @classmethod
-    def select(cls, *fields, distinct=False):
-        return cls._select(*fields, distinct=distinct)
+    def select(cls, *columns, distinct=False):
+        return cls._select(*columns, distinct=distinct)
 
     @classmethod
     def insert(cls, **values):
         return cls._insert(**values)
 
     @classmethod
-    def minsert(cls, rows, fields=None):
-        return cls._insert_many(rows, fields=fields)
+    def minsert(cls, rows, columns=None):
+        return cls._insert_many(rows, columns=columns)
 
     @classmethod
     def update(cls, **values):

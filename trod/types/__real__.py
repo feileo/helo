@@ -21,7 +21,7 @@ ENCODINGS = utils.Tdict(
 )
 
 
-class Column:
+class ColumnBase:
 
     __slots__ = ()
 
@@ -204,12 +204,12 @@ class Column:
 
     def between(self, low, hig):
         return Expression(
-            self, self.OPERATOR.BETWEEN, NodeList([low, self.OPERATOR.AND, hig])
+            self, self.OPERATOR.BETWEEN, NodesComper([low, self.OPERATOR.AND, hig])
         )
 
     def nbetween(self, low, hig):
         return Expression(
-            self, self.OPERATOR.NBETWEEN, NodeList([low, self.OPERATOR.AND, hig])
+            self, self.OPERATOR.NBETWEEN, NodesComper([low, self.OPERATOR.AND, hig])
         )
 
     def asc(self):
@@ -273,7 +273,7 @@ class SQL:
         return self._sql
 
 
-class NodeList:
+class NodesComper:
 
     __slots__ = ('nodes', 'glue', 'parens', '_sql')
 
@@ -296,7 +296,7 @@ class NodeList:
     def append(self, node):
         if isinstance(node, list):
             self.nodes.extend(node)
-        elif isinstance(node, NodeList):
+        elif isinstance(node, NodesComper):
             self.nodes.append(node.nodes)
         else:
             self.nodes.append(node)
@@ -361,7 +361,7 @@ class Query:
         return hasattr(obj, "__sql__") and hasattr(obj, "__params__")
 
 
-class Expression(Column, Query):
+class Expression(ColumnBase, Query):
 
     __slots__ = ('lhs', 'op', 'rhs')
 
@@ -384,17 +384,19 @@ class Expression(Column, Query):
     def _adapt(self, lhs, rhs, op):
 
         def converter(hs):
-            if isinstance(hs, Column):
+            if isinstance(hs, ColumnBase):
                 hs = hs.__sname__
                 if hs is None:
                     raise errors.NoColumnNameError()
             elif isinstance(hs, Expression):
                 if hs.values:
                     self._add_values(hs.values)
-                hs = NodeList([hs.sql], parens=True).complete().sql
+                hs = NodesComper([hs.sql], parens=True).complete().sql
             elif self.isquery(hs):
                 self._add_values(hs.__params__)
                 hs = hs.__sql__
+            elif isinstance(hs, NodesComper):
+                hs = hs.complete().sql
             else:
                 if op in (self.OPERATOR.IN, self.OPERATOR.NOT_IN, self.OPERATOR.EXISTS,
                           self.OPERATOR.NEXISTS):
@@ -408,7 +410,7 @@ class Expression(Column, Query):
 
         lhs = converter(lhs)
         rhs = converter(rhs)
-        self.sql = NodeList([lhs, op, rhs]).complete()
+        self.sql = NodesComper([lhs, op, rhs]).complete()
         return lhs, rhs
 
 
@@ -432,7 +434,7 @@ class Syntax:
 
     def __init__(self, field):
 
-        defi = NodeList([field.__sname__, self.parse_type(field)])
+        defi = NodesComper([field.__sname__, self.parse_type(field)])
 
         ops = self.parse_options(field)
         if ops.unsigned:
@@ -443,7 +445,7 @@ class Syntax:
             defi.append(SQL("zerofill"))
         defi.append(SQL("NULL") if ops.allow_null else SQL("NOT NULL"))
         if ops.default:
-            defi.append(self.parse_default(ops.ai, ops.default, ops.adapt))
+            defi.append(self.parse_default(ops.auto, ops.default, ops.adapt))
         if ops.comment:
             defi.append(SQL(f"COMMENT '{ops.comment}'"))
 
@@ -468,7 +470,7 @@ class Syntax:
 
     def parse_options(self, field):
         return utils.Tdict(
-            ai=getattr(field, 'ai', None),
+            auto=getattr(field, 'auto', None),
             unsigned=getattr(field, 'unsigned', None),
             zerofill=getattr(field, 'zerofill', None),
             encoding=getattr(field, 'encoding', None),
@@ -478,9 +480,9 @@ class Syntax:
             adapt=field.to_str,
         )
 
-    def parse_default(self, ai, default, adapt):
+    def parse_default(self, auto, default, adapt):
 
-        if ai:
+        if auto:
             return SQL("AUTO_INCREMENT")
         if default:
             default = default if not callable(default) else default()
@@ -494,7 +496,7 @@ class Syntax:
         return SQL(default)
 
 
-class FieldBase(Column):
+class FieldBase(ColumnBase):
 
     __slots__ = ('null', 'default', 'comment', 'name', '_seqnum')
 
@@ -536,11 +538,11 @@ class FieldBase(Column):
         return Syntax(self).defi
 
     def __repr__(self):
-        ispk = getattr(self, 'pk', False)
+        isprimary_key = getattr(self, 'primary_key', False)
         extra = ""
-        if ispk:
+        if isprimary_key:
             extra = " [PRIMARY KEY]"
-            if getattr(self, 'ai', False):
+            if getattr(self, 'auto', False):
                 extra = " [PRIMARY KEY, AUTO_INCREMENT]"
         return f"types.{self.__class__.__name__}({self.__def__}{extra})"
 
@@ -553,7 +555,7 @@ class FieldBase(Column):
 
     def custom_wain(self):
         if not self.null and not self.default:
-            if not getattr(self, 'pk', False):
+            if not getattr(self, 'primary_key', False):
                 warnings.warn(
                     f'Not to give default value for NOT NULL field {self.__class__.__name__}'
                 )
@@ -612,7 +614,7 @@ class Smallint(Tinyint):
 
 class Int(Tinyint):
 
-    __slots__ = ('pk', 'ai',)
+    __slots__ = ('primary_key', 'auto',)
 
     db_type = 'int'
 
@@ -620,20 +622,20 @@ class Int(Tinyint):
                  length=11,
                  unsigned=False,
                  zerofill=False,
-                 pk=False,
-                 ai=False,
+                 primary_key=False,
+                 auto=False,
                  null=True,
                  default=None,
                  comment='',
                  name=None):
-        self.pk = pk
-        self.ai = ai
-        if self.pk is True:
+        self.primary_key = primary_key
+        self.auto = auto
+        if self.primary_key is True:
             if null or default:
                 raise errors.ProgrammingError("Primary key field not allow null")
             if default:
                 raise errors.ProgrammingError("Primary key field not allow set default")
-        elif self.ai:
+        elif self.auto:
             raise errors.ProgrammingError(
                 "'AUTO_INCREMENT' cannot be set for non-primary key fields",
             )
@@ -663,7 +665,7 @@ class Auto(Int):
                  name=None):
         super().__init__(
             length=length, unsigned=unsigned, zerofill=zerofill,
-            pk=True, ai=True,
+            primary_key=True, auto=True,
             null=False, default=None, comment=comment, name=name
         )
 
@@ -1048,7 +1050,7 @@ class Funcs:
     def __init__(self, field):
         if isinstance(field, Expression):
             pass
-        elif isinstance(field, Column):
+        elif isinstance(field, ColumnBase):
             pass
 
     @utils.argschecker(alias=str, nullable=False)
@@ -1088,9 +1090,9 @@ class IndexBase(ABC):
 
     @property
     def __def__(self):
-        fs = NodeList(self.fields, glue=", ", parens=True).complete()
+        fs = NodesComper(self.fields, glue=", ", parens=True).complete()
         cm = SQL(f"COMMENT '{self.comment}'")
-        return NodeList(
+        return NodesComper(
             [self.__type__, self.__sname__, fs, cm]).complete().sql
 
     def __repr__(self):

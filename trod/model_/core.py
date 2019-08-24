@@ -78,8 +78,8 @@ class _ModelMeta(type):
         try:
             value = getattr(cls, key)
         except AttributeError:
-            if key in cls.__table__.fields:
-                value = cls.__table__.fields[key]
+            if key in cls.__table__.fields_dict:
+                value = cls.__table__.fields_dict[key]
             else:
                 raise AttributeError(
                     f"'{cls.__name__}' class does not have `{key}` attribute"
@@ -111,7 +111,7 @@ class _Model(metaclass=_ModelMeta):
         try:
             return self.__dict__[key]
         except KeyError:
-            if key == self.__table__.pk.field.name or key in self.__table__.fields:
+            if key == self.__table__.pk.field.name or key in self.__table__.fields_dict:
                 value = None
             else:
                 raise AttributeError(
@@ -125,7 +125,7 @@ class _Model(metaclass=_ModelMeta):
                 raise errors.ModifyAutoPkError(
                     'AUTO_INCREMENT table not allowed modify primary key'
                 )
-        if not is_loader and (key not in self.__table__.fields):
+        if not is_loader and (key not in self.__table__.fields_dict):
             raise AttributeError(
                 f"'{self.__class.__name__}' object not allowed set attribute '{key}'"
             )
@@ -163,85 +163,103 @@ class _Model(metaclass=_ModelMeta):
         return tables.Show(cls.__table__)
 
     @classmethod
-    def _normalize_data(cls, data, kwargs):
-        pass
+    async def _get(cls, _id):
+
+        return await tables.Select(
+            cls, cls.__table__.columns
+        ).where(
+            cls.__table__.fields_dict[cls.__table__.pk.name] == _id
+        ).first()
 
     @classmethod
-    async def _get(cls, _id, tdicts=False):
+    async def _get_many(cls, ids, columns=None):
 
-        fields = [f.sname for f in cls.__table__.fields]
-        return await crud.Select(
-            cls, fields
+        columns = columns or cls.__table__.columns
+
+        return await tables.Select(
+            cls, columns
         ).where(
-            cls.__table__.fields[cls.__table__.pk.name] == _id
-        ).first(tdicts)
-
-###############################################################################
-    @classmethod
-    async def _get_many(cls, ids, *fields, tdicts=False):
-
-        fields = fields or cls.__table__.fields
-        fields = [f.sname for f in fields]
-
-        return await crud.Select(
-            cls, fields
-        ).where(
-            cls.__table__.fields[cls.__table__.pk.name].in_(ids)
-        ).all(tdicts)
+            cls.__table__.fields_dict[cls.__table__.pk.name].in_(ids)
+        ).all()
 
     @classmethod
     def _add(cls, instance):
 
         rows = Rows([instance.__self__])
-        return crud.Insert(cls.__table__.name, rows)
+        return tables.Insert(cls.__table__, rows)
 
     @classmethod
     def _add_many(cls, instances):
 
         rows = Rows([instance.__self__ for instance in instances])
-        return crud.Insert(cls.__table__.name, rows)
+        return tables.Insert(cls.__table__.name, rows)
 
     @classmethod
-    def _select(cls, *fields, distinct=False):
+    def _select(cls, *columns, distinct=False):
 
-        fields = fields or cls.__table__.fields
-        fields = [f.sname for f in fields]
-
-        return crud.Select(cls, fields, distinct=distinct)
+        columns = columns or cls.__table__.columns
+        return tables.Select(cls, columns, distinct=distinct)
 
     @classmethod
-    def _insert(cls, **values):
+    def _insert(cls, data=None, **kwargs):
+        """
+        # Using keyword arguments:
+        zaizee_id = Person.insert(first='zaizee', last='cat').execute()
 
-        rows = Rows([values])
-        return crud.Insert(cls.__table__.name, rows)
+        # Using column: value mappings:
+        Note.insert({
+        Note.person_id: zaizee_id,
+        Note.content: 'meeeeowwww',
+        Note.timestamp: datetime.datetime.now()}).execute()
+        """
+
+        insert_data = data or kwargs
+        return tables.Insert(cls.__table__.name, Rows(insert_data))
 
     @classmethod
-    def _insert_many(cls, rows, fields=None):
+    def _insert_many(cls, rows, columns=None):
+        """
+        people = [
+            {'first': 'Bob', 'last': 'Foo'},
+            {'first': 'Herb', 'last': 'Bar'},
+            {'first': 'Nuggie', 'last': 'Bar'}]
 
-        rows = Rows(rows, fields=fields)
-        return crud.Insert(cls.__table__.name, rows)
+        # Inserting multiple rows returns the ID of the last-inserted row.
+        last_id = Person.insert(people).execute()
+
+        # We can also specify row tuples, so long as we tell Peewee which
+        # columns the tuple values correspond to:
+        people = [
+            ('Bob', 'Foo'),
+            ('Herb', 'Bar'),
+            ('Nuggie', 'Bar')]
+        Person.insert(people, columns=[Person.first, Person.last]).execute()
+        """
+
+        rows = Rows(rows, columns=columns)
+        return tables.Insert(cls.__table__.name, rows)
 
     @classmethod
     def _update(cls, **values):
 
-        return crud.Update(cls.__table__.name, values)
+        return tables.Update(cls.__table__, values)
 
     @classmethod
     def _delete(cls):
 
-        return crud.Delete(cls.__table__.name)
+        return tables.Delete(cls.__table__)
 
     @classmethod
     def _replace(cls, **values):
 
         rows = Rows([values])
-        return crud.Replace(cls.__table__.name, rows)
+        return tables.Replace(cls.__table__, rows)
 
     async def _save(self):
         """ save self """
 
         rows = Rows([self.__self__])
-        result = await crud.Replace(self.__table__.name, rows).do()
+        result = await tables.Replace(self.__table__.name, rows).do()
         self.__setattr__(self.__table__.name, result.last_id)
         return result
 
@@ -252,23 +270,27 @@ class _Model(metaclass=_ModelMeta):
         if not pk:
             raise RuntimeError()  # TODO
 
-        return await crud.Delete(
+        return await tables.Delete(
             self.__table__.name
         ).where(self.__table__.pk.field == pk).do()
 
 
 class Rows:
 
-    def __init__(self, rows, fields=None):
+    def __init__(self, rows, columns=None):
         pass
 
     @property
-    def fields(self):
+    def columns(self):
         pass
 
     @property
     def values(self):
         pass
+
+
+class Loader:
+    pass
 
 
 def load(results, model, use_tdict):
