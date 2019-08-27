@@ -38,7 +38,7 @@ async def exec(sql, params=None, **kwargs):
     return await __real__.Executer.execute(sql, params=params, many=many, db=db)
 
 
-async def close():
+async def unbinding():
     return await __real__.Executer.death()
 
 

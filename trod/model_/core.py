@@ -1,4 +1,3 @@
-import inspect
 import warnings
 from collections import OrderedDict
 
@@ -149,18 +148,23 @@ class _Model(metaclass=_ModelMeta):
     async def _create_table(cls, **options):
         """ Do create table """
 
-        return await tables.create(cls.__table__, **options)
+        return await cls.__table__.create(**options)
 
     @classmethod
     async def _drop_table(cls, **options):
         """ Do drop table """
 
-        return await tables.drop(cls.__table__, **options)
+        return await cls.__table__.drop(**options)
+
+    @classmethod
+    def _alter(cls):
+
+        return cls.__table__.show()
 
     @classmethod
     def _show(cls):
 
-        return tables.Show(cls.__table__)
+        return cls.__table__.alter()
 
     @classmethod
     async def _get(cls, _id):
@@ -362,28 +366,3 @@ class ExecResults:
         pass
 
     __str__ = __repr__
-
-
-def _find_models(module, md):
-    if not module:
-        return []
-    if not inspect.ismodule(module):
-        raise ValueError()
-
-    return [m for _, m in vars(module).items() if issubclass(m, md)]
-
-
-async def create_tables(md, *models, module=None, **options):
-
-    models = list(models)
-    models.extend(_find_models(module, md))
-
-    if not models:
-        raise RuntimeError()
-
-    for model in models:
-        await model.create(**options)
-
-
-async def drop_tables(*models, module=None):
-    pass

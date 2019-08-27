@@ -49,6 +49,35 @@ class Table:
             return f"`{self.db}`.`{self.name}`"
         return f"`{self.name}`"
 
+    async def create(self, **options):
+
+        defs = NC([f.__def__ for _, f in self.fields], glue=", ", parens=True)
+        defs.append(SQL(f"PRIMARY KEY({self.primary_key.field.__sfn__})"))
+        defs.append([i.__def__ for _, i in self.indexes_dict.items()])
+        defs = defs.complete()
+        safe = "IF NOT EXISTS " if options.pop("safe", True) else ""
+        temp = "CREATE TEMPORARY TABLE" if options.pop('temporary', False) else "CREATE TABLE"
+        create_syntax = NC([
+            SQL(f"{temp} {safe}{self.__sfn__}"),
+            defs,
+            SQL(f"ENGINE={self.engine} AUTO_INCREMENT={self.auto_increment}"),
+            SQL(f"DEFAULT CHARSET={self.charset}  COMMENT='{self.comment}';")
+        ]).complete()
+
+        return await db.exec(create_syntax)
+
+    async def drop(self, safe=True, **_options):
+
+        exist = "IF NOT EXISTS" if safe else ""
+        return await db.exec(SQL(f"DROP TABLE{exist} {self.__sfn__};"))
+
+    def show(self):
+
+        return Show(self)
+
+    def alter(self):
+        return Alter(self)
+
 
 class Query:
 
@@ -125,44 +154,6 @@ class WriteQuery(QueryBase):
 
     async def do(self):
         return await db.exec(self.__sql__, self.__values__)
-
-
-class Show:
-
-    __slots__ = ("_t",)
-
-    __fetch__ = True
-
-    def __init__(self, table):
-        self._t = table
-
-    def __str__(self):
-        return f"<Class {self.__class__.__name__}>"
-
-    __repr__ = __str__
-
-    async def create_syntax(self):
-        return await db.exec("SHOW CREATE TABLE {self._t.__sfn__};")
-
-    async def columns(self):
-        return await db.exec("SHOW FULL COLUMNS FROM {self._t.__sfn__};")
-
-    async def indexs(self):
-        return await db.exec("SHOW INDEX FROM {self._table.sname};")
-
-
-class Alter:
-
-    def __init__(self, model, modifys=None, adds=None, drops=None):
-        self._model = model
-        self._modifys = modifys
-        self._adds = adds
-        self._drops = drops
-
-        self._prepare()
-
-    def _prepare(self):
-        pass
 
 
 class Select(QueryBase):
@@ -362,26 +353,53 @@ class Delete(WriteQuery):
         return self
 
 
-@utils.argschecker(table=Table, nullable=False)
-async def create(table, **options):
+class Show:
 
-    defs = NC([f.__def__ for _, f in table.fields], glue=", ", parens=True)
-    defs.append(SQL(f"PRIMARY KEY({table.pk.field.__sfn__})"))
-    defs.append([i.__def__ for _, i in table.indexes.items()])
-    defs = defs.complete()
-    safe = "IF NOT EXISTS " if options.pop("safe", True) else ""
-    temp = "CREATE TEMPORARY TABLE" if options.pop('temporary', False) else "CREATE TABLE"
-    create_syntax = NC([
-        SQL(f"{temp} {safe}{table.__sfn__}"),
-        defs,
-        SQL(f"ENGINE={table.engine} AUTO_INCREMENT={table.auto_increment}"),
-        SQL(f"DEFAULT CHARSET={table.charset}  COMMENT='{table.comment}';")
-    ]).complete()
+    __slots__ = ("_t",)
 
-    return await db.exec(create_syntax)
+    __fetch__ = True
+
+    def __init__(self, table):
+        self._t = table
+
+    def __str__(self):
+        return f"<Class {self.__class__.__name__}>"
+
+    __repr__ = __str__
+
+    async def create_syntax(self):
+        return await db.exec("SHOW CREATE TABLE {self._t.__sfn__};")
+
+    async def columns(self):
+        return await db.exec("SHOW FULL COLUMNS FROM {self._t.__sfn__};")
+
+    async def indexes(self):
+        return await db.exec("SHOW INDEX FROM {self._table.sname};")
+
+    async def engine(self):
+        pass
 
 
-async def drop(table, safe=True, **_options):
+class Alter(WriteQuery):
 
-    exist = "IF NOT EXISTS" if safe else ""
-    return await db.exec(SQL(f"DROP TABLE{exist} {table.__sfn__};"))
+    def __init__(self, table):
+        self._t = table
+        super().__init__()
+
+    def add(self):
+        pass
+
+    def drop(self):
+        pass
+
+    def modify(self):
+        pass
+
+    def change(self):
+        pass
+
+    def after(self):
+        pass
+
+    def first(self):
+        pass

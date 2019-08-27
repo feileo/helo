@@ -704,6 +704,7 @@ class UUID(FieldBase):
 
 
 class Bool(FieldBase):
+
     __slots__ = ()
 
     py_type = bool
@@ -909,6 +910,8 @@ def dt_strftime(value, formats):
 
 class Date(FieldBase):
 
+    __slots__ = ("formats",)
+
     py_type = datetime.datetime
     db_type = 'date'
 
@@ -945,6 +948,7 @@ class Date(FieldBase):
 
 
 class Time(Date):
+
     __slots__ = ()
 
     db_type = 'time(6)'
@@ -1047,13 +1051,36 @@ ON_UPDATE = SQL("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
 
 class Funcs:
 
-    def __init__(self, field):
-        if isinstance(field, Expression):
-            pass
-        elif isinstance(field, ColumnBase):
-            pass
+    __slots__ = ('_f',)
 
-    @utils.argschecker(alias=str, nullable=False)
+    def __init__(self, f):
+        self._f = f
+
+    @classmethod
+    def sum(cls, field):
+        return cls(f"SUM({field.__sname__})")
+
+    @classmethod
+    def avg(cls, field):
+        return cls(f"AVG({field.__sname__})")
+
+    @classmethod
+    def max(cls, field):
+        return cls(f"MAX({field.__sname__})")
+
+    @classmethod
+    def min(cls, field):
+        return cls(f"MIN({field.__sname__})")
+
+    @classmethod
+    def count(cls, field):
+        return cls(f"COUNT({field.__sname__})")
+
+    def __sname__(self):
+        return self._f
+
+    __repr__ = __str__ = __sname__
+
     def as_(self, alias):
         return _Alias(self, alias)
 
@@ -1072,6 +1099,7 @@ class IndexBase(ABC):
 
         if not isinstance(fields, SEQUENCE):
             fields = [fields]
+
         self.fields = []
         for f in fields:
             if not isinstance(f, FieldBase):
@@ -1082,7 +1110,7 @@ class IndexBase(ABC):
         self._seq_num = IndexBase._field_counter
 
     def __hash__(self):
-        pass
+        return hash(self.name)
 
     @property
     def __sname__(self):

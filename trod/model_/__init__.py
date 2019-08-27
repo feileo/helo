@@ -19,12 +19,12 @@ class Model(_Model):
         return await cls._drop_table(**options)
 
     @classmethod
-    def show(cls):
-        return cls._show()
-
-    @classmethod
     def alter(cls):
         return cls._alter()
+
+    @classmethod
+    def show(cls):
+        return cls._show()
 
     @classmethod
     async def get(cls, _id):
