@@ -3,24 +3,23 @@ from . import (
     db,
     utils,
     errors,
+    model_,
 )
 
 __version__ = '0.0.15'
 
 __all__ = (
-    'Trod',
     'types',
     'db',
     'utils',
     'errors',
+    'Trod',
 )
 
 
 class Trod:
 
-    from trod import model_ as m
-
-    Model = m.Model
+    Model = model_.TrodModel
 
     async def bind(self, *args, **kwargs):
 
@@ -66,7 +65,7 @@ class Trod:
     async def text(self, *args, **kwargs):
         """ A coroutine that used to directly execute SQL statements """
 
-        return await db.exec(*args, **kwargs)
+        return await db.execute(*args, **kwargs)
 
     # DCL
 

@@ -97,21 +97,6 @@ def singleton(is_async=False):
     return decorator
 
 
-def node(cls):
-
-    @wraps(cls)
-    def wraper(*args, **kwargs):
-
-        def sname(self):
-            return f"`{self.name}`"
-
-        cls.sname = property(sname)
-        instance = cls(*args, **kwargs)
-        return instance
-
-    return wraper
-
-
 def asyncinit(obj):
     """
         A class decorator that add async `__init__` functionality.

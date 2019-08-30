@@ -1,13 +1,8 @@
-import warnings
 from functools import reduce
 from collections import OrderedDict
 import operator
 
 from .. import db, errors, utils, types
-
-
-NC = types.__real__.NodesComper
-SQL = types.SQL
 
 
 class Table:
@@ -51,28 +46,29 @@ class Table:
 
     async def create(self, **options):
 
-        defs = NC([f.__def__ for _, f in self.fields], glue=", ", parens=True)
-        defs.append(SQL(f"PRIMARY KEY({self.primary_key.field.__sfn__})"))
+        defs = types.__real__.NodesComper(
+            [f.__def__ for _, f in self.fields], glue=", ", parens=True
+        )
+        defs.append(f"PRIMARY KEY({self.primary_key.field.__sfn__})")
         defs.append([i.__def__ for _, i in self.indexes_dict.items()])
         defs = defs.complete()
         safe = "IF NOT EXISTS " if options.pop("safe", True) else ""
         temp = "CREATE TEMPORARY TABLE" if options.pop('temporary', False) else "CREATE TABLE"
-        create_syntax = NC([
-            SQL(f"{temp} {safe}{self.__sfn__}"),
+        create_syntax = types.__real__.NodesComper([
+            f"{temp} {safe}{self.__sfn__}",
             defs,
-            SQL(f"ENGINE={self.engine} AUTO_INCREMENT={self.auto_increment}"),
-            SQL(f"DEFAULT CHARSET={self.charset}  COMMENT='{self.comment}';")
+            f"ENGINE={self.engine} AUTO_INCREMENT={self.auto_increment}",
+            f"DEFAULT CHARSET={self.charset}  COMMENT='{self.comment}';"
         ]).complete()
 
-        return await db.exec(create_syntax)
+        return await db.execute(create_syntax)
 
     async def drop(self, safe=True, **_options):
 
         exist = "IF NOT EXISTS" if safe else ""
-        return await db.exec(SQL(f"DROP TABLE{exist} {self.__sfn__};"))
+        return await db.execute(f"DROP TABLE{exist} {self.__sfn__};")
 
     def show(self):
-
         return Show(self)
 
     def alter(self):
@@ -153,7 +149,7 @@ class QueryBase:
 class WriteQuery(QueryBase):
 
     async def do(self):
-        return await db.exec(self.__sql__, self.__values__)
+        return await db.execute(self.__sql__, self.__values__)
 
 
 class Select(QueryBase):
@@ -219,14 +215,14 @@ class Select(QueryBase):
 
     async def first(self):
         self.limit(1)
-        return await db.exec(self.__sql__, params=self.__values__, model=self._model)
+        return await db.execute(self.__sql__, params=self.__values__, model=self._model)
 
     async def rows(self, rows, start=0):
         self.limit(rows, start)
-        return await db.exec(self.__sql__, params=self.__values__, model=self._model)
+        return await db.execute(self.__sql__, params=self.__values__, model=self._model)
 
     async def all(self):
-        return await db.exec(self.__sql__, params=self.__values__, model=self._model)
+        return await db.execute(self.__sql__, params=self.__values__, model=self._model)
 
     async def scalar(self):
         pass
@@ -368,13 +364,13 @@ class Show:
     __repr__ = __str__
 
     async def create_syntax(self):
-        return await db.exec("SHOW CREATE TABLE {self._t.__sfn__};")
+        return await db.execute("SHOW CREATE TABLE {self._t.__sfn__};")
 
     async def columns(self):
-        return await db.exec("SHOW FULL COLUMNS FROM {self._t.__sfn__};")
+        return await db.execute("SHOW FULL COLUMNS FROM {self._t.__sfn__};")
 
     async def indexes(self):
-        return await db.exec("SHOW INDEX FROM {self._table.sname};")
+        return await db.execute("SHOW INDEX FROM {self._table.sname};")
 
     async def engine(self):
         pass

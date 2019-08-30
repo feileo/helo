@@ -5,103 +5,103 @@ from trod import types, errors, utils
 from trod.model_ import tables
 
 
-class _ModelMeta(type):
+class ModelMeta(type):
 
     def __new__(cls, name, bases, attrs):
-        if name in ("_Model", "Model"):
+        if name in ("Model", "TrodModel"):
             return type.__new__(cls, name, bases, attrs)
 
-        attrs = cls.__prepare__(name, attrs)
+        def __prepare__(name, attrs):
+            bound = attrs.pop("__db__", None)
+            table_name = attrs.pop("__table__", None)
+            if not table_name:
+                warnings.warn(
+                    f"Did not give the table name, use the model name `{name}`",
+                    errors.ProgrammingWarning
+                )
+            table_name = name.lower()
+
+            fields = OrderedDict()
+            pk = utils.Tdict(auto=False, field=None, ai=None)
+
+            for attr in attrs.copy():
+                if pk.field and attr == pk.field.name:
+                    raise errors.DuplicateFieldNameError(f"Duplicate field name `{attr}`")
+                field = attrs.pop(attr)
+                if isinstance(field, types.__real__.FieldBase):
+                    field.name = field.name or attr
+                    if getattr(field, 'pk', None):
+                        if pk.field is not None:
+                            raise errors.DuplicatePKError(
+                                f"Duplicate primary key found for field {field.name}"
+                            )
+                        pk.field = field
+                        if field.ai:
+                            pk.auto = True
+                            pk.ai = int(field.ai)
+                            if field.name != tables.Table.AIPK:
+                                warnings.warn(
+                                    "The field name of AUTO_INCREMENT primary key is suggested \
+                                    to use `id` instead of {field.name}",
+                                    errors.ProgrammingWarning
+                                )
+
+                    fields[attr] = field
+                elif attr not in tables.Table.DEFAULT:
+                    raise errors.InvalidFieldType(f"Invalid model field {attr}")
+
+            if not pk.field:
+                raise errors.NoPKError(
+                    f"Primary key not found for table `{table_name}`"
+                )
+
+            indexes = attrs.pop("__indexes__", ())
+            if not isinstance(types.SEQUENCE):
+                raise TypeError("")
+            for index in indexes:
+                if not isinstance(index, types.__real__.IndexBase):
+                    raise errors.InvalidFieldType()
+
+            attrs['__table__'] = tables.Table(
+                database=bound, name=table_name,
+                fields=fields, pk=pk, indexes=tuple(indexes),
+                charset=attrs.pop('__charset__', None),
+                comment=attrs.pop('__comment__', None),
+            )
+            return attrs
+
+        attrs = __prepare__(name, attrs)
         return type.__new__(cls, name, bases, attrs)
 
-    def __prepare__(cls, name, attrs):
-        bound = attrs.pop("__db__", None)
-        table_name = attrs.pop("__table__", None)
-        if not table_name:
-            warnings.warn(
-                f"Did not give the table name, use the model name `{name}`",
-                errors.ProgrammingWarning
-            )
-        table_name = name.lower()
-
-        fields = OrderedDict()
-        pk = utils.Tdict(auto=False, field=None, ai=None)
-
-        for attr in attrs.copy():
-            if pk.field and attr == pk.field.name:
-                raise errors.DuplicateFieldNameError(f"Duplicate field name `{attr}`")
-            field = attrs.pop(attr)
-            if isinstance(field, types.__real__.FieldBase):
-                field.name = field.name or attr
-                if getattr(field, 'pk', None):
-                    if pk.field is not None:
-                        raise errors.DuplicatePKError(
-                            f"Duplicate primary key found for field {field.name}"
-                        )
-                    pk.field = field
-                    if field.ai:
-                        pk.auto = True
-                        pk.ai = int(field.ai)
-                        if field.name != tables.Table.AIPK:
-                            warnings.warn(
-                                "The field name of AUTO_INCREMENT primary key is suggested \
-                                to use `id` instead of {field.name}",
-                                errors.ProgrammingWarning
-                            )
-
-                fields[attr] = field
-            elif attr not in tables.Table.DEFAULT:
-                raise errors.InvalidFieldType(f"Invalid model field {attr}")
-
-        if not pk.field:
-            raise errors.NoPKError(
-                f"Primary key not found for table `{table_name}`"
-            )
-
-        indexes = attrs.pop("__indexes__", ())
-        if not isinstance(types.SEQUENCE):
-            raise TypeError("")
-        for index in indexes:
-            if not isinstance(index, types.__real__.IndexBase):
-                raise errors.InvalidFieldType()
-
-        attrs['__table__'] = tables.Table(
-            database=bound, name=table_name,
-            fields=fields, pk=pk, indexes=tuple(indexes),
-            charset=attrs.pop('__charset__', None),
-            comment=attrs.pop('__comment__', None),
-        )
-        return attrs
-
-    def __getattr__(cls, key):
-        try:
-            value = getattr(cls, key)
-        except AttributeError:
-            if key in cls.__table__.fields_dict:
-                value = cls.__table__.fields_dict[key]
-            else:
-                raise AttributeError(
-                    f"'{cls.__name__}' class does not have `{key}` attribute"
-                )
-        return value
+    # def __getattr__(cls, key):
+    #     try:
+    #         value = getattr(cls, key)
+    #     except AttributeError:
+    #         if key in cls.__table__.fields_dict:
+    #             value = cls.__table__.fields_dict[key]
+    #         else:
+    #             raise AttributeError(
+    #                 f"'{cls.__name__}' class does not have `{key}` attribute"
+    #             )
+    #     return value
 
     def __setattr__(cls, _key, _value):
         raise errors.ModelSetAttrError(
             f"'{cls.__name__}' class not allow set attribute")
 
 
-class _Model(metaclass=_ModelMeta):
+class Model(metaclass=ModelMeta):
 
     def __init__(self, **kwargs):
         for attr in kwargs:
             setattr(self, attr, kwargs[attr])
 
-    def __repr__(self):
-        return "<{0}(table '{1}': {2})>".format(
-            self.__class__.__name__, self.__table__.name, self.__table__.comment
-        )
+    # def __repr__(self):
+    #     return "<{0}(table '{1}': {2})>".format(
+    #         self.__class__.__name__, self.__table__.name, self.__table__.comment
+    #     )
 
-    __str__ = __repr__
+    # __str__ = __repr__
 
     def __hash__(self):
         pass
@@ -144,68 +144,71 @@ class _Model(metaclass=_ModelMeta):
                 values[f.name] = v
         return values
 
-    @classmethod
-    async def _create_table(cls, **options):
+
+class Api:
+
+    @staticmethod
+    async def create_table(m, **options):
         """ Do create table """
 
-        return await cls.__table__.create(**options)
+        return await m.__table__.create(**options)
 
-    @classmethod
-    async def _drop_table(cls, **options):
+    @staticmethod
+    async def drop_table(m, **options):
         """ Do drop table """
 
-        return await cls.__table__.drop(**options)
+        return await m.__table__.drop(**options)
 
-    @classmethod
-    def _alter(cls):
+    @staticmethod
+    def alter(m):
 
-        return cls.__table__.show()
+        return m.__table__.show()
 
-    @classmethod
-    def _show(cls):
+    @staticmethod
+    def show(m):
 
-        return cls.__table__.alter()
+        return m.__table__.alter()
 
-    @classmethod
-    async def _get(cls, _id):
+    @staticmethod
+    async def get(m, _id):
 
         return await tables.Select(
-            cls, cls.__table__.columns
+            m, m.__table__.columns
         ).where(
-            cls.__table__.fields_dict[cls.__table__.pk.name] == _id
+            m.__table__.fields_dict[m.__table__.pk.name] == _id
         ).first()
 
-    @classmethod
-    async def _get_many(cls, ids, columns=None):
+    @staticmethod
+    async def get_many(m, ids, columns=None):
 
-        columns = columns or cls.__table__.columns
+        columns = columns or m.__table__.columns
 
         return await tables.Select(
-            cls, columns
+            m, columns
         ).where(
-            cls.__table__.fields_dict[cls.__table__.pk.name].in_(ids)
+            m.__table__.fields_dict[m.__table__.pk.name].in_(ids)
         ).all()
 
-    @classmethod
-    def _add(cls, instance):
+    @staticmethod
+    def add(m, instance):
 
         rows = Rows([instance.__self__])
-        return tables.Insert(cls.__table__, rows)
+        return tables.Insert(m.__table__, rows)
 
-    @classmethod
-    def _add_many(cls, instances):
+    @staticmethod
+    def add_many(m, instances):
 
         rows = Rows([instance.__self__ for instance in instances])
-        return tables.Insert(cls.__table__.name, rows)
+        return tables.Insert(m.__table__.name, rows)
 
-    @classmethod
-    def _select(cls, *columns, distinct=False):
+    @staticmethod
+    def select(m, *columns, distinct=False):
 
-        columns = columns or cls.__table__.columns
-        return tables.Select(cls, columns, distinct=distinct)
+        columns = columns or m.__table__.columns
+        return tables.Select(m, columns, distinct=distinct)
 
-    @classmethod
-    def _insert(cls, data=None, **kwargs):
+    @staticmethod
+    def insert(m, data=None, **kwargs):
         """
         # Using keyword arguments:
         zaizee_id = Person.insert(first='zaizee', last='cat').execute()
@@ -218,10 +221,10 @@ class _Model(metaclass=_ModelMeta):
         """
 
         insert_data = data or kwargs
-        return tables.Insert(cls.__table__.name, Rows(insert_data))
+        return tables.Insert(m.__table__.name, Rows(insert_data))
 
-    @classmethod
-    def _insert_many(cls, rows, columns=None):
+    @staticmethod
+    def insert_many(m, rows, columns=None):
         """
         people = [
             {'first': 'Bob', 'last': 'Foo'},
@@ -241,42 +244,44 @@ class _Model(metaclass=_ModelMeta):
         """
 
         rows = Rows(rows, columns=columns)
-        return tables.Insert(cls.__table__.name, rows)
+        return tables.Insert(m.__table__.name, rows)
 
-    @classmethod
-    def _update(cls, **values):
+    @staticmethod
+    def update(m, **values):
 
-        return tables.Update(cls.__table__, values)
+        return tables.Update(m.__table__, values)
 
-    @classmethod
-    def _delete(cls):
+    @staticmethod
+    def delete(m):
 
-        return tables.Delete(cls.__table__)
+        return tables.Delete(m.__table__)
 
-    @classmethod
-    def _replace(cls, **values):
+    @staticmethod
+    def replace(m, **values):
 
         rows = Rows([values])
-        return tables.Replace(cls.__table__, rows)
+        return tables.Replace(m.__table__, rows)
 
-    async def _save(self):
-        """ save self """
+    @staticmethod
+    async def save(mo):
+        """ save mo """
 
-        rows = Rows([self.__self__])
-        result = await tables.Replace(self.__table__.name, rows).do()
-        self.__setattr__(self.__table__.name, result.last_id)
+        rows = Rows([mo.__self__])
+        result = await tables.Replace(mo.__table__.name, rows).do()
+        mo.__setattr__(mo.__table__.name, result.last_id)
         return result
 
-    async def _remove(self):
-        """ delete self """
+    @staticmethod
+    async def remove(mo):
+        """ delete mo """
 
-        pk = self.__getattr__(self.__table__.pk.field.name)
+        pk = mo.__getattr__(mo.__table__.pk.field.name)
         if not pk:
             raise RuntimeError()  # TODO
 
         return await tables.Delete(
-            self.__table__.name
-        ).where(self.__table__.pk.field == pk).do()
+            mo.__table__.name
+        ).where(mo.__table__.pk.field == pk).do()
 
 
 class Rows:

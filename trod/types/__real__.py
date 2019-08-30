@@ -145,7 +145,7 @@ class ColumnBase:
         return self == item
 
     @property
-    def __sname__(self):
+    def __sfn__(self):
         name = getattr(self, "name")
         if name:
             return f"`{name}`"
@@ -229,13 +229,13 @@ class _Ordering:
         self.k = k
 
     def __repr__(self):
-        return self.__sname__
+        return self.__sfn__
 
     __str__ = __repr__
 
     @property
-    def __sname__(self):
-        return f"{self.f.__sname__} {self.k}"
+    def __sfn__(self):
+        return f"{self.f.__sfn__} {self.k}"
 
 
 class _Alias:
@@ -246,13 +246,13 @@ class _Alias:
         self.a = alias
 
     def __repr__(self):
-        return self.__sname__
+        return self.__sfn__
 
     __str__ = __repr__
 
     @property
-    def __sname__(self):
-        return f"{self.f.__sname__} AS `{self.a}`"
+    def __sfn__(self):
+        return f"{self.f.__sfn__} AS `{self.a}`"
 
 
 class SQL:
@@ -385,7 +385,7 @@ class Expression(ColumnBase, Query):
 
         def converter(hs):
             if isinstance(hs, ColumnBase):
-                hs = hs.__sname__
+                hs = hs.__sfn__
                 if hs is None:
                     raise errors.NoColumnNameError()
             elif isinstance(hs, Expression):
@@ -434,7 +434,7 @@ class Syntax:
 
     def __init__(self, field):
 
-        defi = NodesComper([field.__sname__, self.parse_type(field)])
+        defi = NodesComper([field.__sfn__, self.parse_type(field)])
 
         ops = self.parse_options(field)
         if ops.unsigned:
@@ -910,8 +910,6 @@ def dt_strftime(value, formats):
 
 class Date(FieldBase):
 
-    __slots__ = ("formats",)
-
     py_type = datetime.datetime
     db_type = 'date'
 
@@ -1058,28 +1056,28 @@ class Funcs:
 
     @classmethod
     def sum(cls, field):
-        return cls(f"SUM({field.__sname__})")
+        return cls(f"SUM({field.__sfn__})")
 
     @classmethod
     def avg(cls, field):
-        return cls(f"AVG({field.__sname__})")
+        return cls(f"AVG({field.__sfn__})")
 
     @classmethod
     def max(cls, field):
-        return cls(f"MAX({field.__sname__})")
+        return cls(f"MAX({field.__sfn__})")
 
     @classmethod
     def min(cls, field):
-        return cls(f"MIN({field.__sname__})")
+        return cls(f"MIN({field.__sfn__})")
 
     @classmethod
     def count(cls, field):
-        return cls(f"COUNT({field.__sname__})")
+        return cls(f"COUNT({field.__sfn__})")
 
-    def __sname__(self):
+    def __sfn__(self):
         return self._f
 
-    __repr__ = __str__ = __sname__
+    __repr__ = __str__ = __sfn__
 
     def as_(self, alias):
         return _Alias(self, alias)
@@ -1104,7 +1102,7 @@ class IndexBase(ABC):
         for f in fields:
             if not isinstance(f, FieldBase):
                 raise TypeError()
-            self.fields.append(f.__sname__)
+            self.fields.append(f.__sfn__)
 
         IndexBase._field_counter += 1
         self._seq_num = IndexBase._field_counter
@@ -1113,7 +1111,7 @@ class IndexBase(ABC):
         return hash(self.name)
 
     @property
-    def __sname__(self):
+    def __sfn__(self):
         return f"`{self.name}`"
 
     @property
@@ -1121,7 +1119,7 @@ class IndexBase(ABC):
         fs = NodesComper(self.fields, glue=", ", parens=True).complete()
         cm = SQL(f"COMMENT '{self.comment}'")
         return NodesComper(
-            [self.__type__, self.__sname__, fs, cm]).complete().sql
+            [self.__type__, self.__sfn__, fs, cm]).complete().sql
 
     def __repr__(self):
         return f"types.{self.__class__.__name__}({self.__def__})"
