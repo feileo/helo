@@ -8,8 +8,8 @@ from .. import db, errors, utils, types
 class Table:
 
     __slots__ = (
-        "db", "name", "fields", "fields_dict", "primary_key",
-        "indexes_dict", "auto_increment", "engine", "charset",
+        "db", "name", "fields_dict", "primary",
+        "indexes", "auto_increment", "engine", "charset",
         "comment",
     )
 
@@ -24,15 +24,14 @@ class Table:
         __comment__='',
     )
 
-    def __init__(self, database, name, fields, pk=None, indexes=None,
+    def __init__(self, database, name, fields, primary=None, indexes=None,
                  engine=None, charset=None, comment=None):
         self.db = database
         self.name = name
         self.fields_dict = fields
-        self.fields = tuple(fields.values())
-        self.primary_key = pk
-        self.indexes_dict = indexes or {}
-        self.auto_increment = pk.ai or self.DEFAULT.__auto_increment__
+        self.primary = primary
+        self.indexes = indexes
+        self.auto_increment = primary.ai or self.DEFAULT.__auto_increment__
         self.engine = engine or self.DEFAULT.__engine__
         self.charset = charset or self.DEFAULT.__charset__
         self.comment = comment or self.DEFAULT.__comment__
@@ -44,17 +43,31 @@ class Table:
             return f"`{self.db}`.`{self.name}`"
         return f"`{self.name}`"
 
+    @property
+    def sfn_fields(self):
+        return [f.__sfn__ for f in self.fields_dict.values()]
+
+    @property
+    def sfn_indexes(self):
+        return [i.__sfn__ for i in self.indexes]
+
+    @property
+    def def_fields(self):
+        return [f.__def__ for f in self.fields_dict.values()]
+
+    @property
+    def def_indexes(self):
+        return [i.__def__ for i in self.indexes]
+
     async def create(self, **options):
 
-        defs = types.__real__.NodesComper(
-            [f.__def__ for _, f in self.fields], glue=", ", parens=True
-        )
-        defs.append(f"PRIMARY KEY({self.primary_key.field.__sfn__})")
-        defs.append([i.__def__ for _, i in self.indexes_dict.items()])
+        defs = types.__impl__.NodesComper(self.def_fields, glue=", ", parens=True)
+        defs.append(f"PRIMARY KEY({self.primary.field.__sfn__})")
+        defs.append(self.def_indexes)
         defs = defs.complete()
         safe = "IF NOT EXISTS " if options.pop("safe", True) else ""
         temp = "CREATE TEMPORARY TABLE" if options.pop('temporary', False) else "CREATE TABLE"
-        create_syntax = types.__real__.NodesComper([
+        create_syntax = types.__impl__.NodesComper([
             f"{temp} {safe}{self.__sfn__}",
             defs,
             f"ENGINE={self.engine} AUTO_INCREMENT={self.auto_increment}",

@@ -3,11 +3,10 @@ from . import (
     db,
     utils,
     errors,
-    model_,
+    model,
 )
 
 __version__ = '0.0.15'
-
 __all__ = (
     'types',
     'db',
@@ -19,7 +18,7 @@ __all__ = (
 
 class Trod:
 
-    Model = model_.TrodModel
+    Model = model.TrodModel
 
     async def bind(self, *args, **kwargs):
 
@@ -31,8 +30,8 @@ class Trod:
 
     async def create_tables(self, *models, **options):
 
-        for model in models:
-            await model.create(**options)
+        for m in models:
+            await m.create(**options)
 
         return True
 
@@ -48,8 +47,8 @@ class Trod:
 
     async def drop_tables(self, *models):
 
-        for model in models:
-            await model.drop()
+        for m in models:
+            await m.drop()
 
         return True
 
@@ -66,11 +65,3 @@ class Trod:
         """ A coroutine that used to directly execute SQL statements """
 
         return await db.execute(*args, **kwargs)
-
-    # DCL
-
-    # async def get_tables():
-    #     return await db.exec(SQL("SHOW TABLES"))
-
-    # async def get_tables_status():
-    #     return await db.exec(SQL("SHOW TABLE STATUS"))

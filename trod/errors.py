@@ -20,6 +20,14 @@ class NoColumnNameError(RuntimeError):
         super().__init__(msg or self.description)
 
 
+class NoSuchColumnError(RuntimeError):
+    pass
+
+
+class InvalidColumnsVlaueError(RuntimeError):
+    pass
+
+
 class ProgrammingError(RuntimeError):
     pass
 

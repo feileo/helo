@@ -2,7 +2,7 @@ import warnings
 from collections import OrderedDict
 
 from trod import types, errors, utils
-from trod.model_ import tables
+from trod.model import tables
 
 
 class ModelMeta(type):
@@ -22,23 +22,23 @@ class ModelMeta(type):
             table_name = name.lower()
 
             fields = OrderedDict()
-            pk = utils.Tdict(auto=False, field=None, ai=None)
+            primary = utils.Tdict(auto=False, field=None, ai=None)
 
             for attr in attrs.copy():
-                if pk.field and attr == pk.field.name:
+                if primary.field and attr == primary.field.name:
                     raise errors.DuplicateFieldNameError(f"Duplicate field name `{attr}`")
                 field = attrs.pop(attr)
-                if isinstance(field, types.__real__.FieldBase):
+                if isinstance(field, types.__impl__.FieldBase):
                     field.name = field.name or attr
-                    if getattr(field, 'pk', None):
-                        if pk.field is not None:
+                    if getattr(field, 'primary_key', None):
+                        if primary.field is not None:
                             raise errors.DuplicatePKError(
                                 f"Duplicate primary key found for field {field.name}"
                             )
-                        pk.field = field
+                        primary.field = field
                         if field.ai:
-                            pk.auto = True
-                            pk.ai = int(field.ai)
+                            primary.auto = True
+                            primary.ai = int(field.ai)
                             if field.name != tables.Table.AIPK:
                                 warnings.warn(
                                     "The field name of AUTO_INCREMENT primary key is suggested \
@@ -46,11 +46,11 @@ class ModelMeta(type):
                                     errors.ProgrammingWarning
                                 )
 
-                    fields[attr] = field
+                    fields[field.name] = field
                 elif attr not in tables.Table.DEFAULT:
                     raise errors.InvalidFieldType(f"Invalid model field {attr}")
 
-            if not pk.field:
+            if not primary.field:
                 raise errors.NoPKError(
                     f"Primary key not found for table `{table_name}`"
                 )
@@ -59,12 +59,12 @@ class ModelMeta(type):
             if not isinstance(types.SEQUENCE):
                 raise TypeError("")
             for index in indexes:
-                if not isinstance(index, types.__real__.IndexBase):
+                if not isinstance(index, types.__impl__.IndexBase):
                     raise errors.InvalidFieldType()
 
             attrs['__table__'] = tables.Table(
                 database=bound, name=table_name,
-                fields=fields, pk=pk, indexes=tuple(indexes),
+                fields=fields, primary=primary, indexes=tuple(indexes),
                 charset=attrs.pop('__charset__', None),
                 comment=attrs.pop('__comment__', None),
             )
@@ -106,11 +106,15 @@ class Model(metaclass=ModelMeta):
     def __hash__(self):
         pass
 
+    # def __getattribute__(self, name):
+    #     pass
+
     def __getattr__(self, key):
+        # attr 和 field name 不一样的情况
         try:
             return self.__dict__[key]
         except KeyError:
-            if key == self.__table__.pk.field.name or key in self.__table__.fields_dict:
+            if key == self.__table__.primary.field.name or key in self.__table__.fields_dict:
                 value = None
             else:
                 raise AttributeError(
@@ -119,8 +123,9 @@ class Model(metaclass=ModelMeta):
             return value
 
     def __setattr__(self, key, value, is_loader=False):
-        if self.__table__.pk.auto is True:
-            if key == self.__table__.pk.field.name:
+        # attr 和 field name 不一样的情况
+        if self.__table__.primary.auto is True:
+            if key == self.__table__.primary.field.name:
                 raise errors.ModifyAutoPkError(
                     'AUTO_INCREMENT table not allowed modify primary key'
                 )
@@ -131,84 +136,131 @@ class Model(metaclass=ModelMeta):
 
         self.__dict__[key] = value
 
+    def __delattr__(self, name):
+        pass
+
     @property
-    @utils.tdictformatter
     def __self__(self):
-        fields = [f for f in self.__table__.fields]
-        values = {}
+        # attr 和 field name 在这里做转换
+        fields = [f for f in self.__table__.fields_dict]
+        values = OrderedDict()
         for f in fields:
             v = self.__getattr__(f.name)
-            if v is None and callable(f):
-                v = f()
-            if v is not None:
-                values[f.name] = v
+            if v is None:
+                v = f.default() if callable(f.default) else f.default
+            if v is None and not f.null:
+                raise errors.InvalidColumnsVlaueError()
+            values[f.name] = v
         return values
+
+
+def with_table(m):
+    return m.__table__
 
 
 class Api:
 
-    @staticmethod
-    async def create_table(m, **options):
+    @classmethod
+    async def create_table(cls, m, **options):
         """ Do create table """
 
-        return await m.__table__.create(**options)
+        return await with_table(m).create(**options)
 
-    @staticmethod
-    async def drop_table(m, **options):
+    @classmethod
+    async def drop_table(cls, m, **options):
         """ Do drop table """
 
-        return await m.__table__.drop(**options)
+        return await with_table(m).drop(**options)
 
-    @staticmethod
-    def alter(m):
+    @classmethod
+    def alter(cls, m):
 
-        return m.__table__.show()
+        return with_table(m).show()
 
-    @staticmethod
-    def show(m):
+    @classmethod
+    def show(cls, m):
 
-        return m.__table__.alter()
+        return with_table(m).alter()
 
-    @staticmethod
-    async def get(m, _id):
+    @classmethod
+    async def get(cls, m, _id):
 
         return await tables.Select(
-            m, m.__table__.columns
+            m, with_table(m).columns
         ).where(
-            m.__table__.fields_dict[m.__table__.pk.name] == _id
+            with_table(m).fields_dict[with_table(m).primary.name] == _id
         ).first()
 
-    @staticmethod
-    async def get_many(m, ids, columns=None):
+    @classmethod
+    async def get_many(cls, m, ids, columns=None):
 
-        columns = columns or m.__table__.columns
+        columns = columns or with_table(m).columns
 
         return await tables.Select(
             m, columns
         ).where(
-            m.__table__.fields_dict[m.__table__.pk.name].in_(ids)
+            with_table(m).fields_dict[with_table(m).primary.name].in_(ids)
         ).all()
 
-    @staticmethod
-    def add(m, instance):
+    @classmethod
+    def add(cls, m, instance):
 
-        rows = Rows([instance.__self__])
-        return tables.Insert(m.__table__, rows)
+        rows = Rows(instance.__self__)
+        return tables.Insert(with_table(m), rows)
 
-    @staticmethod
-    def add_many(m, instances):
+    @classmethod
+    def add_many(cls, m, instances):
 
         rows = Rows([instance.__self__ for instance in instances])
-        return tables.Insert(m.__table__.name, rows)
+        return tables.Insert(with_table(m), rows)
 
-    @staticmethod
-    def select(m, *columns, distinct=False):
+    @classmethod
+    def select(cls, m, *columns, distinct=False):
 
-        columns = columns or m.__table__.columns
+        columns = columns or with_table(m).columns
         return tables.Select(m, columns, distinct=distinct)
 
-    @staticmethod
-    def insert(m, data=None, **kwargs):
+    @classmethod
+    def _get_default_insert(cls, m):
+        insert_data = OrderedDict()
+        for col in with_table(m).fields_dict:
+            if cls._isai(m, col):
+                continue
+            insert_data[col] = col.default() if callable(col.default) else col.default
+        return insert_data
+
+    @classmethod
+    def _isai(cls, m, col):
+        return col == with_table(m).primary_key.field.name
+
+    @classmethod
+    def _generate_insert_row(cls, m, row):
+
+        insert_data = {}
+        for c, v in row.items():
+            if isinstance(c, types.__impl__.FieldBase):
+                c = c.name
+            if cls._isai(m, c):
+                raise errors.ModifyAutoPkError()
+            insert_data[c] = v
+
+        cleaned_data = cls._get_default_insert(m)
+        for col in cleaned_data:
+            v = insert_data.pop(col, None)
+            f = m.__tbale__.fields_dict[col]
+            if v is None and not f.null:
+                raise errors.InvalidColumnsVlaueError()
+            cleaned_data[col] = f.db_type(v)
+
+        if insert_data:
+            for c in insert_data:
+                raise errors.NoSuchColumnError(c)
+
+        return cleaned_data
+
+    @classmethod
+    @utils.argschecker(row=dict)
+    def insert(cls, m, row):
         """
         # Using keyword arguments:
         zaizee_id = Person.insert(first='zaizee', last='cat').execute()
@@ -220,11 +272,15 @@ class Api:
         Note.timestamp: datetime.datetime.now()}).execute()
         """
 
-        insert_data = data or kwargs
-        return tables.Insert(m.__table__.name, Rows(insert_data))
+        if not row:
+            raise ValueError("No data to insert.")
 
-    @staticmethod
-    def insert_many(m, rows, columns=None):
+        cleaned_data = cls._generate_insert_row(m, row)
+        return tables.Insert(with_table(m), Rows(cleaned_data))
+
+    @classmethod
+    @utils.argschecker(rows=types.SEQUENCE, columns=types.SEQUENCE)
+    def insert_many(cls, m, rows, columns=None):
         """
         people = [
             {'first': 'Bob', 'last': 'Foo'},
@@ -242,60 +298,86 @@ class Api:
             ('Nuggie', 'Bar')]
         Person.insert(people, columns=[Person.first, Person.last]).execute()
         """
+        if not rows:
+            raise ValueError("No data to insert.")
 
-        rows = Rows(rows, columns=columns)
-        return tables.Insert(m.__table__.name, rows)
+        if columns:
+            for c in columns:
+                if c not in with_table(m).fields_dict:
+                    raise errors.NoSuchColumnError(c)
 
-    @staticmethod
-    def update(m, **values):
+        cleaned_rows = []
+        for row in rows:
+            if isinstance(row, types.SEQUENCE):
+                if not columns:
+                    raise ValueError("Bulk insert must specify columns.")
+                row = dict(zip(row, columns))
+            elif not isinstance(row, dict):
+                raise ValueError()
 
-        return tables.Update(m.__table__, values)
+            cleaned_rows.append(cls._generate_insert_row(m, row))
 
-    @staticmethod
-    def delete(m):
+        return tables.Insert(with_table(m).name, Rows(cleaned_rows))
 
-        return tables.Delete(m.__table__)
+    @classmethod
+    def update(cls, m, **values):
 
-    @staticmethod
-    def replace(m, **values):
+        return tables.Update(with_table(m), values)
 
-        rows = Rows([values])
-        return tables.Replace(m.__table__, rows)
+    @classmethod
+    def delete(cls, m):
 
-    @staticmethod
-    async def save(mo):
+        return tables.Delete(with_table(m))
+
+    @classmethod
+    def replace(cls, m, **values):
+
+        return tables.Replace(with_table(m), Rows(values))
+
+    @classmethod
+    async def save(cls, mo):
         """ save mo """
 
-        rows = Rows([mo.__self__])
-        result = await tables.Replace(mo.__table__.name, rows).do()
-        mo.__setattr__(mo.__table__.name, result.last_id)
+        row = Rows(cls._generate_insert_row(mo, mo.__self__))
+        result = await tables.Replace(with_table(mo).name, row).do()
+        mo.__setattr__(with_table(mo).name, result.last_id)
         return result
 
-    @staticmethod
-    async def remove(mo):
+    @classmethod
+    async def remove(cls, mo):
         """ delete mo """
 
-        pk = mo.__getattr__(mo.__table__.pk.field.name)
-        if not pk:
-            raise RuntimeError()  # TODO
+        primary = mo.__getattr__(with_table(mo).primary.field.name)
+        if not primary:
+            raise RuntimeError()
 
         return await tables.Delete(
-            mo.__table__.name
-        ).where(mo.__table__.pk.field == pk).do()
+            with_table(mo).name
+        ).where(with_table(mo).primary.field == primary).do()
 
 
 class Rows:
 
-    def __init__(self, rows, columns=None):
-        pass
+    def __init__(self, rows):
+
+        if isinstance(rows, dict):
+            self._columns = list(rows.keys())
+            self._values = [tuple(rows.values())]
+        elif isinstance(rows, list):
+            self._columns = list(rows[0].keys())
+            self._values = [tuple(r.values()) for r in rows]
 
     @property
     def columns(self):
-        pass
+        return ["``".join(c) for c in self._columns]
 
     @property
     def values(self):
-        pass
+        return self._values
+
+    @property
+    def spec(self):
+        return ["'%s'"] * len(self._columns)
 
 
 class Loader:

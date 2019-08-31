@@ -1,6 +1,5 @@
 import sys
 import urllib.parse as urlparse
-from collections import namedtuple
 from functools import wraps
 
 import aiomysql
@@ -9,7 +8,6 @@ from .. import utils, errors
 
 
 SCHEMES = ('mysql',)
-ARG = namedtuple('Arg', ['dft', 'help'])
 
 
 @utils.singleton
@@ -30,25 +28,25 @@ class Pool:
         :Returns : `Pool` instance
     """
     _CONN_KWARGS = utils.Tdict(
-        host=ARG(dft="localhost", help='Host where the database server is located'),
-        user=ARG(dft=None, help='Username to log in as'),
-        password=ARG(dft="", help='Password to use'),
-        db=ARG(dft=None, help='Database to use, None to not use a particular one'),
-        port=ARG(dft=3306, help='MySQL port to use'),
-        charset=ARG(dft='', help='Charset you want to use'),
-        unix_socket=ARG(dft=None, help='You can use a unix socket rather than TCP/IP'),
-        read_default_file=ARG(dft=None, help='Specifies my.cnf file to read these parameters'),
-        use_unicode=ARG(dft=None, help='Whether or not to default to unicode strings'),
-        init_command=ARG(dft=None, help='Initial SQL statement to run when connectionion is established'),
-        connect_timeout=ARG(dft=20, help='Timeout before throwing an exception when connectioning'),
-        autocommit=ARG(dft=False, help='Autocommit mode. None means use server default'),
-        echo=ARG(dft=False, help='Echo mode'),
-        loop=ARG(dft=None, help='Asyncio loop'),
-        local_infile=ARG(dft=False, help='bool to enable the use of LOAD DATA LOCAL cmd'),
-        ssl=ARG(dft=None, help='Optional SSL Context to force SSL'),
-        auth_plugin=ARG(dft='', help='String to manually specify the authentication plugin to use'),
-        program_name=ARG(dft='', help='Program name string to provide'),
-        server_public_key=ARG(dft=None, help='SHA256 authentication plugin public key value'),
+        host="localhost",        # Host where the database server is located
+        user=None,               # Username to log in as
+        password="",             # Password to use
+        db=None,                 # Database to use, None to not use a particular one
+        port=3306,               # MySQL port to use
+        charset='',              # Charset you want to use
+        unix_socket=None,        # You can use a unix socket rather than TCP/IP
+        read_default_file=None,  # Specifies my.cnf file to read these parameters
+        use_unicode=None,        # Whether or not to default to unicode strings
+        init_command=None,       # Initial SQL statement to run when connectionion is established
+        connect_timeout=20,      # Timeout before throwing an exception when connectioning
+        autocommit=False,        # Autocommit mode. None means use server default
+        echo=False,              # Echo mode
+        loop=None,               # Asyncio loop
+        local_infile=False,      # bool to enable the use of LOAD DATA LOCAL cmd
+        ssl=None,                # Optional SSL Context to force SSL
+        auth_plugin='',          # String to manually specify the authentication plugin to use
+        program_name='',         # Program name string to provide
+        server_public_key=None,  # SHA256 authentication plugin public key value
     )
     _POOL_KWARGS = ('minsize', 'maxsize', 'echo', 'pool_recycle', 'loop')
 
@@ -106,7 +104,7 @@ class Pool:
 
         ret_kwargs = {}
         for arg in self._CONN_KWARGS:
-            ret_kwargs[arg] = conn_kwargs.pop(arg, None) or self._CONN_KWARGS[arg].dft
+            ret_kwargs[arg] = conn_kwargs.pop(arg, None) or self._CONN_KWARGS[arg]
         for exarg in conn_kwargs:
             raise TypeError(
                 f'{self.__class__.__name__} got an unexpected keyword argument {exarg}'
@@ -146,6 +144,8 @@ class Pool:
 
     @property
     def connmeta(self):
+        """ Pool connmeta """
+
         return self._connmeta
 
     def acquire(self):
