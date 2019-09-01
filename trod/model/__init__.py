@@ -5,10 +5,10 @@
 
 from . import core
 
-__all__ = ('TrodModel',)
+__all__ = ('Model',)
 
 
-class TrodModel(core.Model):
+class Model(core.ModelBase):
 
     @classmethod
     async def create(cls, **options):

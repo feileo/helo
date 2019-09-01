@@ -531,22 +531,22 @@ class FieldBase(ColumnBase):
         FieldBase._field_counter += 1
         self._seqnum = FieldBase._field_counter
         self.custom_wain()
-        super().__init__()
 
     @property
     def __def__(self):
         return Syntax(self).defi
 
     def __repr__(self):
-        isprimary_key = getattr(self, 'primary_key', False)
+        ispk = getattr(self, 'primary_key', False)
         extra = ""
-        if isprimary_key:
+        if ispk:
             extra = " [PRIMARY KEY]"
             if getattr(self, 'auto', False):
                 extra = " [PRIMARY KEY, AUTO_INCREMENT]"
         return f"types.{self.__class__.__name__}({self.__def__}{extra})"
 
-    __str__ = __repr__
+    def __str__(self):
+        return f"types.{self.__class__.__name__}({self.name})"
 
     def __hash__(self):
         if self.name:
@@ -1122,7 +1122,7 @@ class IndexBase(ABC):
             [self.__type__, self.__sfn__, fs, cm]).complete().sql
 
     def __repr__(self):
-        return f"types.{self.__class__.__name__}({self.__def__})"
+        return f"types.{self.__class__.__name__}({self.name})"
 
     __str__ = __repr__
 

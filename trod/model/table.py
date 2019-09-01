@@ -8,13 +8,12 @@ from .. import db, errors, utils, types
 class Table:
 
     __slots__ = (
-        "db", "name", "fields_dict", "primary",
-        "indexes", "auto_increment", "engine", "charset",
-        "comment",
+        "db", "name", "fields_dict", "primary", "indexes",
+        "auto_increment", "engine", "charset", "comment",
     )
 
     AIPK = 'id'
-    DEFAULT = utils.Tdict(
+    META = utils.Tdict(
         __db__=None,
         __table__=None,
         __indexes__=None,
@@ -31,11 +30,10 @@ class Table:
         self.fields_dict = fields
         self.primary = primary
         self.indexes = indexes
-        self.auto_increment = primary.ai or self.DEFAULT.__auto_increment__
-        self.engine = engine or self.DEFAULT.__engine__
-        self.charset = charset or self.DEFAULT.__charset__
-        self.comment = comment or self.DEFAULT.__comment__
-        super().__init__(None)
+        self.auto_increment = primary.begin or self.META.__auto_increment__
+        self.engine = engine or self.META.__engine__
+        self.charset = charset or self.META.__charset__
+        self.comment = comment or self.META.__comment__
 
     @property
     def __sfn__(self):
@@ -58,6 +56,12 @@ class Table:
     @property
     def def_indexes(self):
         return [i.__def__ for i in self.indexes]
+
+    def __metaattr__(self, name):
+        attr = name.strip("__")
+        if attr == "table":
+            return self.name
+        return getattr(attr)
 
     async def create(self, **options):
 

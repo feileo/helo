@@ -1,32 +1,55 @@
 import warnings
-from collections import OrderedDict
+from collections import OrderedDict as OD
 
-from trod import types, errors, utils
-from trod.model import tables
+from . import table
+from .. import types, errors, utils
+
+
+def with_metaclass(meta, *bases):
+
+    class MetaClass(type):
+
+        def __new__(cls, name, this_bases, d):
+            return meta(name, bases, d)
+
+        @classmethod
+        def __prepare__(cls, name, this_bases):
+            return meta.__prepare__(name, bases)
+
+    return type.__new__(MetaClass, 'temporary_class', (), {})
+
+
+def with_table(m):
+    return m.__table__
+
+
+def with_fields(m):
+    return m.__field__
 
 
 class ModelMeta(type):
 
     def __new__(cls, name, bases, attrs):
-        if name in ("Model", "TrodModel"):
+        if name in ("ModelBase", "Model"):
             return type.__new__(cls, name, bases, attrs)
 
-        def __prepare__(name, attrs):
+        def prepare(name, attrs):
             bound = attrs.pop("__db__", None)
             table_name = attrs.pop("__table__", None)
+
             if not table_name:
+                table_name = name.lower()
                 warnings.warn(
-                    f"Did not give the table name, use the model name `{name}`",
+                    f"Did not give the table name, use the model name `{table_name}`",
                     errors.ProgrammingWarning
                 )
-            table_name = name.lower()
 
-            fields = OrderedDict()
-            primary = utils.Tdict(auto=False, field=None, ai=None)
-
+            table_fields, model_names = OD(), {}
+            primary = utils.Tdict(auto=False, field=None, begin=None)
             for attr in attrs.copy():
                 if primary.field and attr == primary.field.name:
                     raise errors.DuplicateFieldNameError(f"Duplicate field name `{attr}`")
+
                 field = attrs.pop(attr)
                 if isinstance(field, types.__impl__.FieldBase):
                     field.name = field.name or attr
@@ -36,18 +59,19 @@ class ModelMeta(type):
                                 f"Duplicate primary key found for field {field.name}"
                             )
                         primary.field = field
-                        if field.ai:
+                        if getattr(field, "auto", False):
                             primary.auto = True
-                            primary.ai = int(field.ai)
-                            if field.name != tables.Table.AIPK:
+                            primary.begin = int(field.auto)
+                            if field.name != table.Table.AIPK:
                                 warnings.warn(
                                     "The field name of AUTO_INCREMENT primary key is suggested \
                                     to use `id` instead of {field.name}",
                                     errors.ProgrammingWarning
                                 )
 
-                    fields[field.name] = field
-                elif attr not in tables.Table.DEFAULT:
+                    model_names[attr] = field.name
+                    table_fields[field.name] = field
+                elif attr not in table.Table.META:
                     raise errors.InvalidFieldType(f"Invalid model field {attr}")
 
             if not primary.field:
@@ -62,100 +86,123 @@ class ModelMeta(type):
                 if not isinstance(index, types.__impl__.IndexBase):
                     raise errors.InvalidFieldType()
 
-            attrs['__table__'] = tables.Table(
+            attrs["__field__"] = model_names
+            attrs["__table__"] = table.Table(
                 database=bound, name=table_name,
-                fields=fields, primary=primary, indexes=tuple(indexes),
-                charset=attrs.pop('__charset__', None),
-                comment=attrs.pop('__comment__', None),
+                fields=table_fields, primary=primary, indexes=tuple(indexes),
+                charset=attrs.pop("__charset__", None),
+                comment=attrs.pop("__comment__", None),
             )
             return attrs
 
-        attrs = __prepare__(name, attrs)
+        attrs = prepare(name, attrs)
         return type.__new__(cls, name, bases, attrs)
 
-    # def __getattr__(cls, key):
-    #     try:
-    #         value = getattr(cls, key)
-    #     except AttributeError:
-    #         if key in cls.__table__.fields_dict:
-    #             value = cls.__table__.fields_dict[key]
-    #         else:
-    #             raise AttributeError(
-    #                 f"'{cls.__name__}' class does not have `{key}` attribute"
-    #             )
-    #     return value
+    @classmethod
+    def __getattr__(cls, name):
+        fn = with_fields(cls).get(name)
+        if fn:
+            return str(with_table(cls).fields_dict[fn])
 
-    def __setattr__(cls, _key, _value):
+        if name in with_table(cls).META:
+            return with_table(cls).__metaattr__(name)
+
+        raise AttributeError(
+            f'{cls.__name__} class does not have `{name}` attribute.'
+        )
+
+    @classmethod
+    def __setattr__(cls, *_args):
         raise errors.ModelSetAttrError(
             f"'{cls.__name__}' class not allow set attribute")
 
 
-class Model(metaclass=ModelMeta):
+class ModelBase(metaclass=ModelMeta):
 
     def __init__(self, **kwargs):
         for attr in kwargs:
             setattr(self, attr, kwargs[attr])
 
-    # def __repr__(self):
-    #     return "<{0}(table '{1}': {2})>".format(
-    #         self.__class__.__name__, self.__table__.name, self.__table__.comment
-    #     )
+    def __repr__(self):
+        return "<Model: {0}> for table `{1}`".format(
+            self.__class__.__name__, with_table(self).name
+        )
 
-    # __str__ = __repr__
+    def __str__(self):
+        return with_table(self).primary_key.field.name
 
     def __hash__(self):
-        pass
+        return hash(with_table(self).name)
 
-    # def __getattribute__(self, name):
-    #     pass
+    def __setattr__(self, name, value):
+        self.__setmodel__(name, value)
 
-    def __getattr__(self, key):
-        # attr 和 field name 不一样的情况
+    def __getattr__(self, name):
         try:
-            return self.__dict__[key]
+            return self.__dict__[name]
         except KeyError:
-            if key == self.__table__.primary.field.name or key in self.__table__.fields_dict:
-                value = None
-            else:
-                raise AttributeError(
-                    f"'{self.__class__.__name__}' object has no attribute '{key}'"
-                )
-            return value
-
-    def __setattr__(self, key, value, is_loader=False):
-        # attr 和 field name 不一样的情况
-        if self.__table__.primary.auto is True:
-            if key == self.__table__.primary.field.name:
-                raise errors.ModifyAutoPkError(
-                    'AUTO_INCREMENT table not allowed modify primary key'
-                )
-        if not is_loader and (key not in self.__table__.fields_dict):
+            if name in with_fields(self):
+                return None
             raise AttributeError(
-                f"'{self.__class.__name__}' object not allowed set attribute '{key}'"
+                f"'{self.__class__}' object has no attribute '{name}'"
             )
 
-        self.__dict__[key] = value
+    # def __delattr__(self, name):
+    #     pass
 
-    def __delattr__(self, name):
-        pass
+    # async def __iter__(self):
+    #     return iter(await self.select().all())
+
+    # def __getitem__(self, key):
+    #     return self.get_by_id(key)
+
+    # def __setitem__(self, key, value):
+    #     self.set_by_id(key, value)
+
+    # def __delitem__(self, key):
+    #     self.delete_by_id(key)
+
+    # def __contains__(self, key):
+    #     try:
+    #         self.get_by_id(key)
+    #     except self.DoesNotExist:
+    #         return False
+    #     else:
+    #         return True
+
+    # def __len__(self):
+    #     return self.select().count()
+
+    def __bool__(self):
+        return True
+
+    def __isaipk__(self, name):
+        pk = with_table(self).primary
+        return pk.auto and name == pk.field.name
+
+    def __setmodel__(self, name, value, __load=False):
+        fn = with_fields(self).get(name)
+        if not fn:
+            raise errors.SetNoAttrError(name)
+
+        if not __load and self.__isaipk__(fn):
+            raise errors.ModifyAutoPkError()
+
+        f = with_table(self).fields_dict[fn]
+        try:
+            value = f.py_value(f)
+        except (ValueError, TypeError):
+            raise errors.SetInvalidColumnsValueError()
+
+        self.__dict__[name] = value
 
     @property
     def __self__(self):
-        # attr 和 field name 在这里做转换
-        fields = [f for f in self.__table__.fields_dict]
-        values = OrderedDict()
-        for f in fields:
-            v = self.__getattr__(f.name)
-            if v is None:
-                v = f.default() if callable(f.default) else f.default
-            if v is None and not f.null:
-                raise errors.InvalidColumnsVlaueError()
-            values[f.name] = v
+        values = OD()
+        for n, v in self.__dict__.items():
+            values[with_fields(self)[n]] = v
+
         return values
-
-
-def with_table(m):
-    return m.__table__
 
 
 class Api:
@@ -185,7 +232,7 @@ class Api:
     @classmethod
     async def get(cls, m, _id):
 
-        return await tables.Select(
+        return await table.Select(
             m, with_table(m).columns
         ).where(
             with_table(m).fields_dict[with_table(m).primary.name] == _id
@@ -196,7 +243,7 @@ class Api:
 
         columns = columns or with_table(m).columns
 
-        return await tables.Select(
+        return await table.Select(
             m, columns
         ).where(
             with_table(m).fields_dict[with_table(m).primary.name].in_(ids)
@@ -206,48 +253,46 @@ class Api:
     def add(cls, m, instance):
 
         rows = Rows(instance.__self__)
-        return tables.Insert(with_table(m), rows)
+        return table.Insert(with_table(m), rows)
 
     @classmethod
     def add_many(cls, m, instances):
 
         rows = Rows([instance.__self__ for instance in instances])
-        return tables.Insert(with_table(m), rows)
+        return table.Insert(with_table(m), rows)
 
     @classmethod
     def select(cls, m, *columns, distinct=False):
 
         columns = columns or with_table(m).columns
-        return tables.Select(m, columns, distinct=distinct)
+        return table.Select(m, columns, distinct=distinct)
 
     @classmethod
-    def _get_default_insert(cls, m):
-        insert_data = OrderedDict()
+    def _get_default_row(cls, m):
+
+        insert_data = OD()
         for col in with_table(m).fields_dict:
-            if cls._isai(m, col):
+            if m.__isaipk__(col):
                 continue
             insert_data[col] = col.default() if callable(col.default) else col.default
+
         return insert_data
 
     @classmethod
-    def _isai(cls, m, col):
-        return col == with_table(m).primary_key.field.name
-
-    @classmethod
-    def _generate_insert_row(cls, m, row):
+    def _gen_insert_row(cls, m, row_data):
 
         insert_data = {}
-        for c, v in row.items():
+        for c, v in row_data.items():
             if isinstance(c, types.__impl__.FieldBase):
                 c = c.name
-            if cls._isai(m, c):
+            if m.__isaipk__(c):
                 raise errors.ModifyAutoPkError()
             insert_data[c] = v
 
-        cleaned_data = cls._get_default_insert(m)
+        cleaned_data = cls._get_default_row(m)
         for col in cleaned_data:
             v = insert_data.pop(col, None)
-            f = m.__tbale__.fields_dict[col]
+            f = with_table(m).fields_dict[col]
             if v is None and not f.null:
                 raise errors.InvalidColumnsVlaueError()
             cleaned_data[col] = f.db_type(v)
@@ -275,8 +320,8 @@ class Api:
         if not row:
             raise ValueError("No data to insert.")
 
-        cleaned_data = cls._generate_insert_row(m, row)
-        return tables.Insert(with_table(m), Rows(cleaned_data))
+        cleaned_data = cls._gen_insert_row(m, row)
+        return table.Insert(with_table(m), Rows(cleaned_data))
 
     @classmethod
     @utils.argschecker(rows=types.SEQUENCE, columns=types.SEQUENCE)
@@ -315,32 +360,32 @@ class Api:
             elif not isinstance(row, dict):
                 raise ValueError()
 
-            cleaned_rows.append(cls._generate_insert_row(m, row))
+            cleaned_rows.append(cls._gen_insert_row(m, row))
 
-        return tables.Insert(with_table(m).name, Rows(cleaned_rows))
+        return table.Insert(with_table(m).name, Rows(cleaned_rows))
 
     @classmethod
     def update(cls, m, **values):
 
-        return tables.Update(with_table(m), values)
+        return table.Update(with_table(m), values)
 
     @classmethod
     def delete(cls, m):
 
-        return tables.Delete(with_table(m))
+        return table.Delete(with_table(m))
 
     @classmethod
     def replace(cls, m, **values):
 
-        return tables.Replace(with_table(m), Rows(values))
+        return table.Replace(with_table(m), Rows(values))
 
     @classmethod
     async def save(cls, mo):
         """ save mo """
 
-        row = Rows(cls._generate_insert_row(mo, mo.__self__))
-        result = await tables.Replace(with_table(mo).name, row).do()
-        mo.__setattr__(with_table(mo).name, result.last_id)
+        row = Rows(cls._gen_insert_row(mo, mo.__self__))
+        result = await table.Replace(with_table(mo).name, row).do()
+        mo.__setmodel__(with_table(mo).name, result.last_id, __load=True)
         return result
 
     @classmethod
@@ -351,7 +396,7 @@ class Api:
         if not primary:
             raise RuntimeError()
 
-        return await tables.Delete(
+        return await table.Delete(
             with_table(mo).name
         ).where(with_table(mo).primary.field == primary).do()
 
@@ -384,14 +429,14 @@ class Loader:
     pass
 
 
-def load(results, model, use_tdict):
+# def load(results, model, use_tdict):
 
-    if not results:
-        return _empty(results, model, use_tdict)
+#     if not results:
+#         return _empty(results, model, use_tdict)
 
-    if use_tdict:
-        return utils.formattdict(results)
-    return _load_to_model(results, model)
+#     if use_tdict:
+#         return utils.formattdict(results)
+#     return _load_to_model(results, model)
 
 
 def _empty(results, model, use_tdict):
