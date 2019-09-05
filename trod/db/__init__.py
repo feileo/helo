@@ -3,108 +3,63 @@
     ~~~~~~~
 """
 
-from .db import Pool, Executer, __ensure__
+from . import __impl__
 
 
 __all__ = (
     'binding',
-    'exec',
-    'close'
+    'execute',
+    'unbinding',
+    'poolmeta',
 )
 
 
-@__ensure__(needbind=False)
+@__impl__.__ensure__(bound=False)
 async def binding(*args, **kwargs):
+    """A coroutine that binding a database(create a connection pool).
+
+    The pool is a singleton, repeated create will cause errors.
+    Returns true after successful create
+
+    For parameters, see ``__impl__.Pool` and ``__impl__.Pool.from_url``
+    """
 
     if args or kwargs.get("url"):
-        pool = await Pool.from_url(*args, **kwargs)
+        pool = await __impl__.Pool.from_url(*args, **kwargs)
     else:
-        pool = await Pool(*args, **kwargs)
+        pool = await __impl__.Pool(*args, **kwargs)
 
-    Executer.activate(pool)
+    __impl__.Executer.activate(pool)
     return True
 
 
-@__ensure__(needbind=True)
-async def exec(sql, params=None, **kwargs):
+@__impl__.__ensure__(bound=True)
+async def execute(sql, params=None, mode=None, **kwargs):
+    """A coroutine that execute sql and return the results of its execution
 
-    fetch = kwargs.get("fetch")
+    :param int mode: read or write mode, see ``__impl__.R`` and ``__impl__.W``
+    :param str sql: sql query statement
+    :param params list/tuple: query values for sql
+    """
+
+    mode = mode or __impl__.detach(sql)
     db = kwargs.get("db")
-    many = kwargs.get("many")
-
-    if fetch:
-        return await Executer.fetch(sql, params=params, db=db)
-    return await Executer.execute(sql, params=params, many=many, db=db)
-
-
-async def close():
-    return await Executer.death()
+    if mode == __impl__.R:
+        return await __impl__.Executer.fetch(sql, params=params, db=db)
+    return await __impl__.Executer.execute(
+        sql, params=params, many=kwargs.get("many", False), db=db
+    )
 
 
-#     @classmethod
-#     def select_db(cls, db=None):
-#         if db is None:  # pylint: disable=all
-#             if not cls._pool:
-#                 raise RuntimeError()
-#             return cls.get_connmeta().db
-#         elif not db or not isinstance(db, str):
-#             raise ValueError()
+@__impl__.__ensure__(bound=True)
+async def unbinding():
+    """A coroutine that unbinding a database(close the connection pool)."""
 
-#         with cls.dblock:
-#             cls.selected = db
-
-#         return cls.selected
+    return await __impl__.Executer.death()
 
 
-# def current():
-#     c_db = None
-#     if Connector.selected:
-#         c_db = Connector.selected
-#     else:
-#         connmeta = Connector.get_connmeta()
-#         if connmeta:
-#             c_db = connmeta.db
-#     return c_db
+@__impl__.__ensure__(bound=True)
+def poolmeta():
+    """Returns the current state of the connection pool"""
 
-
-# class Doer:
-
-#     __slots__ = ('_model', '_sql', '_args')
-#     __fetch__ = False
-
-#     def __init__(self, model, sql=None, args=None):
-#         self._model = model
-#         self._sql = sql or []
-#         self._args = args
-
-#     def __str__(self):
-#         args = f' % {self._args}' if self._args else ''
-#         return f"Doer by {Connector.get_pool()}\n For SQL({self.sql}{args})"
-
-#     __repr__ = __str__
-
-#     @property
-#     def sql(self):
-#         if isinstance(self._sql, (list, tuple)):
-#             if self._sql:
-#                 self._sql.append(';')
-#                 self._sql = ' '.join(self._sql)
-#         return self._sql
-
-#     async def do(self):
-
-#         pool = Connector.get_pool()
-#         db = Connector.selected
-
-#         if self.__fetch__:
-#             fetch_results = await Executer.fetch(
-#                 pool, self.sql, args=self._args, db=db
-#             )
-#             tdicts = getattr(self, 'tdicts', True)
-#             return loader.load(self._model, fetch_results, tdicts)
-
-#         exec_results = await Executer.execute(
-#             pool, self.sql, values=self._args,
-#             is_batch=getattr(self, '_batch', False), db=db
-#         )
-#         return loader.ExecResults(*exec_results)
+    return __impl__.Executer.poolmeta()

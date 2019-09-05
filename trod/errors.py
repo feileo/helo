@@ -20,6 +20,26 @@ class NoColumnNameError(RuntimeError):
         super().__init__(msg or self.description)
 
 
+class NoSuchColumnError(RuntimeError):
+    pass
+
+
+class SetNoAttrError(AttributeError):
+    description = "{} object not allowed set attribute '{name}'"
+
+
+class SetInvalidColumnsValueError(RuntimeError):
+    pass
+
+
+class InvalidColumnsVlaueError(RuntimeError):
+    pass
+
+
+class ProgrammingError(RuntimeError):
+    pass
+
+
 class DuplicateFieldNameError(RuntimeError):
     pass
 
@@ -49,7 +69,7 @@ class MissingPKError(RuntimeError):
 
 
 class ModifyAutoPkError(RuntimeError):
-    pass
+    description = "AUTO_INCREMENT table not allowed modify primary name"
 
 
 class AddEmptyInstanceError(RuntimeError):
