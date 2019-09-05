@@ -1,7 +1,11 @@
+from __future__ import annotations
+
 import inspect
 from collections.abc import Iterable
 from functools import wraps
 
+
+from typing import Any, Optional, Callable, Union, Dict
 
 __all__ = (
     'Tdict',
@@ -13,14 +17,21 @@ __all__ = (
 
 
 class Tdict(dict):
-    """ Is a class that makes it easier to access the elements of the dict """
+    """ Is a class that makes a dictionary behave like an object,
+        with attribute-style access.
+    """
 
-    def __init__(self, keys=(), values=(), **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
-        for key, value in zip(keys, values):
-            self[key] = value
 
-    def __getattr__(self, key):
+        keys = kwargs.pop("keys", None)
+        values = kwargs.pop("values", None)
+
+        if keys and values:
+            for key, value in zip(keys, values):
+                self[key] = value
+
+    def __getattr__(self, key: Any) -> Any:
         try:
             return self[key]
         except KeyError:
@@ -28,33 +39,25 @@ class Tdict(dict):
                 f"Tdict object has not attribute {key}."
             )
 
-    def __setattr__(self, key, value):
+    def __setattr__(self, key: Any, value: Any) -> None:
         self[key] = value
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Tdict({super().__repr__()})"
 
     __str__ = __repr__
 
-    def __iadd__(self, rhs):
-        self.update(rhs)
+    def __iadd__(self, other: dict) -> Tdict:
+        self.update(other)
         return self
 
-    def __add__(self, rhs):
-        td = Tdict(self)
-        td.update(rhs)
+    def __add__(self, other: dict) -> Tdict:
+        td = Tdict(**self)
+        td.update(other)
         return td
 
-    def from_object(self, obj):
-        if not isinstance(obj, type):
-            raise TypeError(f'Invalid obj type: {obj}')
 
-        for key in dir(obj):
-            if key.isupper():
-                self[key] = getattr(obj, key)
-
-
-def tdictformatter(is_async=False):
+def tdictformatter(is_async: Optional[bool] = False) -> Callable:
     """ A function decorator that convert the returned dict object to Tdict
         If it is a list, recursively convert its elements
     """
@@ -103,7 +106,7 @@ def asyncinit(obj):
     """
 
     if not inspect.isclass(obj):
-        raise ValueError("decorated object must be a class")
+        raise ValueError("Decorated object must be a class")
 
     if obj.__new__ is object.__new__:
         cls_new = _new
@@ -155,7 +158,7 @@ def argschecker(*cargs, **ckwargs):
     return decorator
 
 
-def formattdict(target):
+def formattdict(target) -> Union[list, Tdict, None]:
     if target is None:
         return target
     if isinstance(target, dict):
@@ -164,10 +167,10 @@ def formattdict(target):
         fmt_result = []
         for item in target:
             if isinstance(item, (str, int, bool)):
-                raise ValueError(f"Invalid data type '{target}' to convert `Tdict`")
+                raise TypeError(f"Invalid data type '{target}' to convert `Tdict`")
             fmt_result.append(formattdict(item))
         return fmt_result
-    raise ValueError(f"Invalid data type '{target}' to convert `Tdict`")
+    raise TypeError(f"Invalid data type '{target}' to convert `Tdict`")
 
 
 async def _new(cls, *_args, **_kwargs):
@@ -200,7 +203,7 @@ def to_list(*args):
     return result
 
 
-def tuple_formatter(args):
+def tuple_format(args):
     """ Arg to tuple """
 
     res_args = None

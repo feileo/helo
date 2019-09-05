@@ -1,19 +1,20 @@
+from __future__ import annotations
+
+import asyncio
 import sys
 import urllib.parse as urlparse
 from functools import wraps
+from typing import Optional, Any, Union, Tuple, Callable, Dict
 
 import aiomysql
 
 from .. import utils, errors
 
 
-SCHEMES = ('mysql',)
-
-
-@utils.singleton
+@utils.singleton(True)
 @utils.asyncinit
 class Pool:
-    """ Create a MySQL connectionion pool based on `aiomysql.create_pool`.
+    """Create a MySQL connection pool based on `aiomysql.create_pool`.
 
         :param int minsize: Minimum sizes of the pool
         :param int maxsize: Maximum sizes of the pool
@@ -56,10 +57,17 @@ class Pool:
 
         dict_type = utils.Tdict
 
-    async def __init__(self, minsize=1, maxsize=15, echo=False,
-                       pool_recycle=-1, loop=None, **conn_kwargs):
+    async def __init__(  # type: ignore
+            self,
+            minsize: int = 1,
+            maxsize: int = 15,
+            echo: bool = False,
+            pool_recycle: int = -1,
+            loop: Optional[asyncio.AbstractEventLoop] = None,
+            **conn_kwargs: Any
+    ) -> None:
 
-        conn_kwargs = utils.formattdict(self._check_conn_kwargs(conn_kwargs))
+        conn_kwargs = self._check_conn_kwargs(conn_kwargs)
         conn_kwargs['cursorclass'] = self.TdictCursor
         self._pool = await aiomysql.create_pool(
             minsize=minsize, maxsize=maxsize, echo=echo,
@@ -67,40 +75,33 @@ class Pool:
             **conn_kwargs
         )
         self._connmeta = conn_kwargs
-        super().__init__(**conn_kwargs)
 
     @classmethod
-    async def from_url(cls, url, minsize=1, maxsize=15, echo=False,
-                       pool_recycle=-1, loop=None, **conn_kwargs):
-        """ Provide a factory method `from_url` to create a connectionion pool.
+    async def from_url(cls, url: str, **kwargs: Any) -> Pool:
+        """Provide a factory method `from_url` to create a connection pool.
 
-        :params see `__init__` for information
+        :params url: mysql url to connect
+        :params kwargs: see `__init__` for information
 
-        :Returns : `Pool` instance
+        :Returns: `Pool` instance
         """
         if not url:
-            raise ValueError('Db url cannot be empty')
+            raise ValueError('Database url cannot be empty')
 
-        db_meta = UrlParser(url).parse()
-        db_meta.update(conn_kwargs)
-        for arg in cls._POOL_KWARGS:
-            db_meta.pop(arg, None)
+        params = UrlParser(url).parse()
+        params.update(kwargs)
 
-        return await cls(
-            minsize=minsize, maxsize=maxsize, echo=echo,
-            pool_recycle=pool_recycle, loop=loop,
-            **db_meta
-        )
+        return await cls(**params)  # type: ignore
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "<Pool[{1}:{2}] for {3}:{4}/{5}>".format(
             self.minsize, self.maxsize,
-            self.connmeta.host, self.connmeta.port, self.connmeta.db
+            self.connmeta["host"], self.connmeta["port"], self.connmeta["db"]
         )
 
     __str__ = __repr__
 
-    def _check_conn_kwargs(self, conn_kwargs):
+    def _check_conn_kwargs(self, conn_kwargs: Any) -> dict:
 
         ret_kwargs = {}
         for arg in self._CONN_KWARGS:
@@ -112,61 +113,61 @@ class Pool:
         return ret_kwargs
 
     @property
-    def echo(self):
-        """ echo mode"""
+    def echo(self) -> bool:
+        """Pool echo mode"""
 
         return self._pool.echo
 
     @property
-    def minsize(self):
-        """ pool minsize """
+    def minsize(self) -> int:
+        """Pool minsize"""
 
         return self._pool.minsize
 
     @property
-    def maxsize(self):
-        """ pool maxsize"""
+    def maxsize(self) -> int:
+        """Pool pool maxsize"""
 
         return self._pool.maxsize
 
     @property
-    def size(self):
-        """ The current size of the pool,
-            including the used and idle connectionions
+    def size(self) -> int:
+        """The current size of the pool,
+           including the used and idle connectionions
         """
         return self._pool.size
 
     @property
-    def freesize(self):
-        """ Pool free size """
+    def freesize(self) -> int:
+        """Pool free size"""
 
         return self._pool.freesize
 
     @property
-    def connmeta(self):
-        """ Pool connmeta """
+    def connmeta(self) -> utils.Tdict:
+        """Pool connection meta"""
 
-        return self._connmeta
+        return utils.formattdict(self._connmeta)  # type: ignore
 
-    def acquire(self):
-        """ Acquice a connectionion """
+    def acquire(self) -> aiomysql.Connection:
+        """Acquice a connectionion from the pool"""
 
         return self._pool.acquire()
 
-    def release(self, connection):
-        """ Reverts connectionion conn to free pool for future recycling. """
+    def release(self, connection: aiomysql.Connection) -> Any:
+        """Reverts connectionion conn to free pool for future recycling"""
 
         return self._pool.release(connection)
 
-    async def clear(self):
-        """ A coroutine that closes all free connectionions in the pool.
-            At next connectionion acquiring at least minsize of them will be recreated
+    async def clear(self) -> None:
+        """A coroutine that closes all free connectionions in the pool.
+           At next connectionion acquiring at least minsize of them will be recreated
         """
 
         await self._pool.clear()
 
-    async def close(self):
-        """ A coroutine that close pool.
+    async def close(self) -> None:
+        """A coroutine that close pool.
 
         Mark all pool connectionions to be closed on getting back to pool.
         Closed pool doesn't allow to acquire new connectionions.
@@ -176,8 +177,8 @@ class Pool:
             self._pool.close()
             await self._pool.wait_closed()
 
-    async def terminate(self):
-        """ A coroutine that terminate pool.
+    async def terminate(self) -> None:
+        """A coroutine that terminate pool.
 
         Close pool with instantly closing all acquired connectionions also.
         """
@@ -186,24 +187,22 @@ class Pool:
 
 
 class Executer:
+    """SQL statement executor for mysql"""
 
     __slots__ = ()
 
     pool = None
 
     @classmethod
-    def activate(cls, connpool):
+    def activate(cls, connpool: Pool) -> None:
         cls.pool = connpool
 
-        import asyncio
         import atexit
 
-        atexit.register(
-            lambda: asyncio.get_event_loop().run_until_complete(cls.death())
-        )
+        atexit.register(lambda: asyncio.run(cls.death()))
 
     @classmethod
-    async def death(cls):
+    async def death(cls) -> bool:
         if cls.pool is None:
             return False
 
@@ -212,16 +211,20 @@ class Executer:
         return True
 
     @classmethod
-    def active(cls):
+    def active(cls) -> bool:
         return bool(cls.pool)
 
     @classmethod
-    async def fetch(cls, sql, params=None, rows=None, db=None):
-
+    async def fetch(
+            cls, sql: str,
+            params: Optional[Union[tuple, list]] = None,
+            rows: Optional[int] = None,
+            db: Optional[str] = None
+    ) -> Union[None, list, utils.Tdict]:
         if params:
-            params = utils.tuple_formatter(params)
+            params = utils.tuple_format(params)
 
-        async with cls.pool.acquire() as connection:
+        async with cls.pool.acquire() as connection:  # type: ignore
 
             if db:
                 await connection.select_db(db)
@@ -236,18 +239,23 @@ class Executer:
                     else:
                         result = await cur.fetchall()
                 except Exception:
-                    exc_type, exc_value, _ = sys.exc_info()
-                    error = exc_type(exc_value)
+                    exc_type, exc_value, _traceback = sys.exc_info()
+                    error = exc_type(exc_value)  # type: ignore
                     raise error
         return result
 
     @classmethod
-    async def execute(cls, sql, params=None, many=False, db=None):
+    async def execute(
+            cls, sql: str,
+            params: Optional[Union[tuple, list]] = None,
+            many: bool = False,
+            db: Optional[str] = None
+    ) -> Tuple[int, int]:
         sql = sql.strip()
         if params:
-            params = utils.tuple_formatter(params)
+            params = utils.tuple_format(params)
 
-        async with cls.pool.acquire() as connection:
+        async with cls.pool.acquire() as connection:  # type: ignore
             if db:
                 await connection.select_db(db)
 
@@ -266,13 +274,15 @@ class Executer:
             except Exception:
                 if not autocommit:
                     await connection.rollback()
-                exc_type, exc_value, _ = sys.exc_info()
-                error = exc_type(exc_value)
+                exc_type, exc_value, _traceback = sys.exc_info()
+                error = exc_type(exc_value)  # type: ignore
                 raise error
+
         return affected, last_id
 
 
-def __ensure__(needbind):
+def __ensure__(needbind) -> Callable:
+    """A decorator to ensure that the executor has been activated or dead."""
 
     def decorator(func):
 
@@ -287,35 +297,36 @@ def __ensure__(needbind):
                     raise errors.UnboundError()
             return func(*args, **kwargs)
         return checker
+
     return decorator
 
 
 class UrlParser:
-    """ Database url parser """
+    """Database url parser"""
+
+    SCHEMES = ('mysql',)
 
     __slots__ = ('url', )
 
-    def __init__(self, url):
+    def __init__(self, url: str) -> None:
         self.url = url
 
     @utils.tdictformatter()
-    def parse(self):
+    def parse(self) -> Dict[str, Any]:
         """ do parse database url """
 
         if not self._is_illegal_url():
             raise ValueError(f'Invalid db url {self.url}')
-        self._register()
 
+        self._register()
         url = urlparse.urlparse(self.url)
 
-        if url.scheme not in SCHEMES:
+        if url.scheme not in self.SCHEMES:
             raise ValueError(f'Unsupported scheme {url.scheme}')
 
         path, query = url.path[1:], url.query
         if '?' in path and not url.query:
             path, query = path.split('?', 2)
-
-        query = urlparse.parse_qs(query)
 
         hostname = url.hostname or ''
         if '%2f' in hostname.lower():
@@ -326,7 +337,7 @@ class UrlParser:
                 hostname = hostname.split(":", 1)[0]
             hostname = hostname.replace('%2f', '/').replace('%2F', '/')
 
-        db_meta = {
+        parsed = {
             'db': urlparse.unquote(path or ''),
             'user': urlparse.unquote(url.username or ''),
             'password': urlparse.unquote(url.password or ''),
@@ -335,25 +346,25 @@ class UrlParser:
         }
 
         options = {}
-        for key, values in query.items():
+        for key, values in urlparse.parse_qs(query).items():
             if url.scheme == 'mysql' and key == 'ssl-ca':
                 options['ssl'] = {'ca': values[-1]}
                 continue
 
-            options[key] = values[-1]
+            options[key] = values[-1]   # type: ignore
 
         if options:
-            db_meta.update(options)
+            parsed.update(options)      # type: ignore
 
-        return db_meta
+        return parsed
 
-    def _register(self):
-        """ Register database schemes in URLs """
+    def _register(self) -> None:
+        """Register database schemes in URLs"""
 
-        urlparse.uses_netloc.extend(SCHEMES)
+        urlparse.uses_netloc.extend(self.SCHEMES)
 
-    def _is_illegal_url(self):
-        """ A bool of is illegal url """
+    def _is_illegal_url(self) -> bool:
+        """A bool of is illegal url"""
 
         url = urlparse.urlparse(self.url)
         if all([url.scheme, url.netloc]):

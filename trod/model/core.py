@@ -380,6 +380,11 @@ class Api:
         return table.Replace(with_table(m), Rows(values))
 
     @classmethod
+    def replace_many(cls, m, **values):
+
+        return table.Replace(with_table(m), Rows(values))
+
+    @classmethod
     async def save(cls, mo):
         """ save mo """
 

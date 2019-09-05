@@ -30,7 +30,7 @@ async def execute(sql, params=None, **kwargs):
 
     fetch = kwargs.get("fetch")
     db = kwargs.get("db")
-    many = kwargs.get("many")
+    many = kwargs.get("many", False)
 
     sql = getattr(sql, "sql", sql)
     if fetch:

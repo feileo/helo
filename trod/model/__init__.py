@@ -66,6 +66,10 @@ class Model(core.ModelBase):
     def replace(cls, **values):
         return core.Api.replace(cls, **values)
 
+    @classmethod
+    def mreplace(cls, **values):
+        return core.Api.replace_many(cls, **values)
+
     async def save(self):
         return await core.Api.save(self)
 

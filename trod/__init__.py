@@ -18,7 +18,7 @@ __all__ = (
 
 class Trod:
 
-    Model = model.TrodModel
+    Model = model.Model
 
     async def bind(self, *args, **kwargs):
 

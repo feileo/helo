@@ -4,7 +4,6 @@ import decimal
 import time
 import uuid
 import warnings
-from abc import ABC
 
 from .. import errors, utils
 
@@ -1083,7 +1082,7 @@ class Funcs:
         return _Alias(self, alias)
 
 
-class IndexBase(ABC):
+class IndexBase:
 
     __slots__ = ('fields', 'comment', 'name', '_seq_num', )
 
