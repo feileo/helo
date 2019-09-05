@@ -16,17 +16,15 @@ from .. import utils, errors
 class Pool:
     """Create a MySQL connection pool based on `aiomysql.create_pool`.
 
-        :param int minsize: Minimum sizes of the pool
-        :param int maxsize: Maximum sizes of the pool
-        :param bool echo: Executed log SQL queryes
-        :param int pool_recycle: Connection reset period, default -1,
-            indicating that the connectionion will be reclaimed after a given time,
-            be careful not to exceed MySQL default time of 8 hours
-        :param loop: Is an optional event loop instance,
-            asyncio.get_event_loop() is used if loop is not specified.
-        :param conn_kwargs: See `_CONN_KWARGS`.
-
-        :Returns : `Pool` instance
+    :param int minsize: Minimum sizes of the pool
+    :param int maxsize: Maximum sizes of the pool
+    :param bool echo: Executed log SQL queryes
+    :param int pool_recycle: Connection reset period, default -1,
+        indicating that the connectionion will be reclaimed after a given time,
+        be careful not to exceed MySQL default time of 8 hours
+    :param loop: Is an optional event loop instance,
+        asyncio.get_event_loop() is used if loop is not specified.
+    :param conn_kwargs: See `_CONN_KWARGS`.
     """
     _CONN_KWARGS = utils.Tdict(
         host="localhost",        # Host where the database server is located
@@ -41,8 +39,6 @@ class Pool:
         init_command=None,       # Initial SQL statement to run when connectionion is established
         connect_timeout=20,      # Timeout before throwing an exception when connectioning
         autocommit=False,        # Autocommit mode. None means use server default
-        echo=False,              # Echo mode
-        loop=None,               # Asyncio loop
         local_infile=False,      # bool to enable the use of LOAD DATA LOCAL cmd
         ssl=None,                # Optional SSL Context to force SSL
         auth_plugin='',          # String to manually specify the authentication plugin to use
@@ -81,9 +77,9 @@ class Pool:
         """Provide a factory method `from_url` to create a connection pool.
 
         :params url: mysql url to connect
-        :params kwargs: see `__init__` for information
+        :params kwargs: see ``__init__`` for information
 
-        :Returns: `Pool` instance
+        :returns: ``Pool`` instance
         """
         if not url:
             raise ValueError('Database url cannot be empty')
@@ -187,7 +183,7 @@ class Pool:
 
 
 class Executer:
-    """SQL statement executor for mysql"""
+    """Executor of MySQL query."""
 
     __slots__ = ()
 
@@ -232,12 +228,12 @@ class Executer:
             async with connection.cursor() as cur:
                 try:
                     await cur.execute(sql.strip(), params or ())
-                    if rows and rows == 1:
-                        result = await cur.fetchone()
-                    elif rows:
-                        result = await cur.fetchmany(rows)
-                    else:
+                    if not rows:
                         result = await cur.fetchall()
+                    elif rows and rows == 1:
+                        result = await cur.fetchone()
+                    else:
+                        result = await cur.fetchmany(rows)
                 except Exception:
                     exc_type, exc_value, _traceback = sys.exc_info()
                     error = exc_type(exc_value)  # type: ignore
@@ -280,8 +276,19 @@ class Executer:
 
         return affected, last_id
 
+    @classmethod
+    def poolmeta(cls) -> Optional[utils.Tdict]:
+        if cls.pool is None:
+            return None
+        return utils.Tdict(
+            minsize=cls.pool.minsize,
+            maxsize=cls.pool.maxsize,
+            size=cls.pool.size,
+            freesize=cls.pool.freesize,
+        )
 
-def __ensure__(needbind) -> Callable:
+
+def __ensure__(bound) -> Callable:
     """A decorator to ensure that the executor has been activated or dead."""
 
     def decorator(func):
@@ -289,16 +296,28 @@ def __ensure__(needbind) -> Callable:
         @wraps(func)
         def checker(func, *args, **kwargs):
             if Executer.active():
-                if not needbind:
+                if not bound:
                     cm = Executer.pool.connmeta
                     raise errors.DuplicateBinding(host=cm.host, port=cm.port)
-            else:
-                if needbind:
-                    raise errors.UnboundError()
+            elif bound:
+                raise errors.UnboundError()
             return func(*args, **kwargs)
+
         return checker
 
     return decorator
+
+
+R = 1
+W = 2
+_KEYS = ("SELECT", "SHOW")
+
+
+def detach(sql: str) -> int:
+    for k in _KEYS:
+        if k in sql or k.lower() in sql:
+            return R
+    return W
 
 
 class UrlParser:
