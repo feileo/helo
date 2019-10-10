@@ -1,80 +1,55 @@
-import asyncio
-import unittest
+import pytest
 
-import aiomysql
+from trod.g import _helper
 
-from tests.base import get_test_db_url
-from trod.db.connector import Connector, DefaultConnConfig, Schemes
-from trod.db.executer import RequestClient
-from trod.errors import InvaildDBUrlError, DuplicateBindError
+from . import base
 
 
-class TestDB(unittest.TestCase):
+@pytest.mark.asyncio
+async def test_db():
 
-    def setUp(self):
-        self.loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(None)
+    async with base.Binder() as db:
 
-    def tearDown(self):
-        self.loop.close()
+        assert db.poolstate().maxsize == 15
 
-    def test(self):
+        await db.execute(
+            _helper.Query(
+                "CREATE TABLE IF NOT EXISTS `user` ("
+                "`id` int(20) unsigned NOT NULL AUTO_INCREMENT,"
+                "`name` varchar(100) NOT NULL DEFAULT '' COMMENT '用户名',"
+                "`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+                "PRIMARY KEY (`id`),"
+                "UNIQUE KEY `idx_name` (`name`)"
+                ") ENGINE=InnoDB AUTO_INCREMENT=26 "
+                " DEFAULT CHARSET=utf8 COMMENT='用户表';"
+            )
+        )
 
-        async def do_test():
+        await db.execute(
+            _helper.Query(
+                "INSERT INTO `user` (`id`, `name`) VALUES (%s, %s);",
+                params=[(1, 'acth'), (2, 'asdkj'), (3, 'dsd')]),
+            many=True,
+        )
 
-            # Connector Test
-            connector = await Connector.create('')
-            self.assertIsNone(connector)
+        result = await db.execute(
+            _helper.Query(
+                "SELECT * FROM `user` where id in %s;", params=((1, 2, 3),)
+            )
+        )
+        print(result)
 
-            invalid_url = 'hehe'
-            try:
-                await Connector.create(url=invalid_url)
-                assert False, 'Should be raise a InvaildDBUrlError'
-            except InvaildDBUrlError:
-                pass
+        assert result[0].name == 'acth'
 
-            timeout = 10
-            # Reuse the connection binded in AsyncioTestBase.prepare
-            connector = await Connector.create(get_test_db_url(), timeout=timeout)
-            self.assertIsInstance(connector, Connector)
+        result = await db.execute(
+            _helper.Query(
+                "DELETE FROM `user` where id=%s;", params=1
+            ))
+        print(result)
+        assert result[0] == 1
 
-            pool_status = connector.status
-            self.assertEqual(pool_status.minsize, DefaultConnConfig.MINSIZE)
-            self.assertEqual(pool_status.maxsize, DefaultConnConfig.MAXSIZE)
-            pool_info = connector.db
-            self.assertEqual(pool_info.db.scheme, Schemes.MYSQL.name.lower())
-            # timeout is still the default, not 10
-            self.assertEqual(pool_info.extra.connect_timeout, DefaultConnConfig.TIMEOUT)
-
-            a_conn = await connector.get()
-            self.assertIsInstance(a_conn, aiomysql.connection.Connection)
-            self.assertTrue(connector.release(a_conn))
-            self.assertTrue(await connector.clear())
-
-            try:
-                await RequestClient.bind_db_by_conn(connector)
-                assert False, 'Should be raise a DeprecateBindError'
-            except DuplicateBindError:
-                pass
-
-            try:
-                await RequestClient.bind_db(url='url')
-                assert False, 'Should be raise a DeprecateBindError'
-            except DuplicateBindError:
-                pass
-
-            self.assertTrue(RequestClient.is_usable())
-
-            r_c = RequestClient()
-            self.assertTrue(r_c.get_conn_status())
-
-            # self.assertTrue(await RequestClient.unbind())
-
-            # import gc
-            # gc.collect()
-
-        self.loop.run_until_complete(do_test())
-
-
-if __name__ == '__main__':
-    unittest.main(verbosity=2)
+        await db.execute(
+            _helper.Query(
+                "DROP TABLE `user`;"
+            )
+        )

@@ -1,13 +1,28 @@
-
-class UnboundError(RuntimeError):
-    description = "Maybe you should call `trod.bind()` before."
+class Error(Exception):
+    description = ''
 
     def __init__(self, msg=None):
         super().__init__(msg or self.description)
 
 
-class DuplicateBinding(RuntimeError):
-    description = "Already bound to {host}:{port}"
+class ProgrammingError(Error):
+    description = ''
+
+
+class DataError(Error):
+    description = ''
+
+
+class DBError(Error):
+    description = ''
+
+
+class UnboundError(ProgrammingError):
+    description = 'Maybe you should call `trod.bind()` before.'
+
+
+class DuplicateBinding(ProgrammingError):
+    description = 'Already bound to {host}:{port}'
 
     def __init__(self, msg=None, **kwargs):
         super().__init__(msg or self.description.format(**kwargs))
@@ -33,10 +48,6 @@ class SetInvalidColumnsValueError(RuntimeError):
 
 
 class InvalidColumnsVlaueError(RuntimeError):
-    pass
-
-
-class ProgrammingError(RuntimeError):
     pass
 
 

@@ -1,11 +1,6 @@
-from __future__ import annotations
-
-import inspect
 from collections.abc import Iterable
 from functools import wraps
-
-
-from typing import Any, Optional, Callable, Union, Dict
+from inspect import iscoroutinefunction, isclass, signature, ismodule
 
 __all__ = (
     'Tdict',
@@ -13,16 +8,22 @@ __all__ = (
     'singleton',
     'asyncinit',
     'argschecker',
+    'ismodule',
 )
 
 
+def __dir__():
+    return __all__
+
+
+# AttrDict
 class Tdict(dict):
     """ Is a class that makes a dictionary behave like an object,
         with attribute-style access.
     """
 
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         keys = kwargs.pop("keys", None)
         values = kwargs.pop("values", None)
@@ -31,7 +32,14 @@ class Tdict(dict):
             for key, value in zip(keys, values):
                 self[key] = value
 
-    def __getattr__(self, key: Any) -> Any:
+        keys = kwargs.pop("keys", None)
+        values = kwargs.pop("values", None)
+
+        if keys and values:
+            for key, value in zip(keys, values):
+                self[key] = value
+
+    def __getattr__(self, key):
         try:
             return self[key]
         except KeyError:
@@ -39,85 +47,136 @@ class Tdict(dict):
                 f"Tdict object has not attribute {key}."
             )
 
-    def __setattr__(self, key: Any, value: Any) -> None:
+    def __setattr__(self, key, value) -> None:
         self[key] = value
 
-    def __repr__(self) -> str:
-        return f"Tdict({super().__repr__()})"
-
-    __str__ = __repr__
-
-    def __iadd__(self, other: dict) -> Tdict:
+    def __iadd__(self, other):
         self.update(other)
         return self
 
-    def __add__(self, other: dict) -> Tdict:
+    def __add__(self, other):
         td = Tdict(**self)
         td.update(other)
         return td
 
 
-def tdictformatter(is_async: Optional[bool] = False) -> Callable:
+class Tcontainer:
+
+    def __init__(self, **kwargs):
+        for name in kwargs:
+            setattr(self, name, kwargs[name])
+
+    def __bool__(self):
+        return bool(self.__dict__)
+
+    def __len__(self):
+        return len(self.__dict__)
+
+    def __contains__(self, name):
+        return name in self.__dict__
+
+    def __getitem__(self, name):
+        try:
+            return getattr(self, name)
+        except AttributeError:
+            raise KeyError(name)
+
+    def __setitem__(self, name, value):
+        setattr(self, name, value)
+
+    def __delitem__(self, name):
+        delattr(self, name)
+
+    def __iter__(self):
+        return iter(self.__dict__)
+
+    def __iadd__(self, other):
+        self.__dict__.update(other)
+
+    def __add__(self, other):
+        return self.as_new(**other)
+
+    def as_new(self, **values):
+        c = self.__class__.__new__(self.__class__)
+        c.__dict__ = self.__dict__.copy()
+        if values:
+            c.__dict__.update(values)
+        return c
+
+    def __str__(self):
+        return str(self.__dict__)
+
+    def __repr__(self):
+        return f'Container({self.__dict__!r})'
+
+
+def tdictformatter(func):
     """ A function decorator that convert the returned dict object to Tdict
         If it is a list, recursively convert its elements
     """
-    def decorator(func):
-        if not is_async:
-            @wraps(func)
-            def convert(*args, **kwargs):
-                result = func(*args, **kwargs)
-                return formattdict(result)
-        else:
-            @wraps(func)
-            async def convert(*args, **kwargs):
-                result = await func(*args, **kwargs)
-                return formattdict(result)
-        return convert
-    return decorator
+    if iscoroutinefunction(func):
+        @wraps(func)
+        async def convert(*args, **kwargs):
+            result = await func(*args, **kwargs)
+            return formattdict(result)
+    else:
+        @wraps(func)
+        def convert(*args, **kwargs):
+            result = func(*args, **kwargs)
+            return formattdict(result)
+
+    return convert
 
 
-def singleton(is_async=False):
+def singleton(cls):
     """ A singleton decorator of asyncinit class """
 
-    def decorator(cls):
+    instances = {}
 
-        instances = {}
+    if iscoroutinefunction(cls):
+        @wraps(cls)
+        async def getinstance(*args, **kw):
+            if cls not in instances:
+                instances[cls] = await cls(*args, **kw)
+            return instances[cls]
+    else:
+        @wraps(cls)
+        def getinstance(*args, **kw):
+            if cls not in instances:
+                instances[cls] = cls(*args, **kw)
+            return instances[cls]
 
-        if is_async:
-            @wraps(cls)
-            async def getinstance(*args, **kw):
-                if cls not in instances:
-                    instances[cls] = await cls(*args, **kw)
-                return instances[cls]
-        else:
-            @wraps(cls)
-            def getinstance(*args, **kw):
-                if cls not in instances:
-                    instances[cls] = cls(*args, **kw)
-                return instances[cls]
-        return getinstance
-
-    return decorator
+    return getinstance
 
 
 def asyncinit(obj):
-    """
-        A class decorator that add async `__init__` functionality.
-    """
+    """A class decorator that add async `__init__` functionality."""
 
-    if not inspect.isclass(obj):
+    if not isclass(obj):
         raise ValueError("Decorated object must be a class")
 
+    async def nnew(cls, *_args, **_kwargs):
+        return object.__new__(cls)
+
+    def force_async(f):
+        if iscoroutinefunction(f):
+            return f
+
+        async def wrapped(*args, **kwargs):
+            return f(*args, **kwargs)
+
+        return wrapped
+
     if obj.__new__ is object.__new__:
-        cls_new = _new
+        cls_new = nnew
     else:
-        cls_new = _force_async(obj.__new__)
+        cls_new = force_async(obj.__new__)
 
     @wraps(obj.__new__)
     async def new(cls, *args, **kwargs):
         self = await cls_new(cls, *args, **kwargs)
 
-        cls_init = _force_async(self.__init__)
+        cls_init = force_async(self.__init__)
         await cls_init(*args, **kwargs)
 
         return self
@@ -137,7 +196,7 @@ def argschecker(*cargs, **ckwargs):
         nullable = ckwargs.pop('nullable', True)
 
         # Map function argument names to supplied types
-        sig = inspect.signature(func)
+        sig = signature(func)
         bound_args = sig.bind_partial(*cargs, **ckwargs).arguments
 
         @wraps(func)
@@ -158,66 +217,27 @@ def argschecker(*cargs, **ckwargs):
     return decorator
 
 
-def formattdict(target) -> Union[list, Tdict, None]:
-    if target is None:
-        return target
-    if isinstance(target, dict):
-        return _do_troddict_format(target)
-    if isinstance(target, Iterable):
-        fmt_result = []
-        for item in target:
-            if isinstance(item, (str, int, bool)):
-                raise TypeError(f"Invalid data type '{target}' to convert `Tdict`")
-            fmt_result.append(formattdict(item))
-        return fmt_result
-    raise TypeError(f"Invalid data type '{target}' to convert `Tdict`")
+def formattdict(original):
 
+    def do_format(ori_dict):
+        td = Tdict()
+        for key, value in ori_dict.items():
+            td[key] = do_format(value) if isinstance(value, dict) else value
+        return td
 
-async def _new(cls, *_args, **_kwargs):
-    return object.__new__(cls)
+    if original is None:
+        return original
 
+    if isinstance(original, dict):
+        return do_format(original)
 
-def _force_async(f_n):
-    if inspect.iscoroutinefunction(f_n):
-        return f_n
-
-    async def wrapped(*args, **kwargs):
-        return f_n(*args, **kwargs)
-
-    return wrapped
-
-
-def to_list(*args):
-    """ Args to list """
-
-    result = []
-    if not args:
-        return result
-    for arg in args:
-        if isinstance(arg, (list, tuple)):
-            result.append(arg)
-        elif not arg:
-            result.append(arg)
-        else:
-            result.append([arg])
-    return result
-
-
-def tuple_format(args):
-    """ Arg to tuple """
-
-    res_args = None
-    if not args:
-        return res_args
-    if isinstance(args, list):
-        res_args = tuple(args)
-    elif isinstance(args, str):
-        res_args = tuple([args])
-    return res_args
-
-
-def _do_troddict_format(ori_dict):
-    tdict = Tdict()
-    for key, value in ori_dict.items():
-        tdict[key] = _do_troddict_format(value) if isinstance(value, dict) else value
-    return tdict
+    if isinstance(original, Iterable):
+        fmted = []
+        for item in original:
+            if not isinstance(item, (list, tuple, dict)):
+                raise TypeError(
+                    f"Invalid data type '{original}' to convert `Tdict`"
+                )
+            fmted.append(formattdict(item))
+        return fmted
+    raise TypeError(f"Non-iterable object can not '{original}' to convert `Tdict`")

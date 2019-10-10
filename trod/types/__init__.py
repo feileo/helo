@@ -3,7 +3,7 @@
     ~~~~~~~~~~
 """
 
-from trod.types import __impl__
+from . import _impl
 
 __all__ = (
     "Tinyint",
@@ -24,40 +24,30 @@ __all__ = (
     "Time",
     "DateTime",
     "Timestamp",
-    "Key",
-    "UKey",
-    "FS",
-    "SQL",
-    "ON_CREATE",
-    "ON_UPDATE",
-    "SEQUENCE",
-    "ENCODINGS",
+    "K",
+    "UK",
+    "F",
 )
 
 
-Tinyint = __impl__.Tinyint
-Smallint = __impl__.Smallint
-Int = __impl__.Int
-Bigint = __impl__.Bigint
-Bool = __impl__.Bool
-Auto = __impl__.Auto
-BigAuto = __impl__.Bigint
-UUID = __impl__.UUID
-Float = __impl__.Float
-Double = __impl__.Double
-Decimal = __impl__.Decimal
-Text = __impl__.Text
-Char = __impl__.Char
-VarChar = __impl__.VarChar
-Date = __impl__.Date
-Time = __impl__.Time
-DateTime = __impl__.DateTime
-Timestamp = __impl__.Timestamp
-FS = __impl__.Funcs
-Key = __impl__.Key
-UKey = __impl__.UKey
-SQL = __impl__.SQL
-ON_CREATE = __impl__.ON_CREATE
-ON_UPDATE = __impl__.ON_UPDATE
-SEQUENCE = __impl__.SEQUENCE
-ENCODINGS = __impl__.ENCODINGS
+Tinyint = _impl.Tinyint
+Smallint = _impl.Smallint
+Int = _impl.Int
+Bigint = _impl.Bigint
+Bool = _impl.Bool
+Auto = _impl.Auto
+BigAuto = _impl.Bigint
+UUID = _impl.UUID
+Float = _impl.Float
+Double = _impl.Double
+Decimal = _impl.Decimal
+Text = _impl.Text
+Char = _impl.Char
+VarChar = _impl.VarChar
+Date = _impl.Date
+Time = _impl.Time
+DateTime = _impl.DateTime
+Timestamp = _impl.Timestamp
+K = _impl.Key  # pylint: disable=invalid-name
+UK = _impl.UKey
+F = _impl.FS

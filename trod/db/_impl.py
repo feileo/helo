@@ -1,17 +1,24 @@
+"""
+    trod.db._impl
+    ~~~~~~~~~~~~~
+
+    Implements the connection pool and executer of db module.
+"""
 from __future__ import annotations
 
 import asyncio
 import sys
 import urllib.parse as urlparse
 from functools import wraps
+from inspect import iscoroutinefunction
 from typing import Optional, Any, Union, Tuple, Callable, Dict
 
 import aiomysql
 
 from .. import utils, errors
+from ..g import _helper, RT
 
 
-@utils.singleton(True)
 @utils.asyncinit
 class Pool:
     """Create a MySQL connection pool based on `aiomysql.create_pool`.
@@ -64,7 +71,7 @@ class Pool:
     ) -> None:
 
         conn_kwargs = self._check_conn_kwargs(conn_kwargs)
-        conn_kwargs['cursorclass'] = self.TdictCursor
+        # conn_kwargs['cursorclass'] = self.TdictCursor
         self._pool = await aiomysql.create_pool(
             minsize=minsize, maxsize=maxsize, echo=echo,
             pool_recycle=pool_recycle, loop=loop,
@@ -187,15 +194,11 @@ class Executer:
 
     __slots__ = ()
 
-    pool = None
+    pool = None  # type: Optional[Pool]
 
     @classmethod
     def activate(cls, connpool: Pool) -> None:
         cls.pool = connpool
-
-        import atexit
-
-        atexit.register(lambda: asyncio.run(cls.death()))
 
     @classmethod
     async def death(cls) -> bool:
@@ -211,23 +214,47 @@ class Executer:
         return bool(cls.pool)
 
     @classmethod
-    async def fetch(
+    async def do(
+        cls, query: _helper.Query, **kwargs: Any
+    ) -> Optional[Union[ExecResult, FetchResult, utils.Tdict]]:
+        if query.r:
+            return await cls._fetch(
+                query.sql, params=query.params, **kwargs,
+            )
+        return await cls._execute(
+            query.sql, params=query.params, **kwargs
+        )
+
+    @classmethod
+    def poolstate(cls) -> Optional[utils.Tdict]:
+        if cls.pool is None:
+            return None
+        return utils.Tdict(
+            minsize=cls.pool.minsize,
+            maxsize=cls.pool.maxsize,
+            size=cls.pool.size,
+            freesize=cls.pool.freesize,
+        )
+
+    @classmethod
+    async def _fetch(
             cls, sql: str,
             params: Optional[Union[tuple, list]] = None,
             rows: Optional[int] = None,
-            db: Optional[str] = None
-    ) -> Union[None, list, utils.Tdict]:
-        if params:
-            params = utils.tuple_format(params)
+            db: Optional[str] = None,
+            tdict: bool = False
+    ) -> Union[None, FetchResult, utils.Tdict]:
+
+        cursorclasses = [Pool.TdictCursor] if tdict else []
 
         async with cls.pool.acquire() as connection:  # type: ignore
 
             if db:
                 await connection.select_db(db)
 
-            async with connection.cursor() as cur:
+            async with connection.cursor(*cursorclasses) as cur:
                 try:
-                    await cur.execute(sql.strip(), params or ())
+                    await cur.execute(sql, params or ())
                     if not rows:
                         result = await cur.fetchall()
                     elif rows and rows == 1:
@@ -238,18 +265,16 @@ class Executer:
                     exc_type, exc_value, _traceback = sys.exc_info()
                     error = exc_type(exc_value)  # type: ignore
                     raise error
-        return result
+
+        return FetchResult(result) if isinstance(result, list) else result
 
     @classmethod
-    async def execute(
+    async def _execute(
             cls, sql: str,
             params: Optional[Union[tuple, list]] = None,
             many: bool = False,
             db: Optional[str] = None
-    ) -> Tuple[int, int]:
-        sql = sql.strip()
-        if params:
-            params = utils.tuple_format(params)
+    ) -> ExecResult:
 
         async with cls.pool.acquire() as connection:  # type: ignore
             if db:
@@ -274,18 +299,7 @@ class Executer:
                 error = exc_type(exc_value)  # type: ignore
                 raise error
 
-        return affected, last_id
-
-    @classmethod
-    def poolmeta(cls) -> Optional[utils.Tdict]:
-        if cls.pool is None:
-            return None
-        return utils.Tdict(
-            minsize=cls.pool.minsize,
-            maxsize=cls.pool.maxsize,
-            size=cls.pool.size,
-            freesize=cls.pool.freesize,
-        )
+        return ExecResult(affected, last_id)
 
 
 def __ensure__(bound) -> Callable:
@@ -293,31 +307,50 @@ def __ensure__(bound) -> Callable:
 
     def decorator(func):
 
-        @wraps(func)
-        def checker(func, *args, **kwargs):
+        def checker():
             if Executer.active():
                 if not bound:
                     cm = Executer.pool.connmeta
                     raise errors.DuplicateBinding(host=cm.host, port=cm.port)
             elif bound:
                 raise errors.UnboundError()
+
+        if iscoroutinefunction(func):
+            @wraps(func)
+            async def async_wraper(*args, **kwargs):
+                checker()
+                return await func(*args, **kwargs)
+
+            return async_wraper
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            checker()
             return func(*args, **kwargs)
 
-        return checker
+        return wrapper
 
     return decorator
 
 
-R = 1
-W = 2
-_KEYS = ("SELECT", "SHOW")
+class FetchResult(list):
+
+    def __repr__(self):
+        return ''
 
 
-def detach(sql: str) -> int:
-    for k in _KEYS:
-        if k in sql or k.lower() in sql:
-            return R
-    return W
+class ExecResult:
+    def __init__(self, affected, last_id):
+        self.affected = affected
+        self.last_id = last_id
+
+    def __repr__(self) -> str:
+        return f"ExecResult(affected: {1}, last_id: {2})".format(
+            self.affected, self.last_id
+        )
+
+    def __str__(self) -> str:
+        return "({}, {})".format(self.affected, self.last_id)
 
 
 class UrlParser:
@@ -330,8 +363,8 @@ class UrlParser:
     def __init__(self, url: str) -> None:
         self.url = url
 
-    @utils.tdictformatter()
-    def parse(self) -> Dict[str, Any]:
+    @utils.tdictformatter
+    def pare(self) -> Dict[str, Any]:
         """ do parse database url """
 
         if not self._is_illegal_url():
@@ -364,16 +397,16 @@ class UrlParser:
             'port': url.port or '',
         }
 
-        options = {}
+        options = {}  # type: Dict[str, Any]
         for key, values in urlparse.parse_qs(query).items():
             if url.scheme == 'mysql' and key == 'ssl-ca':
                 options['ssl'] = {'ca': values[-1]}
                 continue
 
-            options[key] = values[-1]   # type: ignore
+            options[key] = values[-1]
 
         if options:
-            parsed.update(options)      # type: ignore
+            parsed.update(options)
 
         return parsed
 

@@ -1,15 +1,19 @@
-from . import (
-    types,
-    db,
-    utils,
-    errors,
-    model,
-)
+"""
+    trod
+    ~~~~
+"""
+from . import db
+from . import model
+from . import types
+from . import g
+from . import errors
+from . import utils
 
 __version__ = '0.0.15'
 __all__ = (
-    'types',
     'db',
+    'g',
+    'types',
     'utils',
     'errors',
     'Trod',
@@ -37,7 +41,7 @@ class Trod:
 
     async def create_all(self, module, **options):
 
-        if not utils.inspect.ismodule(module):
+        if not utils.ismodule(module):
             raise TypeError()
 
         return await self.create_tables(
@@ -54,7 +58,7 @@ class Trod:
 
     async def drop_all(self, module):
 
-        if not utils.inspect.ismodule(module):
+        if not utils.ismodule(module):
             raise TypeError()
 
         return await self.drop_tables(

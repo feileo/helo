@@ -3,63 +3,58 @@
     ~~~~~~~
 """
 
-from . import __impl__
+from . import _impl
 
 
 __all__ = (
     'binding',
     'execute',
     'unbinding',
-    'poolmeta',
+    'poolstate',
 )
 
 
-@__impl__.__ensure__(bound=False)
+@_impl.__ensure__(False)
 async def binding(*args, **kwargs):
     """A coroutine that binding a database(create a connection pool).
 
     The pool is a singleton, repeated create will cause errors.
     Returns true after successful create
 
-    For parameters, see ``__impl__.Pool` and ``__impl__.Pool.from_url``
+    For parameters, see ``_impl.Pool` and ``_impl.Pool.from_url``
     """
 
     if args or kwargs.get("url"):
-        pool = await __impl__.Pool.from_url(*args, **kwargs)
+        pool = await _impl.Pool.from_url(*args, **kwargs)
     else:
-        pool = await __impl__.Pool(*args, **kwargs)
+        pool = await _impl.Pool(*args, **kwargs)
 
-    __impl__.Executer.activate(pool)
+    _impl.Executer.activate(pool)
+
     return True
 
 
-@__impl__.__ensure__(bound=True)
-async def execute(sql, params=None, mode=None, **kwargs):
+@_impl.__ensure__(True)
+async def execute(query, **kwargs):
     """A coroutine that execute sql and return the results of its execution
 
-    :param int mode: read or write mode, see ``__impl__.R`` and ``__impl__.W``
-    :param str sql: sql query statement
-    :param params list/tuple: query values for sql
+    :param sql ``trod.g.Query`` : sql query object
     """
+    if not query:
+        raise ValueError("No SQL query statement")
 
-    mode = mode or __impl__.detach(sql)
-    db = kwargs.get("db")
-    if mode == __impl__.R:
-        return await __impl__.Executer.fetch(sql, params=params, db=db)
-    return await __impl__.Executer.execute(
-        sql, params=params, many=kwargs.get("many", False), db=db
-    )
+    return await _impl.Executer.do(query, **kwargs)
 
 
-@__impl__.__ensure__(bound=True)
+@_impl.__ensure__(True)
 async def unbinding():
     """A coroutine that unbinding a database(close the connection pool)."""
 
-    return await __impl__.Executer.death()
+    return await _impl.Executer.death()
 
 
-@__impl__.__ensure__(bound=True)
-def poolmeta():
+@_impl.__ensure__(True)
+def poolstate():
     """Returns the current state of the connection pool"""
 
-    return __impl__.Executer.poolmeta()
+    return _impl.Executer.poolstate()
