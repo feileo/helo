@@ -364,7 +364,7 @@ class UrlParser:
         self.url = url
 
     @utils.tdictformatter
-    def pare(self) -> Dict[str, Any]:
+    def parse(self) -> Dict[str, Any]:
         """ do parse database url """
 
         if not self._is_illegal_url():
