@@ -12,19 +12,20 @@ import uuid
 import warnings
 from typing import Any, Optional, Union, Callable, List, Tuple
 
-from .. import utils, errors
+from .. import util, err
 from ..g import _helper as gh, SQL, SEQUENCE, ENCODINGS
 
 
 Id = Union[int, str]
-IdList = List[Union[int, str]]
+IdList = List[Id]
+NULL = 'null'
 
 
 class ColumnBase(gh.Node):
 
     __slots__ = ()
 
-    OPERATOR = utils.Tdict(
+    OPERATOR = util.tdict(
         AND='AND',
         OR='OR',
         ADD='+',
@@ -56,6 +57,9 @@ class ColumnBase(gh.Node):
         BITWISE_NEGATION='~',
         CONCAT='||',
     )
+
+    def __sql__(self, ctx: gh.Context):
+        raise NotImplementedError
 
     def __and__(self, rhs: Any) -> Expression:
         return Expression(self, self.OPERATOR.AND, rhs)
@@ -168,40 +172,41 @@ class ColumnBase(gh.Node):
         op = self.OPERATOR.IS if is_null else self.OPERATOR.IS_NOT
         return Expression(self, op, None)
 
-    def regexp(self, rhs: Any) -> Expression:
+    def regexp(self, rhs: Any, i: bool = True) -> Expression:
+        if i:
+            return Expression(self, self.OPERATOR.IREGEXP, rhs)
         return Expression(self, self.OPERATOR.REGEXP, rhs)
-
-    def iregexp(self, rhs: Any) -> Expression:
-        return Expression(self, self.OPERATOR.IREGEXP, rhs)
 
     def like(self, rhs: Any, i: bool = True) -> Expression:
         if i:
             return Expression(self, self.OPERATOR.ILIKE, rhs)
         return Expression(self, self.OPERATOR.LIKE, rhs)
 
-    def contains(self, rhs: Any, i: bool = False) -> Expression:
-        if not i:
-            return Expression(self, self.OPERATOR.LIKE, f"%{rhs}%")
-        return Expression(self, self.OPERATOR.ILIKE, f"%{rhs}%")
+    def contains(self, rhs: Any, i: bool = True) -> Expression:
+        if i:
+            return Expression(self, self.OPERATOR.ILIKE, f"%{rhs}%")
+        return Expression(self, self.OPERATOR.LIKE, f"%{rhs}%")
 
-    def startswith(self, rhs: Any, i: bool = False) -> Expression:
-        if not i:
-            return Expression(self, self.OPERATOR.LIKE, f"{rhs}%")
-        return Expression(self, self.OPERATOR.ILIKE, f"{rhs}%")
+    def startswith(self, rhs: Any, i: bool = True) -> Expression:
+        if i:
+            return Expression(self, self.OPERATOR.ILIKE, f"{rhs}%")
+        return Expression(self, self.OPERATOR.LIKE, f"{rhs}%")
 
-    def endswith(self, rhs: Any, i: bool = False) -> Expression:
-        if not i:
-            return Expression(self, self.OPERATOR.LIKE, f"%{rhs}")
-        return Expression(self, self.OPERATOR.ILIKE, f"%{rhs}")
+    def endswith(self, rhs: Any, i: bool = True) -> Expression:
+        if i:
+            return Expression(self, self.OPERATOR.ILIKE, f"%{rhs}")
+        return Expression(self, self.OPERATOR.LIKE, f"%{rhs}")
 
     def between(self, low: Any, hig: Any) -> Expression:
         return Expression(
-            self, self.OPERATOR.BETWEEN, gh.NodeList([low, self.OPERATOR.AND, hig])
+            self, self.OPERATOR.BETWEEN,
+            gh.NodeList([gh.Value(low), self.OPERATOR.AND, gh.Value(hig)])
         )
 
     def nbetween(self, low: Any, hig: Any) -> Expression:
         return Expression(
-            self, self.OPERATOR.NBETWEEN, gh.NodeList([low, self.OPERATOR.AND, hig])
+            self, self.OPERATOR.NBETWEEN,
+            gh.NodeList([gh.Value(low), self.OPERATOR.AND, gh.Value(hig)])
         )
 
     def asc(self) -> Ordering:
@@ -229,13 +234,13 @@ class Ordering(gh.Node):
 
 class Alias(gh.Node):
 
-    @utils.argschecker(alias=str, nullable=False)
+    @util.argschecker(alias=str, nullable=False)
     def __init__(self, node: gh.Node, alias: str) -> None:
         self.node = node
         self.alias = alias
 
     def __sql__(self, ctx: gh.Context):
-        ctx.sql(self.node).literal(" AS {self.alias} ")
+        ctx.sql(self.node).literal(f" AS `{self.alias}` ")
         return ctx
 
 
@@ -274,7 +279,7 @@ class Expression(ColumnBase):
             ctx.sql(
                 self.lhs
             ).literal(
-                self.op
+                f' {self.op} '
             ).sql(self.rhs)
 
         return ctx
@@ -292,10 +297,10 @@ class StrExpression(Expression):
 class DDL:
 
     __slots__ = ('defi',)
-    __types__ = utils.Tdict(
+    __types__ = util.tdict(
         sit='{type}',
         wlt='{type}({length})',
-        wdt='{type}({length}, {float_length})',
+        wdt='{type}({length},{float_length})',
     )
 
     def __init__(self, field: FieldBase) -> None:
@@ -309,9 +314,9 @@ class DDL:
             defi.append(SQL(f"CHARACTER SET {ops.encoding}"))
         if ops.zerofill:
             defi.append(SQL("zerofill"))
-        defi.append(SQL("NULL" if ops.allow_null else "NOT NULL"))
-        if ops.default:
-            defi.append(self.parse_default(ops.auto, ops.default, ops.adapt))
+        default = self.parse_default(ops, field.db_type)
+        if default:
+            defi.append(default)
         if ops.comment:
             defi.append(SQL(f"COMMENT '{ops.comment}'"))
 
@@ -335,36 +340,54 @@ class DDL:
 
         return SQL(type_tpl.format(**type_render))
 
-    def parse_options(self, field: FieldBase) -> utils.Tdict:
-        return utils.Tdict(
+    def parse_options(self, field: FieldBase) -> util.tdict:
+        return util.tdict(
             auto=getattr(field, 'auto', None),
             unsigned=getattr(field, 'unsigned', None),
             zerofill=getattr(field, 'zerofill', None),
             encoding=getattr(field, 'encoding', None),
+            default=getattr(field, 'default', NULL),
             allow_null=field.null,
-            default=field.default,
             comment=field.comment,
             adapt=field.to_str,
         )
 
-    def parse_default(
-            self, auto: bool, default: Any, adapt: Callable
-    ) -> SQL:
+    def parse_default(self, ops: util.tdict, db_type) -> Optional[SQL]:
 
-        if auto:
-            return SQL("AUTO_INCREMENT")
-        if default:
+        def to_default_sql(default):
             if isinstance(default, SQL):
-                default = f"DEFAULT {default.sql}"
-            elif callable(default):
-                default = f"DEFAULT NULL"
-            else:
-                default = adapt(default)
-                default = f"DEFAULT '{default}'"
-        else:
-            default = "DEFAULT NULL"
+                return "DEFAULT {}".format(default.sql)
+            if callable(default):
+                return None
+            return "DEFAULT '{}'".format(ops.adapt(default))
 
-        return SQL(default)
+        if ops.auto:
+            return SQL("NOT NULL AUTO_INCREMENT")
+
+        if ops.allow_null:
+            if ops.default is None:
+                default = "DEFAULT NULL"
+                if db_type == 'timestamp':
+                    default = "NULL {}".format(default)
+            elif ops.default == NULL:
+                default = "NULL"
+            else:
+                default = to_default_sql(ops.default)
+                if default is None:
+                    if db_type == 'timestamp':
+                        default = "NULL DEFAULT NULL"
+                    else:
+                        default = "DEFAULT NULL"
+        else:
+            if ops.default in (None, NULL):
+                default = "NOT NULL"
+            else:
+                default = "NOT NULL"
+                ds = to_default_sql(ops.default)
+                if ds:
+                    default = '{} {}'.format(default, ds)
+
+        return SQL(default) if default is not None else None
 
 
 class FieldBase(ColumnBase):
@@ -376,7 +399,7 @@ class FieldBase(ColumnBase):
 
     _field_counter = 0
 
-    @utils.argschecker(null=bool, comment=str)
+    @util.argschecker(null=bool, comment=str)
     def __init__(
         self,
         null: bool,
@@ -386,14 +409,19 @@ class FieldBase(ColumnBase):
     ) -> None:
 
         if default:
-            if not isinstance(default, (self.py_type, SQL)) and not callable(default):
+            if isinstance(self.py_type, (list, tuple)):
+                py_types = list(self.py_type)
+                py_types.append(SQL)
+            else:
+                py_types = [self.py_type, SQL]
+            if not (isinstance(default, tuple(py_types)) or callable(default)):
                 raise TypeError(
                     f"Invalid {self.__class__.__name__} default value ({default})"
                 )
 
         self.null = null
-        self.default = default
         self.comment = comment
+        self.default = default
         self.name = name
 
         FieldBase._field_counter += 1
@@ -404,22 +432,22 @@ class FieldBase(ColumnBase):
         return DDL(self).defi
 
     def __repr__(self) -> str:
-        ddl_def = gh.Context().parse(self).query().sql
+        ddl_def = gh.Context().parse(self.__def__()).query().sql
         ispk = getattr(self, 'primary_key', False)
         extra = ""
         if ispk:
             extra = " [PRIMARY KEY]"
             if getattr(self, 'auto', False):
                 extra = " [PRIMARY KEY, AUTO_INCREMENT]"
-        return f"types.{self.__class__.__name__}({ddl_def}{extra})"
+        return f"types.{self.__class__.__name__}('{ddl_def}{extra}')"
 
     def __str__(self) -> str:
-        return f"types.{self.__class__.__name__}({self.name})"
+        return gh.Context().parse(self.__def__()).query().sql
 
     def __hash__(self) -> int:
         if self.name:
             return hash(self.name)
-        raise errors.NoColumnNameError()
+        raise err.NoColumnNameError
 
     def _custom_wain(self) -> None:
         if not self.null and self.default is None:
@@ -437,14 +465,14 @@ class FieldBase(ColumnBase):
     def column(self) -> str:
         if self.name:
             return f'`{self.name}`'
-        raise errors.NoColumnNameError()
+        raise err.NoColumnNameError
 
     def adapt(self, value: Any) -> Any:
         return value
 
     def to_str(self, value: Any) -> str:
         if value is None:
-            raise ValueError()
+            raise ValueError("None value")
         return str(self.db_value(value))
 
     def py_value(self, value: Any) -> Any:
@@ -468,7 +496,7 @@ class Tinyint(FieldBase):
 
     def __init__(
         self,
-        length: int = default_length,
+        length: Optional[int] = None,
         unsigned: bool = False,
         zerofill: bool = False,
         null: bool = True,
@@ -476,7 +504,7 @@ class Tinyint(FieldBase):
         comment: str = '',
         name: Optional[str] = None
     ) -> None:
-        self.length = length
+        self.length = length or self.default_length
         self.unsigned = unsigned
         self.zerofill = zerofill
         super().__init__(
@@ -504,7 +532,7 @@ class Int(Tinyint):
 
     def __init__(
             self,
-            length: int = default_length,
+            length: Optional[int] = None,
             unsigned: bool = False,
             zerofill: bool = False,
             primary_key: bool = False,
@@ -514,21 +542,26 @@ class Int(Tinyint):
             comment: str = '',
             name: Optional[str] = None
     ) -> None:
+        self.length = length or self.default_length
         self.primary_key = primary_key
         self.auto = auto
         if self.primary_key is True:
-            if null or default:
-                raise errors.ProgrammingError("Primary key field not allow null")
-            if default:
-                raise errors.ProgrammingError("Primary key field not allow set default")
+            null = False
+            if default is not None:
+                raise err.ProgrammingError("Primary key field not allow set default")
         elif self.auto:
-            raise errors.ProgrammingError(
+            raise err.ProgrammingError(
                 "'AUTO_INCREMENT' cannot be set for non-primary key fields",
             )
 
         super().__init__(
-            length=length, unsigned=unsigned, zerofill=zerofill,
-            null=null, default=default, comment=comment, name=name
+            length=length,
+            unsigned=unsigned,
+            zerofill=zerofill,
+            null=null,
+            default=default,
+            comment=comment,
+            name=name
         )
 
 
@@ -547,16 +580,22 @@ class Auto(Int):
 
     def __init__(
             self,
-            length: int = default_length,
+            length: Optional[int] = None,
             unsigned: bool = False,
             zerofill: bool = False,
             comment: str = '',
             name: Optional[str] = None
     ) -> None:
         super().__init__(
-            length=length, unsigned=unsigned, zerofill=zerofill,
-            primary_key=True, auto=True,
-            null=False, default=None, comment=comment, name=name
+            length=length or self.default_length,
+            unsigned=unsigned,
+            zerofill=zerofill,
+            primary_key=True,
+            auto=True,
+            null=False,
+            default=None,
+            comment=comment,
+            name=name
         )
 
 
@@ -582,7 +621,10 @@ class Bool(FieldBase):
             name: Optional[str] = None
     ) -> None:
         super().__init__(
-            null=null, default=default, comment=comment, name=name
+            null=null,
+            default=default,
+            comment=comment,
+            name=name
         )
 
     def adapt(self, value: Any) -> bool:
@@ -603,7 +645,7 @@ class Float(FieldBase):
 
     def __init__(
             self,
-            length: Optional[Union[int, tuple]] = None,
+            length: Optional[Union[int, Tuple[int, int]]] = None,
             unsigned: bool = False,
             null: bool = True,
             default: Optional[Union[float, int, SQL, Callable]] = None,
@@ -614,12 +656,15 @@ class Float(FieldBase):
             self.length = length
         else:
             if isinstance(length, SEQUENCE) and len(length) == 2:
-                self.length = tuple(length)
+                self.length = tuple(length)  # type: ignore
             else:
                 raise TypeError(f"Invalid `Float` length type({length})")
         self.unsigned = unsigned
         super().__init__(
-            null=null, default=default, comment=comment, name=name
+            null=null,
+            default=default,
+            comment=comment,
+            name=name
         )
 
     def adapt(self, value: Any) -> float:
@@ -633,10 +678,9 @@ class Double(Float):
     db_type = 'double'
 
 
-class Decimal(Float):
+class Decimal(FieldBase):
 
-    __slots__ = ('length', 'unsigned', 'max_digits', 'decimal_places',
-                 'auto_round', 'rounding')
+    __slots__ = ('length', 'unsigned', 'auto_round', 'rounding')
 
     py_type = decimal.Decimal
     db_type = 'decimal'
@@ -644,7 +688,7 @@ class Decimal(Float):
 
     def __init__(
             self,
-            length: tuple = default_md,
+            length: Optional[Tuple[int, int]] = None,
             unsigned: bool = False,
             null: bool = True,
             auto_round: bool = False,
@@ -653,26 +697,29 @@ class Decimal(Float):
             comment: str = '',
             name: Optional[str] = None
     ) -> None:
-        if not isinstance(length, tuple) or len(length) != 2:
-            raise TypeError(f"`Decimal` length type must be tuple or list ")
-        self.length = tuple(length)
+        if length:
+            if not isinstance(length, tuple) or len(length) != 2:
+                raise TypeError("`Decimal` length"
+                                "type must be tuple or list")
+        self.length = tuple(length or self.default_md)
         self.unsigned = unsigned
-        self.max_digits = self.length[0]
-        self.decimal_places = self.length[1]
         self.auto_round = auto_round
         self.rounding = rounding or decimal.DefaultContext.rounding
-        super().__init__(  # type: ignore
-            null=null, default=default, comment=comment, name=name
+        super().__init__(
+            null=null,
+            default=default,
+            comment=comment,
+            name=name
         )
 
     def db_value(self, value: Any) -> Optional[decimal.Decimal]:
         if not value:
             return value if value is None else self.py_type(0)
         if self.auto_round:
-            exp = self.py_type(10) ** (-self.decimal_places)
+            exp = self.py_type(10) ** (-self.length[1])  # type: ignore
             rounding = self.rounding
             return self.py_type(str(value)).quantize(exp, rounding=rounding)
-        return value
+        return self.py_type(str(value))
 
     def py_value(self, value: Any) -> Optional[decimal.Decimal]:
         if value is not None:
@@ -699,18 +746,16 @@ class Text(FieldBase):
         if encoding not in ENCODINGS:
             raise ValueError(f"Unsupported encoding '{encoding}'")
         self.encoding = encoding
-        super().__init__(
-            null=null, default=None, comment=comment, name=name
-        )
+        self.null = null
+        self.comment = comment
+        self.name = name
+        # Cannot call super().__init__()
 
     def __add__(self, other: Any) -> StrExpression:
         return StrExpression(self, self.OPERATOR.CONCAT, other)
 
     def __radd__(self, other: Any) -> StrExpression:
         return StrExpression(other, self.OPERATOR.CONCAT, self)
-
-    def _custom_wain(self) -> None:
-        pass
 
     def adapt(self, value: Any) -> str:
         return self.py_type(value)
@@ -770,6 +815,8 @@ class UUID(FieldBase):
             name: Optional[str] = None
     ) -> None:
         self.primary_key = primary_key
+        if self.primary_key is True and default is not None:
+            raise err.ProgrammingError("Primary key field not allow set default")
         super().__init__(
             null=False, default=default, comment=comment, name=name
         )
@@ -790,7 +837,10 @@ class UUID(FieldBase):
     def py_value(self, value: Any) -> Optional[uuid.UUID]:
         if isinstance(value, self.py_type):
             return value
-        return self.py_value(value) if value is not None else None
+        return self.py_type(value) if value is not None else None
+
+    def _custom_wain(self):
+        pass
 
 
 def format_datetime(
@@ -826,7 +876,7 @@ def dt_strftime(value: Any, formats: Union[List[str], tuple]) -> str:
 
 class Date(FieldBase):
 
-    py_type = datetime.datetime
+    py_type = (datetime.datetime, datetime.date)  # type: Any
     db_type = 'date'
 
     formats = (
@@ -837,13 +887,15 @@ class Date(FieldBase):
 
     def __init__(
             self,
-            formats: Optional[Union[List[str], tuple, str]] = None,
+            formats: Optional[Union[List[str], Tuple[str, ...]]] = None,
             null: bool = True,
             default: Optional[Union[datetime.datetime, datetime.date, str, SQL, Callable]] = None,
             comment: str = '',
             name: Optional[str] = None
     ) -> None:
         if formats is not None:
+            if isinstance(formats, str):
+                formats = [formats]
             self.formats = formats  # type: ignore
         super().__init__(
             null=null, default=default, comment=comment, name=name
@@ -867,6 +919,7 @@ class Time(Date):
 
     __slots__ = ()
 
+    py_type = (datetime.datetime, datetime.time)
     db_type = 'time'
 
     formats = (  # type: ignore
@@ -895,6 +948,7 @@ class DateTime(Date):
 
     __slots__ = ()
 
+    py_type = datetime.datetime
     db_type = 'datetime'
 
     formats = (
@@ -928,8 +982,8 @@ class Timestamp(FieldBase):
             name: Optional[str] = None
     ) -> None:
         self.utc = utc
-        if not default:
-            default = datetime.datetime.utcnow if self.utc else datetime.datetime.now
+        # if not default:
+        #     default = datetime.datetime.utcnow if self.utc else datetime.datetime.now
         super().__init__(
             null=null, default=default, comment=comment, name=name
         )
@@ -954,11 +1008,14 @@ class Timestamp(FieldBase):
         return int(round(timestamp))
 
     def py_value(self, value: Any) -> Optional[datetime.datetime]:
-        if value is not None and isinstance(value, (int, float)):
-            if self.utc:
-                value = datetime.datetime.utcfromtimestamp(value)
+        if value is not None:
+            if isinstance(value, (int, float)):
+                if self.utc:
+                    value = datetime.datetime.utcfromtimestamp(value)
+                else:
+                    value = datetime.datetime.fromtimestamp(value)
             else:
-                value = datetime.datetime.fromtimestamp(value)
+                value = simple_datetime(value)
         return value
 
 
@@ -1009,8 +1066,11 @@ class IndexBase(gh.Node):
     def __init__(
             self,
             name: str,
-            fields: Union[str, List[str], Tuple[str, ...]],
-            comment: Optional[str] = None
+            fields: Union[
+                str, List[str], Tuple[str, ...],
+                FieldBase, List[FieldBase], Tuple[FieldBase, ...]
+            ],
+            comment: Optional[str] = ''
     ) -> None:
         self.name = name
         self.comment = comment
@@ -1019,10 +1079,13 @@ class IndexBase(gh.Node):
             fields = [fields]  # type: ignore
 
         self.fields = []  # type: List[str]
-        for f in fields:
-            if not isinstance(f, str):
-                raise TypeError()
-            self.fields.append(f"`{f}`")
+        for f in fields:  # type: ignore
+            if isinstance(f, str):
+                self.fields.append(f"`{f}`")
+            elif isinstance(f, FieldBase):
+                self.fields.append(f.column)
+            else:
+                raise TypeError(f"Invalid field type: {f}")
 
         IndexBase._field_counter += 1
         self._seqnum = IndexBase._field_counter
@@ -1032,22 +1095,24 @@ class IndexBase(gh.Node):
         return self._seqnum
 
     def __def__(self) -> gh.NodeList:
-        return gh.NodeList([
+        nl = gh.NodeList([
             self.__type__,
             SQL(f'`{self.name}`'),
             gh.EnclosedNodeList(self.fields),  # type: ignore
-            SQL(f"COMMENT '{self.comment}'"),
         ])
+        if self.comment:
+            nl.append(SQL(f"COMMENT '{self.comment}'"))
+        return nl
 
     def __hash__(self) -> int:
         return hash(self.name)
 
     def __repr__(self) -> str:
-        ddl_def = gh.Context().parse(self).query().sql
+        ddl_def = gh.Context().parse(self.__def__()).query().sql
         return f"types.{self.__class__.__name__}({ddl_def})"
 
     def __str__(self) -> str:
-        return self.name
+        return gh.Context().parse(self.__def__()).query().sql
 
     def __sql__(self, ctx: gh.Context):
         ctx.literal(f'`{self.name}`')

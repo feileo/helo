@@ -10,7 +10,7 @@ from __future__ import annotations
 from functools import reduce
 from typing import Any, Optional, List, Union
 
-from .. import utils
+from .. import util
 
 
 class Query:
@@ -19,7 +19,7 @@ class Query:
 
     _KEYS = ("SELECT", "SHOW")
 
-    @utils.argschecker(sql=str)
+    @util.argschecker(sql=str)
     def __init__(
         self,
         sql: str,
@@ -39,13 +39,20 @@ class Query:
     def __bool__(self) -> bool:
         return bool(self._sql)
 
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, Query):
+            raise TypeError(
+                f"Unsupported operation: 'Query' == {other}"
+            )
+        return self.sql == other.sql and self.params == other.params
+
     @property
     def sql(self) -> str:
         return self._sql.strip()
 
     @property
     def params(self) -> tuple:
-        if not isinstance(self._params, list):
+        if not isinstance(self._params, (list, tuple)):
             raise RuntimeError('Invalid query params')
         return tuple(self._params)
 
@@ -144,6 +151,20 @@ class SQL(Node):
         return ctx
 
 
+class Value(Node):
+
+    def __init__(self, _value):
+        self._value = _value
+
+    @property
+    def v(self):
+        return self._value
+
+    def __sql__(self, ctx):
+        ctx.literal('%s').values(self.v)
+        return ctx
+
+
 class Context:
 
     __slots__ = ('_sql', '_values', 'stack', 'state')
@@ -155,12 +176,6 @@ class Context:
         self._values = []  # type: List[Any]
         self.stack = []  # type:List[dict]
         self.state = settings
-
-    def __repr__(self) -> str:
-        pass
-
-    def __str__(self) -> str:
-        pass
 
     def sql(self, obj) -> Context:
         if isinstance(obj, (Node, Context)):
@@ -197,25 +212,24 @@ class Context:
         return self
 
     def values(self, value: Any) -> Context:
-        if not value:
-            return self
+        # if not value:
+        #     return self
 
         converter = self.state.get('converter')
-        if converter:
+        if value is not None and converter:
             if isinstance(value, self._multi_types):
                 value = tuple(map(converter, value))
             else:
                 value = converter(value)
 
+        if self.state.get('params'):
+            self.literal('%s')
+
         if isinstance(value, self._multi_types):
             if not self.state.get('nesting'):
                 self._values.extend(value)
                 return self
-
-        if self.state.get('params'):
-            self.literal('%s')
         self._values.append(value)
-
         return self
 
     def parse(self, node: Any) -> Context:
@@ -225,6 +239,10 @@ class Context:
         if self._sql[-1] != self._semi:
             self.literal(self._semi)
         return Query(''.join(self._sql), params=tuple(self._values))
+
+
+def parse(node: Node) -> Query:
+    return Context().parse(node).query()
 
 
 def and_(*exprs):

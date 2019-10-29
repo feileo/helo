@@ -9,15 +9,9 @@ from __future__ import annotations
 import warnings
 from typing import Any, Dict, Optional, List, Union, Tuple, Type
 
-from .. import db, utils, errors
-from ..types import _impl as types
+from .. import db, util, err
 from ..g import _helper as gh, SQL, SEQUENCE, ENCODINGS, and_, RT
-
-
-Id = types.Id
-IdList = types.IdList
-FieldBase = types.FieldBase
-IndexBase = types.IndexBase
+from ..types._impl import Id, IdList, FieldBase, IndexBase
 
 
 class Table(gh.Node):
@@ -29,7 +23,7 @@ class Table(gh.Node):
     )
 
     AIPK = 'id'
-    META = utils.Tdict(
+    META = util.tdict(
         __db__=None,
         __table__=None,
         __indexes__=None,
@@ -44,7 +38,7 @@ class Table(gh.Node):
         database: Optional[str],
         name: str,
         fields: Dict[str, FieldBase],
-        primary: utils.Tdict,
+        primary: util.tdict,
         indexes: Optional[List[IndexBase]] = None,
         engine: Optional[str] = None,
         charset: Optional[str] = None,
@@ -97,14 +91,14 @@ class ModelType(type):
                 warnings.warn(
                     "Did not give the table name, "
                     f"use the model name `{table_name}`",
-                    errors.ProgrammingWarning
+                    err.ProgrammingWarning
                 )
 
             model_fields, field_names = {}, {}
-            primary = utils.Tdict(auto=False, field=None, begin=None)
+            primary = util.tdict(auto=False, field=None, begin=None)
             for attr in attrs.copy():
                 if primary.field and attr == primary.field.name:
-                    raise errors.DuplicateFieldNameError(
+                    raise err.DuplicateFieldNameError(
                         f"Duplicate field name `{attr}`"
                     )
 
@@ -113,7 +107,7 @@ class ModelType(type):
                     field.name = field.name or attr
                     if getattr(field, 'primary_key', None):
                         if primary.field is not None:
-                            raise errors.DuplicatePKError(
+                            raise err.DuplicatePKError(
                                 "Duplicate primary key found for field "
                                 f"{field.name}"
                             )
@@ -126,7 +120,7 @@ class ModelType(type):
                                     "The field name of AUTO_INCREMENT "
                                     "primary key is suggested to use "
                                     f"`id` instead of {field.name}",
-                                    errors.ProgrammingWarning
+                                    err.ProgrammingWarning
                                 )
 
                     model_fields[attr] = field
@@ -134,12 +128,12 @@ class ModelType(type):
                     attrs.pop(attr)
                 elif attr not in Table.META:
                     if not (attr.endswith('__') and attr.endswith('__', 0, 2)):
-                        raise errors.InvalidFieldType(
+                        raise err.InvalidFieldType(
                             f"Invalid model field {attr}"
                         )
 
             if not primary.field:
-                raise errors.NoPKError(
+                raise err.NoPKError(
                     f"Primary key not found for table `{table_name}`"
                 )
 
@@ -148,7 +142,7 @@ class ModelType(type):
                 raise TypeError("")
             for index in indexes:
                 if not isinstance(index, IndexBase):
-                    raise errors.InvalidFieldType()
+                    raise err.InvalidFieldType()
 
             attrs["__names__"] = field_names
             attrs["__table__"] = Table(
@@ -179,7 +173,7 @@ class ModelType(type):
         )
 
     def __setattr__(cls, *_args: Any) -> None:
-        raise errors.ModelSetAttrError(
+        raise err.ModelSetAttrError(
             f"Model '{cls.__name__}' class not allow set attribute")
 
     def __repr__(cls) -> str:
@@ -189,7 +183,7 @@ class ModelType(type):
         return cls.__name__
 
     def __delattr__(cls, name: str) -> None:
-        raise errors.ProgrammingError()
+        raise err.ProgrammingError()
 
     def __aiter__(cls) -> Select:
         return Api.select(cls)  # type: ignore
@@ -231,15 +225,15 @@ class ModelBase:
     ) -> None:
         f = self.__table__.field_dict.get(name)
         if not f:
-            raise errors.SetNoAttrError(name)
+            raise err.SetNoAttrError(name)
 
         if not __load and (f.primary_key and f.auto):
-            raise errors.ModifyAutoPkError()
+            raise err.ModifyAutoPkError()
 
         try:
             value = f.py_value(value)
         except (ValueError, TypeError):
-            raise errors.SetInvalidColumnsValueError()
+            raise err.SetInvalidColumnsValueError()
 
         self.__dict__[name] = value
 
@@ -257,11 +251,11 @@ class ModelBase:
 class Model(gh.with_metaclass(ModelType, ModelBase)):  # type:ignore
 
     @classmethod
-    async def create(cls, **options: Any) -> ExecResult:
+    async def create(cls, **options: Any) -> db.ExecResult:
         return await Api.create_table(cls, **options)
 
     @classmethod
-    async def drop(cls, **options: Any) -> ExecResult:
+    async def drop(cls, **options: Any) -> db.ExecResult:
         return await Api.drop_table(cls, **options)
 
     @classmethod
@@ -273,7 +267,7 @@ class Model(gh.with_metaclass(ModelType, ModelBase)):  # type:ignore
         return Api.show(cls)
 
     @classmethod
-    async def get(cls, _id: Id) -> FetchResult:
+    async def get(cls, _id: Id) -> Union[db.FetchResult, None]:
         return await Api.get(cls, _id)
 
     # model
@@ -281,19 +275,19 @@ class Model(gh.with_metaclass(ModelType, ModelBase)):  # type:ignore
     @classmethod
     async def mget(
             cls, ids: IdList, columns: Optional[List[FieldBase]] = None
-    ) -> FetchResult:
+    ) -> db.FetchResult:
         return await Api.get_many(cls, ids, columns=columns)
 
     @classmethod
-    async def add(cls, instance: Model) -> ExecResult:
+    async def add(cls, instance: Model) -> db.ExecResult:
         return await Api.add(cls, instance)
 
     @classmethod
-    async def madd(cls, instances: List[Model]) -> ExecResult:
+    async def madd(cls, instances: List[Model]) -> db.ExecResult:
         return await Api.add_many(cls, instances)
 
     @classmethod
-    async def set(cls, _id: Id, **values: Any) -> ExecResult:
+    async def set(cls, _id: Id, **values: Any) -> db.ExecResult:
         return await Api.set(cls, _id, values)
 
     # direct
@@ -346,7 +340,7 @@ def with_table(m: Union[Type[Model], Model]) -> Table:
     try:
         return m.__table__
     except AttributeError:
-        raise errors.ProgrammingError("Must be ModelType")
+        raise err.ProgrammingError("Must be ModelType")
 
 
 class Api:
@@ -356,7 +350,7 @@ class Api:
     @classmethod
     async def create_table(
         cls, m: Type[Model], **options: Any
-    ) -> ExecResult:
+    ) -> db.ExecResult:
         """ Do create table """
 
         return await Create(with_table(m), **options).do()
@@ -364,7 +358,7 @@ class Api:
     @classmethod
     async def drop_table(
         cls, m: Type[Model], **options: Any
-    ) -> ExecResult:
+    ) -> db.ExecResult:
         """ Do drop table """
 
         return await Drop(with_table(m), **options).do()
@@ -382,8 +376,9 @@ class Api:
     # simple
 
     @classmethod
-    async def get(cls, m: Type[Model], _id: Id):
-
+    async def get(
+        cls, m: Type[Model], _id: Id
+    ) -> Union[db.FetchResult, None]:
         return await Select(
             with_table(m).fields, m
         ).where(
@@ -396,7 +391,7 @@ class Api:
         m: Type[Model],
         ids: IdList,
         columns: Optional[List[FieldBase]] = None
-    ):
+    ) -> db.FetchResult:
 
         columns = columns or with_table(m).fields
 
@@ -412,14 +407,14 @@ class Api:
         m: Type[Model],
         _id: Id,
         values: Any
-    ) -> ExecResult:
+    ) -> db.ExecResult:
 
         return Update(
             with_table(m), values
         ).where(with_table(m).primary.field == _id).do()
 
     @classmethod
-    async def add(cls, m: Type[Model], instance: Model) -> ExecResult:
+    async def add(cls, m: Type[Model], instance: Model) -> db.ExecResult:
 
         row = Values(instance.__self__)
         return await Insert(with_table(m), row).do()
@@ -427,7 +422,7 @@ class Api:
     @classmethod
     async def add_many(
         cls, m: Type[Model], instances: List[Model]
-    ) -> ExecResult:
+    ) -> db.ExecResult:
 
         rows = Values([instance.__self__ for instance in instances])
         return await Insert(with_table(m), rows).do()
@@ -443,7 +438,7 @@ class Api:
         return Select(list(columns), m)
 
     @classmethod
-    @utils.argschecker(row=dict)
+    @util.argschecker(row=dict)
     def insert(
         cls, m: Type[Model], row: Dict[str, Any]
     ) -> Insert:
@@ -473,7 +468,7 @@ class Api:
         return Insert(with_table(m), Values(cleaned_data))
 
     @classmethod
-    @utils.argschecker(rows=SEQUENCE, columns=SEQUENCE)
+    @util.argschecker(rows=SEQUENCE, columns=SEQUENCE)
     def insert_many(
         cls,
         m: Type[Model],
@@ -506,7 +501,7 @@ class Api:
                     raise TypeError("Use field")
 
                 if c.name not in m.__names__:
-                    raise errors.NoSuchColumnError(c)
+                    raise err.NoSuchColumnError(c)
 
         cleaned_rows = []
         for row in rows:
@@ -546,7 +541,7 @@ class Api:
     # model
 
     @classmethod
-    async def save(cls, mo: Model) -> ExecResult:
+    async def save(cls, mo: Model) -> db.ExecResult:
         """ save mo """
 
         row = Values(cls._gen_insert_row(mo, mo.__self__))  # type: ignore
@@ -559,7 +554,7 @@ class Api:
         return result
 
     @classmethod
-    async def remove(cls, mo: Model) -> ExecResult:
+    async def remove(cls, mo: Model) -> db.ExecResult:
         """ delete mo """
 
         primary = getattr(mo, mo.__names__[with_table(mo).primary.field.name])
@@ -595,7 +590,7 @@ class Api:
             try:
                 f = with_table(m).fields_dict[col]
             except KeyError:
-                raise errors.NoSuchColumnError()
+                raise err.NoSuchColumnError()
             cleaned_data[f.name] = row_data[col]  # type: ignore
 
         insert_data = cls._get_default_row(m)
@@ -603,15 +598,15 @@ class Api:
             v = cleaned_data.pop(col, None)
             f = with_table(m).fields_dict[m.__names__[col]]
             if v is None and not f.null:
-                raise errors.InvalidColumnsVlaueError()
+                raise err.InvalidColumnsVlaueError()
             try:
                 insert_data[col] = f.db_value(v)
             except ValueError:
-                raise errors.InvalidColumnsVlaueError()
+                raise err.InvalidColumnsVlaueError()
 
         if cleaned_data:
             for c in cleaned_data:
-                raise errors.NoSuchColumnError(c)
+                raise err.NoSuchColumnError(c)
 
         return insert_data
 
@@ -655,7 +650,7 @@ class QueryBase:
     __slots__ = ('_state',)
 
     def __init__(self):
-        self._state = utils.Tdict()
+        self._state = util.tdict()
 
     def __repr__(self) -> str:
         return repr(self.__query__())
@@ -668,9 +663,10 @@ class QueryBase:
 
     @property
     def query(self) -> gh.Query:
-        self._state.db = getattr(getattr(
-            self, '_model', None
-        ).__table__ or getattr(self, '_table', None), 'db', None)
+        table = getattr(self, '_table', None)
+        if not table and hasattr(self, '_model'):
+            table = with_table(self._model)
+        self._state.db = getattr(table, 'db', None)
         return self.__query__()
 
 
@@ -770,20 +766,36 @@ class Select(gh.Node, QueryBase):
         self._offset = offset
         return self
 
-    async def all(self, rowtype=None) -> Any:
+    def tdicts(self):
+        self._rowtype = RT.TDICT
+        return self
+
+    def tuples(self):
+        self._rowtype = RT.TUPLE
+        return self
+
+    async def all(
+        self, rowtype=None
+    ) -> Union[None, db.FetchResult, tuple, util.tdict]:
         self.query.r = True
-        if rowtype and rowtype in RT.values():
+        if rowtype and rowtype not in RT.values():
+            raise ValueError(f"Unsupported rowtype {rowtype}")
+        if rowtype:
             self._rowtype = rowtype
-        if self._rowtype == RT.TDICT:
-            self._state.tdict = True
+        if self._rowtype == RT.TUPLE:
+            self._state.tdict = False
         return Loader(
-            await db.execute(self.query), self._model, self._rowtype
+            await db.execute(self.query, **self._state),
+            self._model, self._rowtype
         ).do()
 
     async def first(self, rowtype=None):
         self.limit(1)
         self._state.rows = 1
         await self.all(rowtype)
+
+    async def get(self):
+        pass
 
     async def rows(self, rows, start=0, rowtype=None):
         self.limit(rows, start)
@@ -978,29 +990,32 @@ class Create(WriteQuery):
     def __init__(self, table: Table, **options: Any) -> None:
         self._table = table
         self._options = options
+        super().__init__()
 
     def __sql__(self, ctx: gh.Context) -> gh.Context:
 
         ctx.literal('CREATE ')
         if self._options.get('temporary'):
-            ctx.literal(' TEMPORARY ')
-        ctx.literal(' TABLE ')
+            ctx.literal('TEMPORARY ')
+        ctx.literal('TABLE ')
         if self._options.get('safe', True):
-            ctx.literal('IF NOT EXISTS')
+            ctx.literal('IF NOT EXISTS ')
         ctx.sql(self._table)
 
-        defs = [f.__def__() for f in self._table.fields]
+        defs = [f.__def__() for f in self._table.fields]  # type: List[gh.Node]
         defs.append(SQL(f"PRIMARY KEY (`{self._table.primary.field.name}`)"))
-        defs.extend([i.__def__() for i in self._table.indexes])
-        defs = gh.CommaNodeList(defs)  # type: ignore
-        ctx.sql(defs)
+        if self._table.indexes:
+            defs.extend([i.__def__() for i in self._table.indexes])
 
-        ctx.literal(
+        ctx.sql(
+            gh.EnclosedNodeList(defs)
+        ).literal(
             f"ENGINE={self._table.engine} "
             f"AUTO_INCREMENT={self._table.auto_increment} "
             f"DEFAULT CHARSET={self._table.charset} "
-            f"COMMENT='{self._table.comment}';"
+            f"COMMENT='{self._table.comment}'"
         )
+
         return ctx
 
 
@@ -1029,12 +1044,13 @@ class Show:
     __str__ = __repr__
 
     async def create_syntax(self):
-        return await db.execute(
+        return (await db.execute(
             gh.Query(
                 f"SHOW CREATE TABLE {self._table.table_name};",
-                read=False
-            )
-        )
+                read=True
+            ),
+            rows=1
+        ))['Create Table']
 
     async def columns(self):
         return await db.execute(
@@ -1090,15 +1106,27 @@ class Loader:
         self._rt = rt
 
     def do(self):
+        """
+        1. model:
+            - 1: None | {} -> Model
+            -!1: [] | [{}, {}] -> [model1, model2]
+
+        2. tdict:
+            - 1: None | {}
+            -!1 [] | [{}, {}]
+
+        3. tuple:
+            - 1: None | (xx, xx)
+            -!1: () | [(xx, xx), ...]
+        """
         if self._rt == RT.MODEL:
             if isinstance(self._ori, list):
                 for i in range(len(self._ori)):
                     mobj = self._to_model(self._ori[i])
-                    if mobj is None:
-                        mobj = self._ori[i]
-                    self._ori[i] = mobj
+                    self._ori[i] = mobj or self._ori[i]
 
-            self._ori = self._to_model(self._ori) or self._ori
+            elif self._ori:
+                self._ori = self._to_model(self._ori) or self._ori
         return self._ori
 
     def _to_model(self, row):

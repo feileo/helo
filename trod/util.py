@@ -3,12 +3,13 @@ from functools import wraps
 from inspect import iscoroutinefunction, isclass, signature, ismodule
 
 __all__ = (
-    'Tdict',
+    'tdict',
     'tdictformatter',
     'singleton',
     'asyncinit',
     'argschecker',
     'ismodule',
+    'FreeObject',
 )
 
 
@@ -16,8 +17,7 @@ def __dir__():
     return __all__
 
 
-# AttrDict
-class Tdict(dict):
+class tdict(dict):  # pylint: disable=invalid-name
     """ Is a class that makes a dictionary behave like an object,
         with attribute-style access.
     """
@@ -32,19 +32,12 @@ class Tdict(dict):
             for key, value in zip(keys, values):
                 self[key] = value
 
-        keys = kwargs.pop("keys", None)
-        values = kwargs.pop("values", None)
-
-        if keys and values:
-            for key, value in zip(keys, values):
-                self[key] = value
-
     def __getattr__(self, key):
         try:
             return self[key]
         except KeyError:
             raise AttributeError(
-                f"Tdict object has not attribute {key}."
+                f"tdict object has not attribute {key}."
             )
 
     def __setattr__(self, key, value) -> None:
@@ -55,12 +48,33 @@ class Tdict(dict):
         return self
 
     def __add__(self, other):
-        td = Tdict(**self)
+        td = self.copy()
         td.update(other)
         return td
 
+    def copy(self):
+        return tdict(**super().copy())
 
-class Tcontainer:
+
+def tdictformatter(func):
+    """ A function decorator that convert the returned dict object to tdict
+        If it is a list, recursively convert its elements
+    """
+    if iscoroutinefunction(func):
+        @wraps(func)
+        async def convert(*args, **kwargs):
+            result = await func(*args, **kwargs)
+            return formattdict(result)
+    else:
+        @wraps(func)
+        def convert(*args, **kwargs):
+            result = func(*args, **kwargs)
+            return formattdict(result)
+
+    return convert
+
+
+class FreeObject:
 
     def __init__(self, **kwargs):
         for name in kwargs:
@@ -96,36 +110,18 @@ class Tcontainer:
     def __add__(self, other):
         return self.as_new(**other)
 
+    def __str__(self):
+        return str(self.__dict__)
+
+    def __repr__(self):
+        return f'FreeObject({self.__dict__!r})'
+
     def as_new(self, **values):
         c = self.__class__.__new__(self.__class__)
         c.__dict__ = self.__dict__.copy()
         if values:
             c.__dict__.update(values)
         return c
-
-    def __str__(self):
-        return str(self.__dict__)
-
-    def __repr__(self):
-        return f'Container({self.__dict__!r})'
-
-
-def tdictformatter(func):
-    """ A function decorator that convert the returned dict object to Tdict
-        If it is a list, recursively convert its elements
-    """
-    if iscoroutinefunction(func):
-        @wraps(func)
-        async def convert(*args, **kwargs):
-            result = await func(*args, **kwargs)
-            return formattdict(result)
-    else:
-        @wraps(func)
-        def convert(*args, **kwargs):
-            result = func(*args, **kwargs)
-            return formattdict(result)
-
-    return convert
 
 
 def singleton(cls):
@@ -220,7 +216,7 @@ def argschecker(*cargs, **ckwargs):
 def formattdict(original):
 
     def do_format(ori_dict):
-        td = Tdict()
+        td = tdict()
         for key, value in ori_dict.items():
             td[key] = do_format(value) if isinstance(value, dict) else value
         return td
@@ -236,8 +232,8 @@ def formattdict(original):
         for item in original:
             if not isinstance(item, (list, tuple, dict)):
                 raise TypeError(
-                    f"Invalid data type '{original}' to convert `Tdict`"
+                    f"Invalid data type '{original}' to convert `tdict`"
                 )
             fmted.append(formattdict(item))
         return fmted
-    raise TypeError(f"Non-iterable object can not '{original}' to convert `Tdict`")
+    raise TypeError(f"Non-iterable object can not '{original}' to convert `tdict`")

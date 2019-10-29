@@ -1,55 +1,321 @@
+import datetime
+
 import pytest
 
-from trod.g import _helper
+from trod import db, err, util, g
 
-from . import base
+
+class TestContext:
+
+    def __init__(self, setup=None, teardown=None, **bindargs):
+        self.setup = setup
+        self.teardown = teardown
+        self.bindargs = bindargs
+
+    async def __aenter__(self):
+        await db.binding(db.get_db_url(), **self.bindargs)
+        if self.setup:
+            await db.execute(self.setup)
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self.teardown:
+            await db.execute(self.teardown)
+
+        await db.unbinding()
+
+
+SETUP_QUERY = g.Query(
+    "CREATE TABLE IF NOT EXISTS `user` ("
+    "`id` int(20) unsigned NOT NULL AUTO_INCREMENT,"
+    "`name` varchar(100) NOT NULL DEFAULT '' COMMENT 'username',"
+    "`age` int(20) NOT NULL DEFAULT '0' COMMENT 'user age',"
+    "`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+    "PRIMARY KEY (`id`),"
+    "UNIQUE KEY `idx_name` (`name`)"
+    ") ENGINE=InnoDB AUTO_INCREMENT=26 "
+    "DEFAULT CHARSET=utf8 COMMENT='user info table';"
+)
+TEARDOWN_QUERY = g.Query("DROP TABLE `user`;")
 
 
 @pytest.mark.asyncio
-async def test_db():
+async def test_sin():
 
-    async with base.Binder() as db:
+    async with TestContext(SETUP_QUERY, TEARDOWN_QUERY, echo=True):
 
-        assert db.poolstate().maxsize == 15
+        assert db.get_state().minsize == 1
+        assert db.get_state().maxsize == 15
+        assert db.get_state().size == 1
+        assert db.get_state().freesize == 1
 
-        await db.execute(
-            _helper.Query(
-                "CREATE TABLE IF NOT EXISTS `user` ("
-                "`id` int(20) unsigned NOT NULL AUTO_INCREMENT,"
-                "`name` varchar(100) NOT NULL DEFAULT '' COMMENT '用户名',"
-                "`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,"
-                "PRIMARY KEY (`id`),"
-                "UNIQUE KEY `idx_name` (`name`)"
-                ") ENGINE=InnoDB AUTO_INCREMENT=26 "
-                " DEFAULT CHARSET=utf8 COMMENT='用户表';"
-            )
-        )
+        async with db._impl.Executer.pool.acquire() as conn:
+            assert db.get_state().size == 1
+            assert db.get_state().freesize == 0
+            assert conn.echo is True
+            assert conn.db == 'trod'
+            assert conn.charset == 'utf8'
 
-        await db.execute(
-            _helper.Query(
-                "INSERT INTO `user` (`id`, `name`) VALUES (%s, %s);",
-                params=[(1, 'acth'), (2, 'asdkj'), (3, 'dsd')]),
+            async with db._impl.Executer.pool.acquire() as conn:
+                assert db.get_state().size == 2
+
+        try:
+            await db.binding(db.get_db_url())
+            assert False, 'Should be raise DuplicateBinding'
+        except err.DuplicateBinding:
+            pass
+
+        await db.unbinding()
+        assert db.get_state() is None
+
+        try:
+            await db.unbinding()
+            await db.execute(g.Query("SELECT * FROM `user`;"))
+            assert False, 'Should be raise UnboundError'
+        except err.UnboundError:
+            pass
+
+        try:
+            await db.binding("postgres:/user:password@host:port/db")
+            assert False, 'Should be raise ValueError'
+        except ValueError:
+            pass
+
+        try:
+            await db.binding("postgres://user:password@host:port/db")
+            assert False, 'Should be raise UnsupportedError'
+        except err.UnsupportedError:
+            pass
+
+        await db.binding(db.get_db_url(), maxsize=7, autocommit=True)
+        assert db.get_state().maxsize == 7
+
+        result = await db.execute(
+            g.Query(
+                "INSERT INTO `user` (`name`, `age`) VALUES (%s, %s);",
+                params=[('at7h', 22), ('gaven', 23), ('mejer', 24)]
+            ),
             many=True,
         )
+        assert isinstance(result, db.ExecResult)
+        assert result.affected == 3
+        assert result.last_id == 26
 
         result = await db.execute(
-            _helper.Query(
-                "SELECT * FROM `user` where id in %s;", params=((1, 2, 3),)
+            g.Query(
+                "INSERT INTO `user` (`name`, `age`) VALUES (%s, %s);",
+                params=['suwei', 35]
+            ),
+        )
+        assert result.affected == 1
+        assert result.last_id == 29
+        assert str(result) == '(1, 29)'
+
+        users = await db.execute(
+            g.Query(
+                "SELECT * FROM `user` WHERE `id` IN %s;", params=[(78, 79)]
+            ),
+        )
+        assert isinstance(users, list)
+        assert not users
+
+        users = await db.execute(
+            g.Query(
+                "SELECT * FROM `user` WHERE `id` IN %s;", params=[(78, 79)]
+            ),
+            rows=1
+        )
+        assert users is None
+
+        users = await db.execute(
+            g.Query(
+                "SELECT * FROM `user` WHERE `id` IN %s;", params=[(26, 27, 28)]
+            ),
+            tdict=False
+        )
+        assert isinstance(users, db.FetchResult)
+        assert isinstance(users[0], tuple)
+        assert len(users) == 3
+        assert users[0][1] == 'at7h'
+        assert users[1][2] == 23
+        assert users[2][1] == 'mejer'
+        assert isinstance(users[2][3], datetime.datetime)
+
+        users = await db.execute(
+            g.Query(
+                "SELECT * FROM `user` WHERE `id` IN %s;", params=[(27, 28)]
+            ),
+            tdict=False,
+            rows=1
+        )
+        assert isinstance(users, tuple)
+        assert len(users) == 4
+        assert users[0] == 27
+        assert users[1] == 'gaven'
+        assert users[2] == 23
+
+        users = await db.execute(
+            g.Query(
+                "SELECT * FROM `user` WHERE `id` IN %s LIMIT 1;", params=[(26, 27, 28)]
+            ),
+            tdict=False,
+        )
+        assert isinstance(users, db.FetchResult)
+        assert isinstance(users[0], tuple)
+        assert len(users) == 1
+        assert users[0][0] == 26
+        assert users[0][1] == 'at7h'
+
+        users = await db.execute(
+            g.Query(
+                "SELECT * FROM `user` WHERE `id`=%s;", params=[100]
+            ),
+            tdict=False,
+            rows=1
+        )
+        assert not users
+
+        users = await db.execute(
+            g.Query(
+                "SELECT * FROM `user` WHERE `id` IN %s;", params=[(26, 27, 28)]
+            ),
+            rows=1
+        )
+        assert isinstance(users, util.tdict)
+        assert len(users) == 4
+        assert users.id == 26
+        assert users.name == 'at7h'
+        assert users.age == 22
+
+        users = await db.execute(
+            g.Query(
+                "SELECT * FROM `user` WHERE `id` IN %s LIMIT 1;", params=[(28, 29)]
+            ),
+        )
+        assert isinstance(users, db.FetchResult)
+        assert isinstance(users[0], util.tdict)
+        assert len(users) == 1
+        assert users[0].id == 28
+        assert users[0].name == 'mejer'
+
+        users = await db.execute(
+            g.Query(
+                "SELECT * FROM `user` WHERE `id` IN %s;", params=[(26, 27, 28)]
             )
         )
-        print(result)
+        assert isinstance(users, db.FetchResult)
+        assert users[0].name == 'at7h'
+        assert users[1].age == 23
+        assert users[2].name == 'mejer'
+        assert isinstance(users[2].created_at, datetime.datetime)
 
-        assert result[0].name == 'acth'
+        users = await db.execute(
+            g.Query(
+                "SELECT * FROM `user` WHERE `created_at` < %s ;",
+                params=[datetime.datetime.now()]
+            )
+        )
+        assert isinstance(users, db.FetchResult)
+        assert isinstance(users[0], util.tdict)
+        assert len(users) == 4
+        assert users[0].name == 'at7h'
+        assert users[1].age == 23
+        assert users[2].name == 'mejer'
+
+        users = await db.execute(
+            g.Query(
+                "SELECT * FROM `user` WHERE `created_at` >= %s ;",
+                params=[datetime.datetime.now()]
+            )
+        )
+        assert isinstance(users, db.FetchResult)
+        assert not users
+
+        users = await db.execute(
+            g.Query(
+                "SELECT * FROM `user` WHERE `created_at` >= %s ;",
+                params=[datetime.datetime.now()]
+            ),
+            rows=1
+        )
+        assert users is None
 
         result = await db.execute(
-            _helper.Query(
-                "DELETE FROM `user` where id=%s;", params=1
+            g.Query(
+                "DELETE FROM `user` WHERE `id`=%s;", params=[1]
             ))
-        print(result)
-        assert result[0] == 1
+        assert result.affected == 0
+        assert result.last_id == 0
+
+        result = await db.execute(
+            g.Query(
+                "DELETE FROM `user` WHERE `id`=%s;", params=[26]
+            ))
+        assert result.affected == 1
+        assert result.last_id == 0
+
+
+@pytest.mark.asyncio
+async def test_mul():
+
+    t1 = 'trod_1'
+    async with TestContext(
+        setup=g.Query(f'CREATE DATABASE `{t1}`;'),
+        teardown=g.Query(f'DROP DATABASE `{t1}`;'),
+    ):
+
+        async with db._impl.Executer.pool.acquire() as conn:
+            assert db.get_state().size == 1
+            assert db.get_state().freesize == 0
+            assert conn.echo is False
+            assert conn.db == 'trod'
+            assert conn.charset == 'utf8'
+
+        await db.select_db(t1)
+        async with db._impl.Executer.pool.acquire() as conn:
+            conn.db == t1
+        await db.execute(SETUP_QUERY)
 
         await db.execute(
-            _helper.Query(
-                "DROP TABLE `user`;"
+            g.Query(
+                "INSERT INTO `user` (`name`, `age`) VALUES (%s, %s);",
+                params=[('at7h', 22), ('gaven', 23), ('mejer', 24)]
+            ),
+            many=True,
+        )
+        users = await db.execute(
+            g.Query(
+                "SELECT * FROM `user` WHERE `id` IN %s;", params=[(26, 27, 28)]
             )
         )
+        assert isinstance(users, db.FetchResult)
+        assert users[0].name == 'at7h'
+        assert users[1].age == 23
+        assert users[2].name == 'mejer'
+        assert isinstance(users[2].created_at, datetime.datetime)
+
+        await db.execute(TEARDOWN_QUERY)
+
+
+@pytest.mark.asyncio
+async def test_url():
+
+    async with TestContext(autocommit=True):
+        connmeta = db._impl.Executer.pool.connmeta
+
+        assert connmeta.unix_socket is None
+        assert connmeta.read_default_file is None
+        assert connmeta.init_command is None
+        assert connmeta.connect_timeout == 20
+        assert connmeta.local_infile is False
+        assert connmeta.ssl is None
+        assert connmeta.auth_plugin == ''
+        assert connmeta.program_name == ''
+        assert connmeta.server_public_key is None
+
+        async with db._impl.Executer.pool.acquire() as conn:
+            assert connmeta.host == conn.host
+            assert connmeta.port == conn.port
+            assert connmeta.user == conn.user
+            assert connmeta.db == conn.db
+            assert connmeta.charset == conn.charset
+            assert connmeta.autocommit == conn.get_autocommit()

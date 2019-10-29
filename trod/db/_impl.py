@@ -7,19 +7,134 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 import urllib.parse as urlparse
 from functools import wraps
 from inspect import iscoroutinefunction
-from typing import Optional, Any, Union, Tuple, Callable, Dict
+from typing import Optional, Any, Union, Callable, Dict
 
 import aiomysql
 
-from .. import utils, errors
-from ..g import _helper, RT
+from .. import util, err, g
 
 
-@utils.asyncinit
+SUPPORTED_SCHEMES = ('mysql',)
+
+URL_KEY = 'TROD_DB_URL'
+
+
+def __ensure__(bound: bool) -> Callable:
+    """A decorator to ensure that the executor has been activated or dead."""
+
+    def decorator(func):
+
+        def checker():
+            if Executer.active():
+                if not bound:
+                    cm = Executer.pool.connmeta
+                    raise err.DuplicateBinding(host=cm.host, port=cm.port)
+            elif bound:
+                raise err.UnboundError()
+
+        if iscoroutinefunction(func):
+            @wraps(func)
+            async def async_wraper(*args, **kwargs):
+                checker()
+                return await func(*args, **kwargs)
+
+            return async_wraper
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            checker()
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
+def get_db_url() -> Optional[str]:
+    return os.environ.get(URL_KEY)
+
+
+class BindContext:
+
+    def __init__(self, **bindings: Any) -> None:
+        self.bindings = bindings
+
+    async def __aenter__(self) -> None:
+        await binding(get_db_url(), **self.bindings)
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        await unbinding()
+
+
+@__ensure__(False)
+async def binding(
+    url: Optional[str] = None, **kwargs: Any
+) -> bool:
+    """A coroutine that binding a database(create a connection pool).
+
+    The pool is a singleton, repeated create will cause errors.
+    Returns true after successful create
+
+    :param url: db url
+    more parameters, see ``Pool` and ``Pool.from_url``
+    """
+
+    if url:
+        pool = await Pool.from_url(url, **kwargs)
+    else:
+        pool = await Pool(**kwargs)  # type: ignore
+
+    Executer.activate(pool)
+
+    return True
+
+
+@__ensure__(True)
+async def execute(
+    query: g.Query, **kwargs: Any
+) -> Union[None, FetchResult, util.tdict, tuple, ExecResult]:
+    """A coroutine that execute sql and return the results of its execution
+
+    :param sql ``trod.g.Query`` : sql query object
+    """
+    if not query:
+        raise ValueError("No SQL query statement")
+
+    return await Executer.do(query, **kwargs)
+
+
+@__ensure__(True)
+async def select_db(db: str) -> None:
+    """Set current db"""
+
+    async with Executer.pool.acquire() as conn:  # type: ignore
+        conn._db = db
+        await conn.select_db(db)
+
+
+@__ensure__(True)
+async def unbinding() -> bool:
+    """A coroutine that unbinding a database(close the connection pool)."""
+
+    return await Executer.death()
+
+
+def is_bound() -> bool:
+    return bool(Executer.pool)
+
+
+def get_state() -> Optional[util.tdict]:
+    """Return the current state of the connection pool"""
+
+    return Executer.poolstate()
+
+
+@util.asyncinit
 class Pool:
     """Create a MySQL connection pool based on `aiomysql.create_pool`.
 
@@ -33,13 +148,13 @@ class Pool:
         asyncio.get_event_loop() is used if loop is not specified.
     :param conn_kwargs: See `_CONN_KWARGS`.
     """
-    _CONN_KWARGS = utils.Tdict(
+    _CONN_KWARGS = util.tdict(
         host="localhost",        # Host where the database server is located
         user=None,               # Username to log in as
         password="",             # Password to use
         db=None,                 # Database to use, None to not use a particular one
         port=3306,               # MySQL port to use
-        charset='',              # Charset you want to use
+        charset='utf8',              # Charset you want to use
         unix_socket=None,        # You can use a unix socket rather than TCP/IP
         read_default_file=None,  # Specifies my.cnf file to read these parameters
         use_unicode=None,        # Whether or not to default to unicode strings
@@ -56,10 +171,6 @@ class Pool:
 
     __slots__ = ('_pool', '_connmeta')
 
-    class TdictCursor(aiomysql.DictCursor):
-
-        dict_type = utils.Tdict
-
     async def __init__(  # type: ignore
             self,
             minsize: int = 1,
@@ -71,7 +182,6 @@ class Pool:
     ) -> None:
 
         conn_kwargs = self._check_conn_kwargs(conn_kwargs)
-        # conn_kwargs['cursorclass'] = self.TdictCursor
         self._pool = await aiomysql.create_pool(
             minsize=minsize, maxsize=maxsize, echo=echo,
             pool_recycle=pool_recycle, loop=loop,
@@ -111,7 +221,8 @@ class Pool:
             ret_kwargs[arg] = conn_kwargs.pop(arg, None) or self._CONN_KWARGS[arg]
         for exarg in conn_kwargs:
             raise TypeError(
-                f'{self.__class__.__name__} got an unexpected keyword argument {exarg}'
+                f'{self.__class__.__name__} got an'
+                f'unexpected keyword argument "{exarg}"'
             )
         return ret_kwargs
 
@@ -147,10 +258,10 @@ class Pool:
         return self._pool.freesize
 
     @property
-    def connmeta(self) -> utils.Tdict:
+    def connmeta(self) -> util.tdict:
         """Pool connection meta"""
 
-        return utils.formattdict(self._connmeta)  # type: ignore
+        return util.formattdict(self._connmeta)  # type: ignore
 
     def acquire(self) -> aiomysql.Connection:
         """Acquice a connectionion from the pool"""
@@ -189,6 +300,11 @@ class Pool:
         await self._pool.terminate()
 
 
+class TdictCursor(aiomysql.DictCursor):
+
+    dict_type = util.tdict
+
+
 class Executer:
     """Executor of MySQL query."""
 
@@ -215,8 +331,8 @@ class Executer:
 
     @classmethod
     async def do(
-        cls, query: _helper.Query, **kwargs: Any
-    ) -> Optional[Union[ExecResult, FetchResult, utils.Tdict]]:
+        cls, query: g.Query, **kwargs: Any
+    ) -> Union[None, FetchResult, util.tdict, tuple, ExecResult]:
         if query.r:
             return await cls._fetch(
                 query.sql, params=query.params, **kwargs,
@@ -226,10 +342,10 @@ class Executer:
         )
 
     @classmethod
-    def poolstate(cls) -> Optional[utils.Tdict]:
+    def poolstate(cls) -> Optional[util.tdict]:
         if cls.pool is None:
             return None
-        return utils.Tdict(
+        return util.tdict(
             minsize=cls.pool.minsize,
             maxsize=cls.pool.maxsize,
             size=cls.pool.size,
@@ -242,17 +358,17 @@ class Executer:
             params: Optional[Union[tuple, list]] = None,
             rows: Optional[int] = None,
             db: Optional[str] = None,
-            tdict: bool = False
-    ) -> Union[None, FetchResult, utils.Tdict]:
-
-        cursorclasses = [Pool.TdictCursor] if tdict else []
+            tdict: bool = True
+    ) -> Union[None, FetchResult, util.tdict, tuple]:
 
         async with cls.pool.acquire() as connection:  # type: ignore
 
             if db:
                 await connection.select_db(db)
 
+            cursorclasses = [TdictCursor] if tdict is True else []
             async with connection.cursor(*cursorclasses) as cur:
+
                 try:
                     await cur.execute(sql, params or ())
                     if not rows:
@@ -261,6 +377,9 @@ class Executer:
                         result = await cur.fetchone()
                     else:
                         result = await cur.fetchmany(rows)
+
+                    if rows != 1 and not isinstance(result, list):
+                        result = list(result)
                 except Exception:
                     exc_type, exc_value, _traceback = sys.exc_info()
                     error = exc_type(exc_value)  # type: ignore
@@ -277,6 +396,7 @@ class Executer:
     ) -> ExecResult:
 
         async with cls.pool.acquire() as connection:  # type: ignore
+
             if db:
                 await connection.select_db(db)
 
@@ -302,41 +422,11 @@ class Executer:
         return ExecResult(affected, last_id)
 
 
-def __ensure__(bound) -> Callable:
-    """A decorator to ensure that the executor has been activated or dead."""
-
-    def decorator(func):
-
-        def checker():
-            if Executer.active():
-                if not bound:
-                    cm = Executer.pool.connmeta
-                    raise errors.DuplicateBinding(host=cm.host, port=cm.port)
-            elif bound:
-                raise errors.UnboundError()
-
-        if iscoroutinefunction(func):
-            @wraps(func)
-            async def async_wraper(*args, **kwargs):
-                checker()
-                return await func(*args, **kwargs)
-
-            return async_wraper
-
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            checker()
-            return func(*args, **kwargs)
-
-        return wrapper
-
-    return decorator
-
-
 class FetchResult(list):
 
-    def __repr__(self):
-        return ''
+    @property
+    def count(self):
+        return len(self)
 
 
 class ExecResult:
@@ -345,7 +435,7 @@ class ExecResult:
         self.last_id = last_id
 
     def __repr__(self) -> str:
-        return f"ExecResult(affected: {1}, last_id: {2})".format(
+        return "ExecResult(affected: {}, last_id: {})".format(
             self.affected, self.last_id
         )
 
@@ -356,15 +446,13 @@ class ExecResult:
 class UrlParser:
     """Database url parser"""
 
-    SCHEMES = ('mysql',)
-
     __slots__ = ('url', )
 
     def __init__(self, url: str) -> None:
         self.url = url
 
-    @utils.tdictformatter
-    def pare(self) -> Dict[str, Any]:
+    @util.tdictformatter
+    def parse(self) -> Dict[str, Any]:
         """ do parse database url """
 
         if not self._is_illegal_url():
@@ -373,8 +461,10 @@ class UrlParser:
         self._register()
         url = urlparse.urlparse(self.url)
 
-        if url.scheme not in self.SCHEMES:
-            raise ValueError(f'Unsupported scheme {url.scheme}')
+        if url.scheme not in SUPPORTED_SCHEMES:
+            raise err.UnsupportedError(
+                f'Unsupported scheme {url.scheme}'
+            )
 
         path, query = url.path[1:], url.query
         if '?' in path and not url.query:
@@ -413,7 +503,7 @@ class UrlParser:
     def _register(self) -> None:
         """Register database schemes in URLs"""
 
-        urlparse.uses_netloc.extend(self.SCHEMES)
+        urlparse.uses_netloc.extend(SUPPORTED_SCHEMES)
 
     def _is_illegal_url(self) -> bool:
         """A bool of is illegal url"""

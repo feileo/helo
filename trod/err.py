@@ -6,9 +6,26 @@ class Error(Exception):
 
 
 class ProgrammingError(Error):
-    description = ''
+    pass
 
 
+# db
+class UnboundError(ProgrammingError):
+    description = 'db has no binding, maybe you should call `trod.bind()` before.'
+
+
+class DuplicateBinding(ProgrammingError):
+    description = 'db already bound to {host}:{port}'
+
+    def __init__(self, msg=None, **kwargs):
+        super().__init__(msg or self.description.format(**kwargs))
+
+
+class UnsupportedError(Error):
+    pass
+
+
+#
 class DataError(Error):
     description = ''
 
@@ -17,19 +34,8 @@ class DBError(Error):
     description = ''
 
 
-class UnboundError(ProgrammingError):
-    description = 'Maybe you should call `trod.bind()` before.'
-
-
-class DuplicateBinding(ProgrammingError):
-    description = 'Already bound to {host}:{port}'
-
-    def __init__(self, msg=None, **kwargs):
-        super().__init__(msg or self.description.format(**kwargs))
-
-
 class NoColumnNameError(RuntimeError):
-    description = ""
+    description = "Column name must be specified outside the model"
 
     def __init__(self, msg=None):
         super().__init__(msg or self.description)
