@@ -1,5 +1,5 @@
 from collections.abc import Iterable
-from functools import wraps
+from functools import wraps, reduce
 from inspect import iscoroutinefunction, isclass, signature, ismodule
 
 __all__ = (
@@ -9,6 +9,8 @@ __all__ = (
     'asyncinit',
     'argschecker',
     'ismodule',
+    'and_',
+    'or_',
     'FreeObject',
 )
 
@@ -211,6 +213,14 @@ def argschecker(*cargs, **ckwargs):
         return wrapper
 
     return decorator
+
+
+def and_(*exprs):
+    return reduce(lambda a, b: a & b, exprs)
+
+
+def or_(*exprs):
+    return reduce(lambda a, b: a | b, exprs)
 
 
 def formattdict(original):

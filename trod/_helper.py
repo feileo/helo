@@ -7,10 +7,9 @@
 
 from __future__ import annotations
 
-from functools import reduce
 from typing import Any, Optional, List, Union
 
-from .. import util
+from .util import argschecker
 
 
 class Query:
@@ -19,7 +18,7 @@ class Query:
 
     _KEYS = ("SELECT", "SHOW")
 
-    @util.argschecker(sql=str)
+    @argschecker(sql=str, params=(list, tuple))
     def __init__(
         self,
         sql: str,
@@ -52,8 +51,6 @@ class Query:
 
     @property
     def params(self) -> tuple:
-        if not isinstance(self._params, (list, tuple)):
-            raise RuntimeError('Invalid query params')
         return tuple(self._params)
 
     @property
@@ -82,6 +79,8 @@ class Node:
 
 
 class NodeList(Node):
+
+    __slots__ = ('nodes', 'glue', 'parens')
 
     def __init__(
         self, nodes: List[Node], glue: str = ' ', parens: bool = False
@@ -134,6 +133,9 @@ def EnclosedNodeList(  # pylint: disable=invalid-name
 
 
 class SQL(Node):
+
+    __slots__ = ('sql', 'params')
+
     def __init__(self, sql, params=None):
         self.sql = sql
         self.params = params
@@ -152,6 +154,8 @@ class SQL(Node):
 
 
 class Value(Node):
+
+    __slots__ = ('_value',)
 
     def __init__(self, _value):
         self._value = _value
@@ -212,8 +216,6 @@ class Context:
         return self
 
     def values(self, value: Any) -> Context:
-        # if not value:
-        #     return self
 
         converter = self.state.get('converter')
         if value is not None and converter:
@@ -243,14 +245,6 @@ class Context:
 
 def parse(node: Node) -> Query:
     return Context().parse(node).query()
-
-
-def and_(*exprs):
-    return reduce(lambda a, b: a & b, exprs)
-
-
-def or_(*exprs):
-    return reduce(lambda a, b: a | b, exprs)
 
 
 def with_metaclass(meta, *bases):

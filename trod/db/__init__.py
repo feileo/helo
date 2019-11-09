@@ -10,12 +10,12 @@ from ._impl import (
     select_db,
     is_bound,
     get_state,
+    get_db_url,
     FetchResult,
     ExecResult,
     BindContext,
     URL_KEY,
     SUPPORTED_SCHEMES,
-    get_db_url,
 )
 
 
@@ -25,11 +25,11 @@ __all__ = (
     'unbinding',
     'select_db',
     'is_bound',
+    'get_db_url',
     'get_state',
     'FetchResult',
     'ExecResult',
     'BindContext',
     'SUPPORTED_SCHEMES',
     'URL_KEY',
-    'get_db_url',
 )

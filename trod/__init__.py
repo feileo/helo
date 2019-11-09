@@ -6,7 +6,7 @@ from . import (
     db,
     types,
     model,
-    g,
+    # g,
     err,
     util
 )
@@ -14,11 +14,10 @@ from . import (
 __version__ = '0.0.15'
 __all__ = (
     'db',
-    'g',
+    # 'g',
     'types',
     'util',
     'err',
-    'Model',
     'Trod',
 )
 

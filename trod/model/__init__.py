@@ -1,11 +1,8 @@
 """
-    trod.model
+    trod.m
     ~~~~~~~~~~
 """
 
-from ._impl import Model
+from ._impl import Model, ROWTYPE
 
-
-__all__ = ('Model',)
-
-# Model = _impl.Model
+__all__ = ('Model', "ROWTYPE")
