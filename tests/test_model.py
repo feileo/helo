@@ -164,8 +164,7 @@ class TestModel:
         assert user.password == 'mmmm'
         assert user.nickname == 'jiajia'
         assert isinstance(user.lastlogin, datetime)
-        assert user.create_at < datetime.now()
-        assert user.update_at < datetime.now()
+        assert isinstance(user.create_at, datetime)
 
         user = await User.get(1, rowtype=ROWTYPE.TDICT)
         assert isinstance(user, util.tdict)
@@ -175,9 +174,6 @@ class TestModel:
         assert user.age == 25
         assert user.password is None
         assert user.nickname is None
-        assert user.lastlogin <= datetime.now()
-        assert user.create_at < datetime.now()
-        assert user.update_at < datetime.now()
 
         user = await User.get(1, rowtype=ROWTYPE.TUPLE)
         assert isinstance(user, tuple)
@@ -191,10 +187,8 @@ class TestModel:
         assert user[1] == 'at7h'
         assert user[2] == 0
         assert user[3] == 25
-        assert user[4] < datetime.now()
-        assert user[5] < datetime.now()
+        assert isinstance(user[4], datetime)
         assert user[6] is None
-        assert user[8] <= datetime.now()
 
         user = await User.get(10000)
         assert user is None
@@ -219,7 +213,6 @@ class TestModel:
         assert users[2].password == 'mmmm'
         assert users[2].nickname == 'jiajia'
         assert isinstance(users[2].lastlogin, datetime)
-        assert users[2].update_at < datetime.now()
 
         users = await User.mget(
             user_ids,
@@ -442,7 +435,6 @@ class TestModel:
         assert users.count == 15
         assert users[-1].id == 16
         assert users[-2].name == 'user7'
-        assert users[3].create_at < datetime.now()
 
         users = await User.select().rows(10, rowtype=ROWTYPE.TUPLE)
         assert isinstance(users, db.FetchResult)

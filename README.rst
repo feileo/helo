@@ -1,25 +1,23 @@
 ====
-trod 
+trod
 ====
 
 .. image:: https://img.shields.io/pypi/v/trod.svg
         :target: https://pypi.python.org/pypi/trod
 
 .. image:: https://travis-ci.org/at7h/trod.svg?branch=master
-        :target: https://travis-ci.org/at7h/trod
+    :target: https://travis-ci.org/at7h/trod
 
-.. image:: https://codecov.io/gh/at7h/trod/branch/master/graph/badge.svg
-        :target: https://codecov.io/gh/at7h/trod
+.. image:: https://coveralls.io/repos/github/at7h/trod/badge.svg?branch=master
+        :target: https://coveralls.io/github/at7h/trod?branch=master
 
-.. image:: https://img.shields.io/pypi/pyversions/trod.svg
-        :target: https://img.shields.io/pypi/pyversions/trod.svg
-
-.. image:: https://img.shields.io/pypi/l/trod.svg
-        :target: https://img.shields.io/pypi/l/trod.svg
+.. image:: https://img.shields.io/github/license/at7h/trod   
+        :target: https://img.shields.io/github/license/at7h/trod
+        :alt: GitHub
 
 
-🌻 **Trod** is a simple asynchronous Python ORM. 
-Now it only supports MySQL and uses aiomysql_ as the access 'driver' for the database.
+**Trod** is a simple asynchronous Python ORM,  
+now it only supports MySQL and uses aiomysql_ as the access 'driver' for the database.
 
 * Strictly, trod is not an ORM, it just working in an ORM-like mode. 
   The objects in trod is completely isolated from the data in the database. 
@@ -68,8 +66,7 @@ Basic Example
         await User.create()
 
         user = User(name='at7h', password='123456')
-        ret = await user.save()
-        user = await User.get(ret.last_id)
+        user = await User.get((await user.save()).last_id)
         print(user.password)  # 123456
 
         await User.insert(name='guax', password='654321').do()
@@ -88,9 +85,10 @@ Basic Example
 
 About
 -----
-at7h is a junior Pythoner, and trod has a lot of temporary 
+Author at7h is a junior Pythoner, and trod has a lot of temporary 
 solutions to optimize and continue to add new features, this is just the beginning 💪.
-welcome your issues and pull requests.
+
+Welcome your issues and pull requests.
 
 
 Requirements

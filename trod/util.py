@@ -14,10 +14,6 @@ __all__ = (
 )
 
 
-def __dir__():
-    return __all__
-
-
 class tdict(dict):  # pylint: disable=invalid-name
     """ Is a class that makes a dictionary behave like an object,
         with attribute-style access.

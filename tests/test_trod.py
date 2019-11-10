@@ -1,14 +1,16 @@
 from datetime import datetime
+
 import pytest
 
 from trod import Trod, err
+from trod.db import get_db_url
 from trod.types import (
     Auto, Char, VarChar, DateTime, Tinyint,
     Timestamp, ON_CREATE, ON_UPDATE
 )
-from trod.db import get_db_url
 
 from . import models
+
 
 db = Trod()
 

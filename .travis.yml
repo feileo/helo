@@ -9,14 +9,13 @@ service:
   - mysql
 
 before_install: 
-  - mysql -e 'CREATE DATABASE trod;'
-  - export TROD_DB_URL=mysql://root@localhost:3306/trod
+  - export TROD_DB_URL=mysql://root:flzxsqc1234567@bj-cdb-cto48dn2.sql.tencentcdb.com:61834/trod
   - pip install aiomysql
-  - pip install pytest
-  - pip install pytest-asyncio
-  - pip install pytest-cov
-  - pip install codecov
+  - pip install pytz
+  - pip install pytest pytest-asyncio pytest-cov
+  - pip install codecov coverage
   - pip install pylint
+  - pip install coveralls
 
 script: 
   - pylint trod --jobs=4 --reports=yes
@@ -24,3 +23,4 @@ script:
 
 after_success:
   - codecov
+  - coveralls

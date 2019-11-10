@@ -1,9 +1,11 @@
 import datetime
 
 import pytest
+import pytz
 
 from trod import db, err, util, _helper as helper
 
+tz = pytz.timezone('Asia/Shanghai')
 
 SETUP_QUERY = helper.Query(
     "CREATE TABLE IF NOT EXISTS `user` ("
@@ -199,12 +201,12 @@ async def test_sin():
         users = await db.execute(
             helper.Query(
                 "SELECT * FROM `user` WHERE `created_at` < %s ;",
-                params=[datetime.datetime.now()]
+                params=[datetime.datetime.now(tz)]
             )
         )
         assert isinstance(users, db.FetchResult)
-        assert isinstance(users[0], util.tdict)
         assert users.count == 4
+        assert isinstance(users[0], util.tdict)
         assert users[0].name == 'at7h'
         assert users[1].age == 23
         assert users[2].name == 'mejer'
@@ -212,7 +214,7 @@ async def test_sin():
         users = await db.execute(
             helper.Query(
                 "SELECT * FROM `user` WHERE `created_at` >= %s ;",
-                params=[datetime.datetime.now()]
+                params=[datetime.datetime.now(tz)]
             )
         )
         assert isinstance(users, db.FetchResult)
@@ -221,7 +223,7 @@ async def test_sin():
         users = await db.execute(
             helper.Query(
                 "SELECT * FROM `user` WHERE `created_at` >= %s ;",
-                params=[datetime.datetime.now()]
+                params=[datetime.datetime.now(tz)]
             ),
             rows=1
         )
