@@ -2,29 +2,10 @@ import datetime
 
 import pytest
 
-from trod import db, err, util, g
+from trod import db, err, util, _helper as helper
 
 
-class TestContext:
-
-    def __init__(self, setup=None, teardown=None, **bindargs):
-        self.setup = setup
-        self.teardown = teardown
-        self.bindargs = bindargs
-
-    async def __aenter__(self):
-        await db.binding(db.get_db_url(), **self.bindargs)
-        if self.setup:
-            await db.execute(self.setup)
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if self.teardown:
-            await db.execute(self.teardown)
-
-        await db.unbinding()
-
-
-SETUP_QUERY = g.Query(
+SETUP_QUERY = helper.Query(
     "CREATE TABLE IF NOT EXISTS `user` ("
     "`id` int(20) unsigned NOT NULL AUTO_INCREMENT,"
     "`name` varchar(100) NOT NULL DEFAULT '' COMMENT 'username',"
@@ -35,13 +16,19 @@ SETUP_QUERY = g.Query(
     ") ENGINE=InnoDB AUTO_INCREMENT=26 "
     "DEFAULT CHARSET=utf8 COMMENT='user info table';"
 )
-TEARDOWN_QUERY = g.Query("DROP TABLE `user`;")
+TEARDOWN_QUERY = helper.Query("DROP TABLE `user`;")
 
 
 @pytest.mark.asyncio
 async def test_sin():
 
-    async with TestContext(SETUP_QUERY, TEARDOWN_QUERY, echo=True):
+    async def init():
+        await db.execute(SETUP_QUERY)
+
+    async def clear():
+        await db.execute(TEARDOWN_QUERY)
+
+    async with db.BindContext(init=init, clear=clear, echo=True):
 
         assert db.get_state().minsize == 1
         assert db.get_state().maxsize == 15
@@ -69,7 +56,7 @@ async def test_sin():
 
         try:
             await db.unbinding()
-            await db.execute(g.Query("SELECT * FROM `user`;"))
+            await db.execute(helper.Query("SELECT * FROM `user`;"))
             assert False, 'Should be raise UnboundError'
         except err.UnboundError:
             pass
@@ -90,7 +77,7 @@ async def test_sin():
         assert db.get_state().maxsize == 7
 
         result = await db.execute(
-            g.Query(
+            helper.Query(
                 "INSERT INTO `user` (`name`, `age`) VALUES (%s, %s);",
                 params=[('at7h', 22), ('gaven', 23), ('mejer', 24)]
             ),
@@ -101,7 +88,7 @@ async def test_sin():
         assert result.last_id == 26
 
         result = await db.execute(
-            g.Query(
+            helper.Query(
                 "INSERT INTO `user` (`name`, `age`) VALUES (%s, %s);",
                 params=['suwei', 35]
             ),
@@ -111,7 +98,7 @@ async def test_sin():
         assert str(result) == '(1, 29)'
 
         users = await db.execute(
-            g.Query(
+            helper.Query(
                 "SELECT * FROM `user` WHERE `id` IN %s;", params=[(78, 79)]
             ),
         )
@@ -119,7 +106,7 @@ async def test_sin():
         assert not users
 
         users = await db.execute(
-            g.Query(
+            helper.Query(
                 "SELECT * FROM `user` WHERE `id` IN %s;", params=[(78, 79)]
             ),
             rows=1
@@ -127,21 +114,21 @@ async def test_sin():
         assert users is None
 
         users = await db.execute(
-            g.Query(
+            helper.Query(
                 "SELECT * FROM `user` WHERE `id` IN %s;", params=[(26, 27, 28)]
             ),
             tdict=False
         )
         assert isinstance(users, db.FetchResult)
         assert isinstance(users[0], tuple)
-        assert len(users) == 3
+        assert users.count == 3
         assert users[0][1] == 'at7h'
         assert users[1][2] == 23
         assert users[2][1] == 'mejer'
         assert isinstance(users[2][3], datetime.datetime)
 
         users = await db.execute(
-            g.Query(
+            helper.Query(
                 "SELECT * FROM `user` WHERE `id` IN %s;", params=[(27, 28)]
             ),
             tdict=False,
@@ -154,19 +141,19 @@ async def test_sin():
         assert users[2] == 23
 
         users = await db.execute(
-            g.Query(
+            helper.Query(
                 "SELECT * FROM `user` WHERE `id` IN %s LIMIT 1;", params=[(26, 27, 28)]
             ),
             tdict=False,
         )
         assert isinstance(users, db.FetchResult)
         assert isinstance(users[0], tuple)
-        assert len(users) == 1
+        assert users.count == 1
         assert users[0][0] == 26
         assert users[0][1] == 'at7h'
 
         users = await db.execute(
-            g.Query(
+            helper.Query(
                 "SELECT * FROM `user` WHERE `id`=%s;", params=[100]
             ),
             tdict=False,
@@ -175,7 +162,7 @@ async def test_sin():
         assert not users
 
         users = await db.execute(
-            g.Query(
+            helper.Query(
                 "SELECT * FROM `user` WHERE `id` IN %s;", params=[(26, 27, 28)]
             ),
             rows=1
@@ -187,42 +174,43 @@ async def test_sin():
         assert users.age == 22
 
         users = await db.execute(
-            g.Query(
+            helper.Query(
                 "SELECT * FROM `user` WHERE `id` IN %s LIMIT 1;", params=[(28, 29)]
             ),
         )
         assert isinstance(users, db.FetchResult)
+        assert users.count == 1
         assert isinstance(users[0], util.tdict)
-        assert len(users) == 1
         assert users[0].id == 28
         assert users[0].name == 'mejer'
 
         users = await db.execute(
-            g.Query(
+            helper.Query(
                 "SELECT * FROM `user` WHERE `id` IN %s;", params=[(26, 27, 28)]
             )
         )
         assert isinstance(users, db.FetchResult)
+        assert users.count == 3
         assert users[0].name == 'at7h'
         assert users[1].age == 23
         assert users[2].name == 'mejer'
         assert isinstance(users[2].created_at, datetime.datetime)
 
         users = await db.execute(
-            g.Query(
+            helper.Query(
                 "SELECT * FROM `user` WHERE `created_at` < %s ;",
                 params=[datetime.datetime.now()]
             )
         )
         assert isinstance(users, db.FetchResult)
         assert isinstance(users[0], util.tdict)
-        assert len(users) == 4
+        assert users.count == 4
         assert users[0].name == 'at7h'
         assert users[1].age == 23
         assert users[2].name == 'mejer'
 
         users = await db.execute(
-            g.Query(
+            helper.Query(
                 "SELECT * FROM `user` WHERE `created_at` >= %s ;",
                 params=[datetime.datetime.now()]
             )
@@ -231,7 +219,7 @@ async def test_sin():
         assert not users
 
         users = await db.execute(
-            g.Query(
+            helper.Query(
                 "SELECT * FROM `user` WHERE `created_at` >= %s ;",
                 params=[datetime.datetime.now()]
             ),
@@ -240,14 +228,14 @@ async def test_sin():
         assert users is None
 
         result = await db.execute(
-            g.Query(
+            helper.Query(
                 "DELETE FROM `user` WHERE `id`=%s;", params=[1]
             ))
         assert result.affected == 0
         assert result.last_id == 0
 
         result = await db.execute(
-            g.Query(
+            helper.Query(
                 "DELETE FROM `user` WHERE `id`=%s;", params=[26]
             ))
         assert result.affected == 1
@@ -257,11 +245,14 @@ async def test_sin():
 @pytest.mark.asyncio
 async def test_mul():
 
+    async def init():
+        await db.execute(helper.Query(f'CREATE DATABASE `{t1}`;'))
+
+    async def clear():
+        await db.execute(helper.Query(f'DROP DATABASE `{t1}`;'))
+
     t1 = 'trod_1'
-    async with TestContext(
-        setup=g.Query(f'CREATE DATABASE `{t1}`;'),
-        teardown=g.Query(f'DROP DATABASE `{t1}`;'),
-    ):
+    async with db.BindContext(init=init, clear=clear):
 
         async with db._impl.Executer.pool.acquire() as conn:
             assert db.get_state().size == 1
@@ -276,18 +267,19 @@ async def test_mul():
         await db.execute(SETUP_QUERY)
 
         await db.execute(
-            g.Query(
+            helper.Query(
                 "INSERT INTO `user` (`name`, `age`) VALUES (%s, %s);",
                 params=[('at7h', 22), ('gaven', 23), ('mejer', 24)]
             ),
             many=True,
         )
         users = await db.execute(
-            g.Query(
+            helper.Query(
                 "SELECT * FROM `user` WHERE `id` IN %s;", params=[(26, 27, 28)]
             )
         )
         assert isinstance(users, db.FetchResult)
+        assert users.count == 3
         assert users[0].name == 'at7h'
         assert users[1].age == 23
         assert users[2].name == 'mejer'
@@ -299,7 +291,7 @@ async def test_mul():
 @pytest.mark.asyncio
 async def test_url():
 
-    async with TestContext(autocommit=True):
+    async with db.BindContext(autocommit=True):
         connmeta = db._impl.Executer.pool.connmeta
 
         assert connmeta.unix_socket is None

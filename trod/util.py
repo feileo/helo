@@ -1,6 +1,6 @@
 from collections.abc import Iterable
-from functools import wraps
-from inspect import iscoroutinefunction, isclass, signature, ismodule
+from functools import wraps, reduce
+from inspect import iscoroutinefunction, isclass, signature
 
 __all__ = (
     'tdict',
@@ -8,7 +8,8 @@ __all__ = (
     'singleton',
     'asyncinit',
     'argschecker',
-    'ismodule',
+    'and_',
+    'or_',
     'FreeObject',
 )
 
@@ -203,7 +204,8 @@ def argschecker(*cargs, **ckwargs):
                 if name in bound_args:
                     if not isinstance(value, bound_args[name]):
                         raise TypeError(
-                            f"Argument {name} must be {bound_args[name]}"
+                            f"Argument {name} must be {bound_args[name]}, "
+                            f"now got {type(value)}"
                         )
                     if not nullable and not value:
                         raise ValueError(f"Arguments {name} cannot be empty")
@@ -211,6 +213,14 @@ def argschecker(*cargs, **ckwargs):
         return wrapper
 
     return decorator
+
+
+def and_(*exprs):
+    return reduce(lambda a, b: a & b, exprs)
+
+
+def or_(*exprs):
+    return reduce(lambda a, b: a | b, exprs)
 
 
 def formattdict(original):

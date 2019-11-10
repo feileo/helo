@@ -13,15 +13,31 @@ import warnings
 from typing import Any, Optional, Union, Callable, List, Tuple
 
 from .. import util, err
-from ..g import _helper as gh, SQL, SEQUENCE, ENCODINGS
+from .._helper import (
+    SQL,
+    Node,
+    Context,
+    Value,
+    NodeList,
+    EnclosedNodeList
+)
 
+ENCODING = util.tdict(
+    utf8="utf8",
+    utf16="utf16",
+    utf32="utf32",
+    utf8mb4="utf8mb4",
+    gbk="gbk",
+    gb2312="gb2312",
+)
 
+SEQUENCE = (list, tuple, set, frozenset)
 Id = Union[int, str]
 IdList = List[Id]
 NULL = 'null'
 
 
-class ColumnBase(gh.Node):
+class ColumnBase(Node):
 
     __slots__ = ()
 
@@ -58,7 +74,7 @@ class ColumnBase(gh.Node):
         CONCAT='||',
     )
 
-    def __sql__(self, ctx: gh.Context):
+    def __sql__(self, ctx: Context):
         raise NotImplementedError
 
     def __and__(self, rhs: Any) -> Expression:
@@ -106,11 +122,11 @@ class ColumnBase(gh.Node):
     def __rxor__(self, lhs: Any) -> Expression:
         return Expression(lhs, self.OPERATOR.XOR, self)
 
-    def __eq__(self, rhs: Any) -> Expression:  # type:ignore
+    def __eq__(self, rhs: Any) -> Expression:  # type: ignore
         op = self.OPERATOR.IS if rhs is None else self.OPERATOR.EQ
         return Expression(self, op, rhs)
 
-    def __ne__(self, rhs: Any) -> Expression:  # type:ignore
+    def __ne__(self, rhs: Any) -> Expression:  # type: ignore
         op = self.OPERATOR.IS_NOT if rhs is None else self.OPERATOR.NE
         return Expression(self, op, rhs)
 
@@ -138,7 +154,7 @@ class ColumnBase(gh.Node):
     def __pow__(self, rhs: Any) -> Expression:
         return Expression(self, self.OPERATOR.ILIKE, rhs)
 
-    def __getitem__(self, item: Any) -> Expression:
+    def __getitem__(self, item: slice) -> Expression:
         if isinstance(item, slice):
             if item.start is None or item.stop is None:
                 raise ValueError(
@@ -200,13 +216,13 @@ class ColumnBase(gh.Node):
     def between(self, low: Any, hig: Any) -> Expression:
         return Expression(
             self, self.OPERATOR.BETWEEN,
-            gh.NodeList([gh.Value(low), self.OPERATOR.AND, gh.Value(hig)])
+            NodeList([Value(low), self.OPERATOR.AND, Value(hig)])
         )
 
     def nbetween(self, low: Any, hig: Any) -> Expression:
         return Expression(
             self, self.OPERATOR.NBETWEEN,
-            gh.NodeList([gh.Value(low), self.OPERATOR.AND, gh.Value(hig)])
+            NodeList([Value(low), self.OPERATOR.AND, Value(hig)])
         )
 
     def asc(self) -> Ordering:
@@ -215,31 +231,31 @@ class ColumnBase(gh.Node):
     def desc(self) -> Ordering:
         return Ordering(self, "DESC")
 
-    def as_(self, alias: str) -> gh.Node:
+    def as_(self, alias: str) -> Node:
         if alias:
             return Alias(self, alias)
         return self
 
 
-class Ordering(gh.Node):
+class Ordering(Node):
 
-    def __init__(self, node: gh.Node, key: str) -> None:
+    def __init__(self, node: Node, key: str) -> None:
         self.node = node
         self.key = key
 
-    def __sql__(self, ctx: gh.Context):
+    def __sql__(self, ctx: Context):
         ctx.sql(self.node).literal(f" {self.key} ")
         return ctx
 
 
-class Alias(gh.Node):
+class Alias(Node):
 
     @util.argschecker(alias=str, nullable=False)
-    def __init__(self, node: gh.Node, alias: str) -> None:
+    def __init__(self, node: Node, alias: str) -> None:
         self.node = node
         self.alias = alias
 
-    def __sql__(self, ctx: gh.Context):
+    def __sql__(self, ctx: Context):
         ctx.sql(self.node).literal(f" AS `{self.alias}` ")
         return ctx
 
@@ -256,7 +272,7 @@ class Expression(ColumnBase):
         self.rhs = rhs
         self.parens = parens
 
-    def __sql__(self, ctx: gh.Context):
+    def __sql__(self, ctx: Context):
         overrides = {'parens': self.parens, 'params': True}
 
         if isinstance(self.lhs, FieldBase):
@@ -270,7 +286,7 @@ class Expression(ColumnBase):
                        self.OPERATOR.NEXISTS):
             if not isinstance(self.rhs, SEQUENCE):
                 raise TypeError(
-                    f"Invalid values for operator '{self.op}', "
+                    f"Invalid values {self.rhs} for operator '{self.op}', "
                     f"expected {SEQUENCE}")
             self.rhs = tuple(self.rhs)
             overrides['nesting'] = True
@@ -305,7 +321,7 @@ class DDL:
 
     def __init__(self, field: FieldBase) -> None:
 
-        defi = gh.NodeList([SQL(field.column), self.parse_type(field)])
+        defi = NodeList([SQL(field.column), self.parse_type(field)])
 
         ops = self.parse_options(field)
         if ops.unsigned:
@@ -405,7 +421,7 @@ class FieldBase(ColumnBase):
         null: bool,
         default: Any,
         comment: str,
-        name: Optional[str] = None
+        name: str = ''
     ) -> None:
 
         if default:
@@ -428,11 +444,11 @@ class FieldBase(ColumnBase):
         self._seqnum = FieldBase._field_counter
         self._custom_wain()
 
-    def __def__(self) -> gh.NodeList:
+    def __def__(self) -> NodeList:
         return DDL(self).defi
 
     def __repr__(self) -> str:
-        ddl_def = gh.Context().parse(self.__def__()).query().sql
+        ddl_def = Context().parse(self.__def__()).query().sql
         ispk = getattr(self, 'primary_key', False)
         extra = ""
         if ispk:
@@ -442,7 +458,7 @@ class FieldBase(ColumnBase):
         return f"types.{self.__class__.__name__}('{ddl_def}{extra}')"
 
     def __str__(self) -> str:
-        return gh.Context().parse(self.__def__()).query().sql
+        return Context().parse(self.__def__()).query().sql
 
     def __hash__(self) -> int:
         if self.name:
@@ -736,20 +752,19 @@ class Text(FieldBase):
     py_type = str
     db_type = 'text'
 
-    def __init__(
+    def __init__(  # pylint: disable=super-init-not-called
             self,
             encoding: Optional[str] = None,
             null: bool = True,
             comment: str = '',
-            name: Optional[str] = None
+            name: str = ''
     ) -> None:
-        if encoding not in ENCODINGS:
+        if encoding and encoding not in ENCODING:
             raise ValueError(f"Unsupported encoding '{encoding}'")
         self.encoding = encoding
         self.null = null
         self.comment = comment
         self.name = name
-        # Cannot call super().__init__()
 
     def __add__(self, other: Any) -> StrExpression:
         return StrExpression(self, self.OPERATOR.CONCAT, other)
@@ -771,13 +786,15 @@ class Char(FieldBase):
     def __init__(
             self,
             length: int = 255,
-            encoding: str = None,
+            encoding: Optional[str] = None,
             null: bool = True,
             default: Optional[Union[str, SQL, Callable]] = None,
             comment: str = '',
             name: Optional[str] = None
     ) -> None:
         self.length = length
+        if encoding and encoding not in ENCODING:
+            raise ValueError(f"Unsupported encoding '{encoding}'")
         self.encoding = encoding
         super().__init__(
             null=null, default=default, comment=comment, name=name
@@ -831,7 +848,7 @@ class UUID(FieldBase):
             return value.hex
         try:
             return self.py_type(value).hex
-        except Exception:
+        except Exception:  # pylint: disable=broad-except
             return value
 
     def py_value(self, value: Any) -> Optional[uuid.UUID]:
@@ -1019,15 +1036,15 @@ class Timestamp(FieldBase):
         return value
 
 
-class Func(gh.Node):
+class Func(Node):
 
     __slots__ = ('_func', '_node')
     _supported = (
-        "SUM",
-        "AVG",
-        "MAX",
-        "MIN",
-        "COUNT",
+        "sum",
+        "avg",
+        "max",
+        "min",
+        "count",
     )
 
     def __init__(self, func: str, node: ColumnBase) -> None:
@@ -1035,7 +1052,7 @@ class Func(gh.Node):
         self._node = node
 
     def __getattr__(self, func: str):
-        if func.upper() not in self._supported:
+        if func.lower() not in self._supported:
             raise RuntimeError(f"Not supported func: {func}")
 
         def decorator(*args, **kwargs):
@@ -1046,17 +1063,19 @@ class Func(gh.Node):
     def as_(self, alias: str) -> str:
         return Alias(self, alias)
 
-    def __sql__(self, ctx: gh.Context):
-        ctx.literal(self._func)
+    def __sql__(self, ctx: Context):
+        ctx.literal(self._func.upper())
         with ctx(parens=True):
             ctx.sql(self._node)
         return ctx
 
 
 FS = Func("", None)  # type: ignore
+ON_CREATE = SQL("CURRENT_TIMESTAMP")
+ON_UPDATE = SQL("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
 
 
-class IndexBase(gh.Node):
+class IndexBase(Node):
 
     __slots__ = ('fields', 'comment', 'name', '_seqnum')
     __type__ = None  # type: SQL
@@ -1094,11 +1113,11 @@ class IndexBase(gh.Node):
     def seqnum(self) -> int:
         return self._seqnum
 
-    def __def__(self) -> gh.NodeList:
-        nl = gh.NodeList([
+    def __def__(self) -> NodeList:
+        nl = NodeList([
             self.__type__,
-            SQL(f'`{self.name}`'),
-            gh.EnclosedNodeList(self.fields),  # type: ignore
+            self,
+            EnclosedNodeList(self.fields),  # type: ignore
         ])
         if self.comment:
             nl.append(SQL(f"COMMENT '{self.comment}'"))
@@ -1108,13 +1127,13 @@ class IndexBase(gh.Node):
         return hash(self.name)
 
     def __repr__(self) -> str:
-        ddl_def = gh.Context().parse(self.__def__()).query().sql
+        ddl_def = Context().parse(self.__def__()).query().sql
         return f"types.{self.__class__.__name__}({ddl_def})"
 
     def __str__(self) -> str:
-        return gh.Context().parse(self.__def__()).query().sql
+        return Context().parse(self.__def__()).query().sql
 
-    def __sql__(self, ctx: gh.Context):
+    def __sql__(self, ctx: Context):
         ctx.literal(f'`{self.name}`')
         return ctx
 

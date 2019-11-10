@@ -1,20 +1,26 @@
 language: python
-python: "3.6"
+python: "3.7"
 
-sudo: false
+sudo: true
 
 install: true
 
+service:
+  - mysql
+
 before_install: 
-  - export TEST_DBURL=mysql://root:HELLOtrod1234@cdb-d98hg752.bj.tencentcdb.com:10147/trod?charset=utf8
+  - mysql -e 'CREATE DATABASE trod;'
+  - export TROD_DB_URL=mysql://root@localhost:3306/trod
   - pip install aiomysql
+  - pip install pytest
+  - pip install pytest-asyncio
+  - pip install pytest-cov
   - pip install codecov
-  - pip install coverage
   - pip install pylint
 
 script: 
-  - coverage run runtests.py
-  # - pylint ops/* --jobs=4 --reports=yes 
+  - pylint trod --jobs=4 --reports=yes
+  - pytest -svq --color=yes --cov=trod tests/
 
 after_success:
   - codecov

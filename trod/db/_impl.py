@@ -16,11 +16,11 @@ from typing import Optional, Any, Union, Callable, Dict
 
 import aiomysql
 
-from .. import util, err, g
+from .. import util, err
+from .._helper import Query
 
 
 SUPPORTED_SCHEMES = ('mysql',)
-
 URL_KEY = 'TROD_DB_URL'
 
 
@@ -62,12 +62,26 @@ def get_db_url() -> Optional[str]:
 class BindContext:
 
     def __init__(self, **bindings: Any) -> None:
+        self.initcmd = bindings.pop('init', None)
+        self.clearcmd = bindings.pop('clear', None)
         self.bindings = bindings
 
     async def __aenter__(self) -> None:
         await binding(get_db_url(), **self.bindings)
 
+        if self.initcmd:
+            if callable(self.initcmd) and iscoroutinefunction(self.initcmd):
+                await self.initcmd()
+            else:
+                raise ValueError('init cmd must be coroutine function')
+
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        if self.clearcmd:
+            if callable(self.clearcmd) and iscoroutinefunction(self.clearcmd):
+                await self.clearcmd()
+            else:
+                raise ValueError('clear cmd must be coroutine function')
+
         await unbinding()
 
 
@@ -96,14 +110,14 @@ async def binding(
 
 @__ensure__(True)
 async def execute(
-    query: g.Query, **kwargs: Any
+    query: Query, **kwargs: Any
 ) -> Union[None, FetchResult, util.tdict, tuple, ExecResult]:
     """A coroutine that execute sql and return the results of its execution
 
-    :param sql ``trod.g.Query`` : sql query object
+    :param sql ``trod._helper.Query`` : sql query object
     """
     if not query:
-        raise ValueError("No SQL query statement")
+        raise ValueError("No query to execute")
 
     return await Executer.do(query, **kwargs)
 
@@ -113,7 +127,7 @@ async def select_db(db: str) -> None:
     """Set current db"""
 
     async with Executer.pool.acquire() as conn:  # type: ignore
-        conn._db = db
+        conn._db = db  # pylint: disable=protected-access
         await conn.select_db(db)
 
 
@@ -331,7 +345,7 @@ class Executer:
 
     @classmethod
     async def do(
-        cls, query: g.Query, **kwargs: Any
+        cls, query: Query, **kwargs: Any
     ) -> Union[None, FetchResult, util.tdict, tuple, ExecResult]:
         if query.r:
             return await cls._fetch(

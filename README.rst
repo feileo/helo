@@ -2,17 +2,14 @@
 trod 
 ====
 
-.. image:: https://img.shields.io/static/v1.svg?label=status&message=rewriting&color=brightgreen
-         :target: ''
-
 .. image:: https://img.shields.io/pypi/v/trod.svg
         :target: https://pypi.python.org/pypi/trod
 
-.. image:: https://travis-ci.org/acthse/trod.svg?branch=master
-        :target: https://travis-ci.org/acthse/trod
+.. image:: https://travis-ci.org/at7h/trod.svg?branch=master
+        :target: https://travis-ci.org/at7h/trod
 
-.. image:: https://codecov.io/gh/acthse/trod/branch/master/graph/badge.svg
-        :target: https://codecov.io/gh/acthy/trod
+.. image:: https://codecov.io/gh/at7h/trod/branch/master/graph/badge.svg
+        :target: https://codecov.io/gh/at7h/trod
 
 .. image:: https://img.shields.io/pypi/pyversions/trod.svg
         :target: https://img.shields.io/pypi/pyversions/trod.svg
@@ -21,7 +18,7 @@ trod
         :target: https://img.shields.io/pypi/l/trod.svg
 
 
-🌻 **Trod** is a very simple asynchronous Python ORM based on asyncio_. 
+🌻 **Trod** is a simple asynchronous Python ORM. 
 Now it only supports MySQL and uses aiomysql_ as the access 'driver' for the database.
 
 * Strictly, trod is not an ORM, it just working in an ORM-like mode. 
@@ -29,9 +26,10 @@ Now it only supports MySQL and uses aiomysql_ as the access 'driver' for the dat
   It is only a Python object in memory, changing it does not affect the database. 
   You must explicitly execute the commit request to the database.
 
-* Trod only uses model and object APIs to compose SQL statements and submit 
+* Trod uses model and object APIs to compose SQL statements and submit 
   them to the database when executed. When loaded, the data is retrieved 
-  from the database and then packaged into objects.
+  from the database and then packaged into objects. 
+  Of course, you can also choose other data loading methods
 
 
 Installation
@@ -49,83 +47,56 @@ Basic Example
 
     import asyncio
 
-    from trod import Trod, And, Auto
-    from trod.types import field, index
+    from trod import Trod, types
+
 
     db = Trod()
 
     class User(db.Model):
-        __table__ = 'user'
-        __comment__ = 'user info'
 
-        id = field.Bigint(length=20, unsigned=True, primary_key=True, comment='primary key')
-        name = field.String(length=20, use_varchar=True, allow_null=False, comment='user name')
-        password = field.String(length=45, use_varchar=True, comment='password')
-        date = field.Datetime(comment='registration time')
-        created_at = field.Timestamp(auto=Auto.on_create)
-        updated_at = field.Timestamp(auto=Auto.on_update)
+        id = types.Auto()
+        name = types.VarChar(length=45)
+        password = types.VarChar(length=100)
+        create_at = types.Timestamp(default=types.ON_CREATE)
+        update_at = types.Timestamp(default=types.ON_UPDATE)
 
-        name_idx = index.Key(column='name')
 
     async show_case():
-        """ show some base case """
 
         await db.bind('mysql://user:password@host:port/db')
 
-        # create_table
         await User.create()
 
-        # add a user
-        user = User(id=1,name='name', password='123456')
-        user_id = await User.add(user)
-        print(user_id)  # 1
-
-        # get a user by id
-        user = await User.get(user_id)
+        user = User(name='at7h', password='123456')
+        ret = await user.save()
+        user = await User.get(ret.last_id)
         print(user.password)  # 123456
 
-        # update user password
-        await User.update(dict(password=654321), User.name == user.name)
-        user = await User.get(user_id)
-        print(user.password)  # 654321
+        await User.insert(name='guax', password='654321').do()
 
-        # delete a user
-        await User.remove(User.id == user.id) 
+        async for user in User:
+            if user.name == 'at7h':
+                assert user.name == '123456'
 
-        # query
-        users = [
-            User(id=2, name='zs', password='222222')
-            User(id=3, name='ls', password='333333')
-        ]
-        await User.batch_add(users)
-        query_users = await User.query().filter(
-            User.id.in_([1,2,3])
-        ).order_by(User.data).all()
-        print(query_users) 
-        # [<User(table 'user' : user info)>, <User(table 'user' : user info)>, <User(table 'user' : user info)>] 
-
-        user = await User.query(User.password, User.name).filter(
-            And(User.id.in_([1,2,3], User.name == 'ls'))
-        ).first()
-        print(user.password) # 333333
+        user = await User.select().order_by(User.create_at.desc()).first()
+        print(user.password) # 654321
 
         await db.unbind()
 
-    asyncio.get_event_loop().run_until_complete(show_case())
+    asyncio.run(show_case())
 
 
 About
 -----
-The author of trod (that's me 😊) is a junior Pythoner, and trod has a lot of temporary 
+at7h is a junior Pythoner, and trod has a lot of temporary 
 solutions to optimize and continue to add new features, this is just the beginning 💪.
-I will continue later, and welcome your issues and pull requests.
+welcome your issues and pull requests.
 
 
 Requirements
 ------------
 
-* Python 3.6+
-* MySQL 5.6.5+
+* Python 3.7+
 
 .. _asyncio: https://docs.python.org/3/library/asyncio.html
 .. _aiomysql: https://github.com/aio-libs/aiomysql

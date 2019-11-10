@@ -25,7 +25,13 @@ from ._impl import (
     Key as K,
     UKey as UK,
     FS as F,
+    ENCODING,
+    SEQUENCE,
+    ON_CREATE,
+    ON_UPDATE,
 )
+from .._helper import SQL
+
 
 __all__ = (
     "Tinyint",
@@ -49,4 +55,9 @@ __all__ = (
     "K",
     "UK",
     "F",
+    "SQL",
+    "ENCODING",
+    "SEQUENCE",
+    "ON_CREATE",
+    "ON_UPDATE",
 )

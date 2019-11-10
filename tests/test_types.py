@@ -2,7 +2,9 @@ from datetime import datetime, date, time
 
 import pytest
 
-from trod import types as t, model as m, g, db, err
+from trod import db, err, _helper as helper, types as t
+
+from .models import TypesModel as TM
 
 
 def test_expr():
@@ -11,212 +13,212 @@ def test_expr():
     phone = t.VarChar(name='phone')
 
     e = (age > 10) | (name == 'test')
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '((`age` > %s) OR (`name` = %s));', (10, 'test')
     )
     e = (name == 'test') | (age > 10)
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '((`name` = %s) OR (`age` > %s));', ('test', 10)
     )
 
     e = age + 1
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`age` + %s);', (1,)
     )
     e = 1 + age
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(%s + `age`);', (1,)
     )
 
     e = age + '20'
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`age` + %s);', (20,)
     )
     e = 20 + age
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(%s + `age`);', (20,)
     )
 
     e = age * '2'
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`age` * %s);', (2,)
     )
     e = 2 * age
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(%s * `age`);', (2,)
     )
 
     e = 1000 / age
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(%s / `age`);', (1000,)
     )
     e = age / 2
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`age` / %s);', (2,)
     )
 
     e = age ^ name
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`age` # `name`);', ()
     )
     e = name ^ age
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`name` # `age`);', ()
     )
 
     e = name == 'at7h'
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`name` = %s);', ('at7h',)
     )
     e = name != 'at7h'
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`name` != %s);', ('at7h',)
     )
     e = name <= 'at7h'
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`name` <= %s);', ('at7h',)
     )
     e = name >= 'at7h'
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`name` >= %s);', ('at7h',)
     )
     e = age < 90
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`age` < %s);', (90,)
     )
     e = age > 20
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`age` > %s);', (20,)
     )
     e = name >> None
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`name` IS %s);', (None,)
     )
     e = name << ['at7h', 'mejer']
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`name` IN %s);', (('at7h', 'mejer'),)
     )
     e = name % 'at'
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`name` LIKE BINARY %s);', ('at',)
     )
     e = name ** 'at'
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`name` LIKE %s);', ('at',)
     )
     e = age[slice(20, 30)]
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`age` BETWEEN %s AND %s);', (20, 30,)
     )
 
     e = name.concat(10)
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`name` || %s);', ('10',)
     )
     e = name.binand('at7h')
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`name` & %s);', ('at7h',)
     )
     e = name.binor('at7h')
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`name` | %s);', ('at7h',)
     )
     e = name.in_(['at7h', 'mejor'])
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`name` IN %s);', (('at7h', 'mejor'),)
     )
     e = name.nin_(['at7h', 'mejor'])
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`name` NOT IN %s);', (('at7h', 'mejor'),)
     )
     e = name.exists(['at7h', 'mejor'])
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`name` EXISTS %s);', (('at7h', 'mejor'),)
     )
     e = name.nexists(['at7h', 'mejor'])
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`name` NOT EXISTS %s);', (('at7h', 'mejor'),)
     )
     e = name.isnull()
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`name` IS %s);', (None,)
     )
     e = name.isnull(False)
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`name` IS NOT %s);', (None,)
     )
     e = name.regexp('at.*')
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`name` REGEXP %s);', ('at.*',)
     )
     e = name.regexp('at.*', i=False)
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`name` REGEXP BINARY %s);', ('at.*',)
     )
     e = phone.like(177)
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`phone` LIKE %s);', ('177',)
     )
     e = phone.like(177, i=False)
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`phone` LIKE BINARY %s);', ('177',)
     )
     e = phone.contains(7867)
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`phone` LIKE %s);', ('%7867%',)
     )
     e = phone.contains(7867, i=False)
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`phone` LIKE BINARY %s);', ('%7867%',)
     )
     e = name.endswith('7h')
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`name` LIKE %s);', ('%7h',)
     )
     e = name.endswith('7h', i=False)
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`name` LIKE BINARY %s);', ('%7h',)
     )
     e = name.startswith('at')
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`name` LIKE %s);', ('at%',)
     )
     e = name.startswith('at', i=False)
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`name` LIKE BINARY %s);', ('at%',)
     )
     e = age.between(10, 30)
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`age` BETWEEN %s AND %s);', (10, 30)
     )
     e = age.nbetween(10, 30)
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(`age` NOT BETWEEN %s AND %s);', (10, 30)
     )
     e = age.asc()
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '`age` ASC ;', ()
     )
     e = age.desc()
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '`age` DESC ;', ()
     )
     e = age.as_('a')
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '`age` AS `a` ;', ()
     )
 
     e = (age > 10) & (name == 'test')
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '((`age` > %s) AND (`name` = %s));', (10, 'test')
     )
     e = (name == 'test') & (age > 10)
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '((`name` = %s) AND (`age` > %s));', ('test', 10)
     )
 
     e = (age >= '20') & name.in_(['at7h', 'mejor']) | phone.startswith('153')
-    assert g.parse(e) == g.Query(
+    assert helper.parse(e) == helper.Query(
         '(((`age` >= %s) AND (`name` IN %s)) OR (`phone` LIKE %s));',
         (20, ('at7h', 'mejor'), '153%')
     )
@@ -359,7 +361,7 @@ def test_decimal():
 
 
 def test_text():
-    text = t.Text(name='text', encoding=g.ENCODINGS.utf8mb4)
+    text = t.Text(name='text', encoding=t.ENCODING.utf8mb4)
     assert str(text) == "`text` text CHARACTER SET utf8mb4 NULL;"
     assert hasattr(text, 'default') is False
 
@@ -457,10 +459,10 @@ def test_key():
 def test_funs():
     age = t.Int(name='age')
     s = t.F.SUM(age).as_('age_sum')
-    assert g.parse(s).sql == 'SUM(`age`) AS `age_sum` ;'
+    assert helper.parse(s).sql == 'SUM(`age`) AS `age_sum` ;'
 
     m_ = t.F.MAX(age).as_('age_max')
-    assert g.parse(m_).sql == 'MAX(`age`) AS `age_max` ;'
+    assert helper.parse(m_).sql == 'MAX(`age`) AS `age_max` ;'
     try:
         t.F.STR(age).as_('age_str')
         assert False, 'Should be raise RuntimeError'
@@ -468,61 +470,35 @@ def test_funs():
         pass
 
 
-class MT(m.Model):
-    __table__ = 'test_types_table'
-    __comment__ = 'type case table'
-    __auto_increment__ = 7
-    __indexes__ = (
-        t.K('key', ['tinyint', 'datetime_'], comment='key test'),
-        t.UK('ukey', 'varchar', comment='unique key test'),
-    )
-
-    id = t.Auto(comment='permary_key')
-    tinyint = t.Tinyint(1, unsigned=True, default=0, comment='tinyint')
-    smallint = t.Smallint(default=0, comment='smallint')
-    int_ = t.Int(unsigned=True, null=False, default=0, comment='int')
-    bigint = t.Bigint(45, null=False, default=0, comment='bigint')
-    text = t.Text(encoding=g.ENCODINGS.utf8mb4, null=False, comment='text')
-    char = t.Char(45, null=False, default='', comment='char')
-    varchar = t.VarChar(45, null=False, default='', comment='varchar')
-    float_ = t.Float((3, 3), default=0, comment='float')
-    double_ = t.Double((4, 4), unsigned=True, default=0, comment='double')
-    decimal = t.Decimal((4, 4), unsigned=True, default=0, comment='decimal')
-    time_ = t.Time(default=datetime.now, comment='datetime')
-    date_ = t.Date(default=datetime.now, comment='datetime')
-    datetime_ = t.DateTime(default=datetime.now, comment='datetime')
-    now_ts = t.Timestamp(default=datetime.now, comment='now ts')
-    created_at = t.Timestamp(default=g.ON_CREATE, comment='created_at')
-    updated_at = t.Timestamp(default=g.ON_UPDATE, comment='updated_at')
-
-
 @pytest.mark.asyncio
 async def test_types():
 
     async with db.BindContext():
-        await MT.create()
-        assert await MT.show().create_syntax() == (
+        await TM.create()
+        assert await TM.show().create_syntax() == (
             "CREATE TABLE `test_types_table` (\n"
             "  `id` int(11) NOT NULL AUTO_INCREMENT COMMENT 'permary_key',\n"
             "  `tinyint` tinyint(1) unsigned zerofill DEFAULT NULL COMMENT 'tinyint',\n"
-            "  `smallint` smallint(4) DEFAULT NULL COMMENT 'smallint',\n"
-            "  `int_` int(11) unsigned NOT NULL COMMENT 'int',\n"
-            "  `bigint` bigint(45) NOT NULL COMMENT 'bigint',\n"
+            "  `smallint` smallint(6) NOT NULL DEFAULT '0' COMMENT 'smallint',\n"
+            "  `int_` int(11) unsigned NOT NULL DEFAULT '0' COMMENT 'int',\n"
+            "  `bigint` bigint(45) NOT NULL DEFAULT '0' COMMENT 'bigint',\n"
             "  `text` text CHARACTER SET utf8mb4 NOT NULL COMMENT 'text',\n"
-            "  `char` char(45) NOT NULL COMMENT 'char',\n"
-            "  `varchar` varchar(45) NOT NULL COMMENT 'varchar',\n"
-            "  `float_` float(3,3) DEFAULT NULL COMMENT 'float',\n"
-            "  `double_` double(4,4) unsigned DEFAULT NULL COMMENT 'double',\n"
-            "  `decimal` decimal(10,0) DEFAULT NULL COMMENT 'decimal',\n"
-            "  `time_` time DEFAULT NULL COMMENT 'datetime',\n"
-            "  `date_` date DEFAULT NULL COMMENT 'datetime',\n"
+            "  `char` char(45) NOT NULL DEFAULT '' COMMENT 'char',\n"
+            "  `varchar` varchar(45) NOT NULL DEFAULT '' COMMENT 'varchar',\n"
+            "  `uuid` varchar(40) NOT NULL COMMENT 'uuid test',\n"
+            "  `float_` float(3,3) DEFAULT '0.000' COMMENT 'float',\n"
+            "  `double_` double(4,4) unsigned DEFAULT '0.0000' COMMENT 'double',\n"
+            "  `decimal` decimal(10,2) unsigned DEFAULT '0.00' COMMENT 'decimal',\n"
+            "  `time_` time DEFAULT NULL COMMENT 'time',\n"
+            "  `date_` date DEFAULT NULL COMMENT 'date',\n"
             "  `datetime_` datetime DEFAULT NULL COMMENT 'datetime',\n"
             "  `now_ts` timestamp NULL DEFAULT NULL COMMENT 'now ts',\n"
-            "  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'created_at',\n"
-            "  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON"
+            "  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'created_at',\n"
+            "  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON"
             " UPDATE CURRENT_TIMESTAMP COMMENT 'updated_at',\n"
             "  PRIMARY KEY (`id`),\n"
             "  UNIQUE KEY `ukey` (`varchar`) COMMENT 'unique key test',\n"
             "  KEY `key` (`tinyint`,`datetime_`) COMMENT 'key test'\n"
             ") ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='type case table'"
         )
+        await TM.drop()

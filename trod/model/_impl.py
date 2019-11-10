@@ -7,14 +7,39 @@
 from __future__ import annotations
 
 import warnings
+from copy import deepcopy
 from typing import Any, Dict, Optional, List, Union, Tuple, Type
 
 from .. import db, util, err
-from ..g import _helper as gh, SQL, SEQUENCE, ENCODINGS, and_, RT
-from ..types._impl import Id, IdList, FieldBase, IndexBase
+from .._helper import (
+    Query,
+    SQL,
+    Node,
+    Context,
+    parse,
+    CommaNodeList,
+    EnclosedNodeList,
+    with_metaclass,
+)
+from ..types._impl import (
+    SEQUENCE,
+    ENCODING,
+    Id,
+    IdList,
+    FieldBase,
+    IndexBase,
+    FS,
+)
 
 
-class Table(gh.Node):
+ROWTYPE = util.tdict(
+    MODEL=1,
+    TDICT=2,
+    TUPLE=3,
+)
+
+
+class Table(Node):
 
     __slots__ = (
         "db", "name", "fields_dict", "fields", "primary",
@@ -25,11 +50,11 @@ class Table(gh.Node):
     AIPK = 'id'
     META = util.tdict(
         __db__=None,
-        __table__=None,
+        __tablename__=None,
         __indexes__=None,
         __auto_increment__=1,
         __engine__='InnoDB',
-        __charset__=ENCODINGS.utf8,
+        __charset__=ENCODING.utf8,
         __comment__='',
     )
 
@@ -37,17 +62,17 @@ class Table(gh.Node):
         self,
         database: Optional[str],
         name: str,
-        fields: Dict[str, FieldBase],
+        fields_dict: Dict[str, FieldBase],
         primary: util.tdict,
-        indexes: Optional[List[IndexBase]] = None,
+        indexes: Optional[Union[Tuple[IndexBase, ...], List[IndexBase]]] = None,
         engine: Optional[str] = None,
         charset: Optional[str] = None,
         comment: Optional[str] = None
     ) -> None:
         self.db = database
         self.name = name
-        self.fields_dict = fields
-        self.fields = list(fields.values())
+        self.fields_dict = fields_dict
+        self.fields = list(fields_dict.values())
         self.primary = primary
         self.indexes = indexes
         self.auto_increment = primary.begin or self.META.__auto_increment__
@@ -55,11 +80,10 @@ class Table(gh.Node):
         self.charset = charset or self.META.__charset__
         self.comment = comment or self.META.__comment__
 
-    @property
-    def table_name(self) -> str:
-        if self.db:
-            return f"`{self.db}`.`{self.name}`"
-        return f"`{self.name}`"
+        if not self.primary.field:
+            raise err.NoPKError(
+                f"Primary key not found for table {self.table_name}"
+            )
 
     def __repr__(self) -> str:
         return f"<Table {self.table_name}>"
@@ -69,124 +93,159 @@ class Table(gh.Node):
 
     def __metaattr__(self, name: str) -> Any:
         attr = name.strip("__")
-        if attr == "table":
+        if attr == "tablename":
             return self.name
         return getattr(self, attr)
 
-    def __sql__(self, ctx: gh.Context):
+    def __sql__(self, ctx: Context):
         ctx.literal(self.table_name)
         return ctx
+
+    @property
+    def table_name(self) -> str:
+        if self.db:
+            return f"`{self.db}`.`{self.name}`"
+        return f"`{self.name}`"
 
 
 class ModelType(type):
 
-    def __new__(cls, name: str, bases: tuple, attrs: dict) -> type:
+    def __new__(cls, name: str, bases: Tuple[type, ...], attrs: dict) -> type:
 
-        def __prepare__(name, attrs: dict):
+        def __prepare__():
 
-            bound = attrs.pop("__db__", None)
-            table_name = attrs.pop("__table__", None)
-            if not table_name:
-                table_name = name.lower()
-                warnings.warn(
-                    "Did not give the table name, "
-                    f"use the model name `{table_name}`",
-                    err.ProgrammingWarning
-                )
+            table_name = attrs.pop("__tablename__", name.lower())
 
-            model_fields, field_names = {}, {}
-            primary = util.tdict(auto=False, field=None, begin=None)
+            model_fields, model_attrs = {}, {}
             for attr in attrs.copy():
-                if primary.field and attr == primary.field.name:
-                    raise err.DuplicateFieldNameError(
-                        f"Duplicate field name `{attr}`"
-                    )
-
                 field = attrs[attr]
                 if isinstance(field, FieldBase):
                     field.name = field.name or attr
-                    if getattr(field, 'primary_key', None):
-                        if primary.field is not None:
-                            raise err.DuplicatePKError(
-                                "Duplicate primary key found for field "
-                                f"{field.name}"
-                            )
-                        primary.field = field
-                        if getattr(field, "auto", False):
-                            primary.auto = True
-                            primary.begin = int(field.auto)
-                            if field.name != Table.AIPK:
-                                warnings.warn(
-                                    "The field name of AUTO_INCREMENT "
-                                    "primary key is suggested to use "
-                                    f"`id` instead of {field.name}",
-                                    err.ProgrammingWarning
-                                )
-
                     model_fields[attr] = field
-                    field_names[field.name] = attr
+                    model_attrs[field.name] = attr
                     attrs.pop(attr)
-                elif attr not in Table.META:
-                    if not (attr.endswith('__') and attr.endswith('__', 0, 2)):
-                        raise err.InvalidFieldType(
-                            f"Invalid model field {attr}"
-                        )
-
-            if not primary.field:
-                raise err.NoPKError(
-                    f"Primary key not found for table `{table_name}`"
-                )
 
             indexes = attrs.pop("__indexes__", [])
-            if not isinstance(indexes, SEQUENCE):
-                raise TypeError("")
+            if indexes and not isinstance(indexes, (tuple, list)):
+                raise TypeError('__indexes__ type must be `tuple` or `list`')
             for index in indexes:
                 if not isinstance(index, IndexBase):
                     raise err.InvalidFieldType()
 
-            attrs["__names__"] = field_names
-            attrs["__table__"] = Table(
-                database=bound, name=table_name,
-                fields=model_fields,
-                primary=primary, indexes=list(indexes),
-                charset=attrs.pop("__charset__", None),
-                comment=attrs.pop("__comment__", None),
+            bound = attrs.pop("__db__", None)
+            engine = attrs.pop("__engine__", None)
+            charset = attrs.pop("__charset__", None)
+            comment = attrs.pop("__comment__", None)
+
+            base_table = None
+            base_type = bases[0] if bases else None
+            if base_type:
+                base_table = deepcopy(base_type.__table__)
+                if base_table:
+                    base_names = deepcopy(base_type.__attrs__)
+                    base_names.update(model_attrs)
+                    model_attrs = base_names
+
+                    bound = bound or base_table.db
+                    base_table.fields_dict.update(model_fields)
+                    model_fields = base_table.fields_dict
+
+                    indexes = indexes or base_table.indexes
+                    engine = engine or base_table.engine
+                    charset = charset or base_table.charset
+                    comment = comment or base_table.comment
+
+            primary = util.tdict(auto=False, field=None, attr=None, begin=None)
+            for attr_name, field in model_fields.items():
+                if getattr(field, 'primary_key', None):
+                    if primary.field is not None:
+                        raise err.DuplicatePKError(
+                            "Duplicate primary key found for field "
+                            f"{field.name}"
+                        )
+                    primary.field = field
+                    primary.attr = attr_name
+                    if getattr(field, "auto", False):
+                        primary.auto = True
+                        primary.begin = int(field.auto)
+                        if field.name != Table.AIPK:
+                            warnings.warn(
+                                "The field name of AUTO_INCREMENT "
+                                "primary key is suggested to use "
+                                f"`id` instead of {field.name}",
+                                err.ProgrammingWarning
+                            )
+
+            table_meta = Table(
+                database=bound,
+                name=table_name,
+                fields_dict=model_fields,
+                primary=primary,
+                indexes=indexes,
+                engine=engine,
+                charset=charset,
+                comment=comment,
             )
+            attrs["__attrs__"] = model_attrs
+            attrs["__table__"] = table_meta
 
             return attrs
 
+        attrs['__table__'] = None
         if name not in ("ModelBase", "Model"):
-            attrs = __prepare__(name, attrs)
+            attrs = __prepare__()
 
         return type.__new__(cls, name, bases, attrs)
 
     def __getattr__(cls, name: str) -> Any:
-        attr = cls.__table__.field_dict.get(name)
-        if attr:
-            return attr
+
+        if name in cls.__table__.fields_dict:
+            return cls.__table__.fields_dict[name]
 
         if name in cls.__table__.META:
             return cls.__table__.__metaattr__(name)
 
         raise AttributeError(
-            f"'{cls.__name__}' class does not have attribute '{name}'."
+            f"'{cls.__name__}' class does not have attribute '{name}'"
         )
 
     def __setattr__(cls, *_args: Any) -> None:
-        raise err.ModelSetAttrError(
+        raise err.NotAllowedError(
             f"Model '{cls.__name__}' class not allow set attribute")
 
+    def __delattr__(cls, name: str) -> None:
+        raise err.NotAllowedError(
+            f"Model '{cls.__name__}' class not allow delete attribute"
+        )
+
     def __repr__(cls) -> str:
-        return f"trod.model.{cls.__name__}"
+        return f"Model<{cls.__name__}>"
 
     def __str__(cls) -> str:
         return cls.__name__
 
-    def __delattr__(cls, name: str) -> None:
-        raise err.ProgrammingError()
-
     def __aiter__(cls) -> Select:
         return Api.select(cls)  # type: ignore
+
+    def __getitem__(cls, _id: Id) -> Model:
+        raise NotImplementedError
+
+    def __contains__(cls, _id: Id) -> bool:
+        raise NotImplementedError
+
+
+def for_table(m: Union[Type[Model], Model]) -> Table:
+    try:
+        return m.__table__
+    except AttributeError:
+        raise err.ProgrammingError("Must be ModelType")
+
+
+def for_attrs(m: Union[Type[Model], Model]) -> dict:
+    try:
+        return m.__attrs__
+    except AttributeError:
+        raise err.ProgrammingError("Must be ModelType")
 
 
 class ModelBase:
@@ -196,10 +255,10 @@ class ModelBase:
             setattr(self, attr, kwargs[attr])
 
     def __repr__(self) -> str:
-        return f"<{self.__class__.__name__} object>"
+        id_ = getattr(self, self.__table__.primary.attr, None)
+        return f"<{self.__class__.__name__} object> at {id_}"
 
-    def __str__(self) -> str:
-        return self.__table__.name
+    __str__ = __repr__
 
     def __hash__(self) -> int:
         return hash(self.__table__.name)
@@ -211,7 +270,7 @@ class ModelBase:
         try:
             return self.__dict__[name]
         except KeyError:
-            if name in self.__table__.field_dict:
+            if name in self.__table__.fields_dict:
                 return None
             raise AttributeError(
                 f"'{self.__class__}' object has no attribute '{name}'"
@@ -221,35 +280,38 @@ class ModelBase:
         return bool(self.__dict__)
 
     def __setmodel__(
-            self, name: str, value: Any, __load: bool = False
+            self, name: str, value: Any, __load__: bool = False
     ) -> None:
-        f = self.__table__.field_dict.get(name)
+        f = self.__table__.fields_dict.get(name)
         if not f:
-            raise err.SetNoAttrError(name)
+            raise err.NotAllowedError(
+                f"{self.__class__.__name__} object not allowed "
+                f"set attribute '{name}'"
+            )
 
-        if not __load and (f.primary_key and f.auto):
-            raise err.ModifyAutoPkError()
+        if not __load__:
+            if getattr(f, 'primary_key', None) and getattr(f, 'auto', None):
+                raise err.NotAllowedError(
+                    f"auto field '{f.name}' not allowed to set"
+                )
 
-        try:
-            value = f.py_value(value)
-        except (ValueError, TypeError):
-            raise err.SetInvalidColumnsValueError()
+        value = f.py_value(value)
 
         self.__dict__[name] = value
 
     @property
     def __self__(self) -> Dict[str, Any]:
-        values = {}
-        for n, v in self.__dict__.items():
-            values[self.__table__.field_dict[n].name] = v
-        return values
-
-    def __sql__(self, ctx):
-        return ctx
+        return deepcopy(self.__dict__)
 
 
-class Model(gh.with_metaclass(ModelType, ModelBase)):  # type:ignore
+class Model(with_metaclass(ModelType, ModelBase)):  # type: ignore
+    """
+    Model
+    """
 
+    #
+    # ddl
+    #
     @classmethod
     async def create(cls, **options: Any) -> db.ExecResult:
         return await Api.create_table(cls, **options)
@@ -266,31 +328,56 @@ class Model(gh.with_metaclass(ModelType, ModelBase)):  # type:ignore
     def show(cls) -> Show:
         return Api.show(cls)
 
-    @classmethod
-    async def get(cls, _id: Id) -> Union[db.FetchResult, None]:
-        return await Api.get(cls, _id)
-
-    # model
+    #
+    # shortcut
     #
     @classmethod
+    async def get(
+        cls,
+        _id: Id,
+        rowtype: Optional[int] = None
+    ) -> Union[Model, util.tdict, None, Tuple[Any, ...]]:
+        if not _id:
+            return None
+        return await Api.get(cls, _id, rowtype=rowtype)
+
+    @classmethod
     async def mget(
-            cls, ids: IdList, columns: Optional[List[FieldBase]] = None
+        cls,
+        ids: IdList,
+        columns: Optional[List[FieldBase]] = None,
+        rowtype: Optional[int] = None
     ) -> db.FetchResult:
-        return await Api.get_many(cls, ids, columns=columns)
+        if not ids:
+            raise ValueError("No ids to mget")
+        return await Api.get_many(cls, ids, columns=columns, rowtype=rowtype)
 
     @classmethod
-    async def add(cls, instance: Model) -> db.ExecResult:
-        return await Api.add(cls, instance)
+    async def add(
+        cls,
+        row: Union[Model, Dict[str, Any]]
+    ) -> db.ExecResult:
+        if row is None:
+            raise ValueError("No data to add")
+        return await Api.add(cls, row)
 
     @classmethod
-    async def madd(cls, instances: List[Model]) -> db.ExecResult:
-        return await Api.add_many(cls, instances)
+    async def madd(
+        cls,
+        rows: Union[List[Model], List[Dict[str, Any]]]
+    ) -> db.ExecResult:
+        if not rows:
+            raise ValueError("No data to madd")
+        return await Api.add_many(cls, rows)
 
     @classmethod
     async def set(cls, _id: Id, **values: Any) -> db.ExecResult:
+        if not (_id and values):
+            raise ValueError('No _id or values to set')
         return await Api.set(cls, _id, values)
 
-    # direct
+    #
+    # direct query
     #
     @classmethod
     def select(cls, *columns: FieldBase) -> Select:
@@ -298,20 +385,27 @@ class Model(gh.with_metaclass(ModelType, ModelBase)):  # type:ignore
 
     @classmethod
     def insert(
-            cls, data: Optional[Dict[str, Any]] = None, **ists: Any
+        cls, __row: Optional[Dict[str, Any]] = None, **values: Any
     ) -> Insert:
-        return Api.insert(cls, data or ists)
+        row = __row or values
+        if not row:
+            raise ValueError("No data to insert")
+        return Api.insert(cls, row)
 
     @classmethod
     def minsert(
-            cls,
-            rows: List[Union[Dict[str, Any], Tuple[Any, ...]]],
-            columns: Optional[List[FieldBase]] = None
+        cls,
+        rows: List[Union[Dict[str, Any], Tuple[Any, ...]]],
+        columns: Optional[List[FieldBase]] = None
     ) -> Insert:
+        if not rows:
+            raise ValueError("No data to minsert {}")
         return Api.insert_many(cls, rows, columns=columns)
 
     @classmethod
     def update(cls, **values: Any) -> Update:
+        if not values:
+            raise ValueError("No data to update")
         return Api.update(cls, values)
 
     @classmethod
@@ -319,33 +413,35 @@ class Model(gh.with_metaclass(ModelType, ModelBase)):  # type:ignore
         return Api.delete(cls)
 
     @classmethod
-    def replace(cls, **values: Any) -> Replace:
-        return Api.replace(cls, values)
+    def replace(
+        cls, __row: Optional[Dict[str, Any]] = None, **values: Any
+    ) -> Replace:
+        row = __row or values
+        if not row:
+            raise ValueError("No data to replace")
+        return Api.replace(cls, row)
 
     @classmethod
-    def mreplace(cls, **values: Any) -> Replace:
-        return Api.replace_many(cls, values)
+    def mreplace(
+        cls,
+        rows: List[Union[Dict[str, Any], Tuple[Any, ...]]],
+        columns: Optional[List[FieldBase]] = None
+    ) -> Replace:
+        if not rows:
+            raise ValueError("No data to mreplace")
+        return Api.replace_many(cls, rows, columns=columns)
 
+    #
     # instance
     #
-    async def save(self) -> None:
-        await Api.save(self)
+    async def save(self) -> db.ExecResult:
+        return await Api.save(self)
 
-    async def remove(self) -> bool:
-        await Api.remove(self)
-        return True
-
-
-def with_table(m: Union[Type[Model], Model]) -> Table:
-    try:
-        return m.__table__
-    except AttributeError:
-        raise err.ProgrammingError("Must be ModelType")
+    async def remove(self) -> db.ExecResult:
+        return await Api.remove(self)
 
 
 class Api:
-
-    # table
 
     @classmethod
     async def create_table(
@@ -353,7 +449,10 @@ class Api:
     ) -> db.ExecResult:
         """ Do create table """
 
-        return await Create(with_table(m), **options).do()
+        if m.__name__ == 'Model':
+            raise err.NotAllowedError("Model is a built-in name")
+
+        return await Create(for_table(m), **options).do()
 
     @classmethod
     async def drop_table(
@@ -361,47 +460,90 @@ class Api:
     ) -> db.ExecResult:
         """ Do drop table """
 
-        return await Drop(with_table(m), **options).do()
+        if m.__name__ == 'Model':
+            raise err.NotAllowedError("Model is a built-in name")
+
+        return await Drop(for_table(m), **options).do()
 
     @classmethod
     def alter(cls, m: Type[Model]) -> Alter:
 
-        return Alter(with_table(m))
+        return Alter(for_table(m))
 
     @classmethod
     def show(cls, m: Type[Model]) -> Show:
 
-        return Show(with_table(m))
-
-    # simple
+        return Show(for_table(m))
 
     @classmethod
     async def get(
-        cls, m: Type[Model], _id: Id
-    ) -> Union[db.FetchResult, None]:
+        cls,
+        m: Type[Model],
+        _id: Id,
+        rowtype: Optional[int] = None
+    ) -> Union[Model, util.tdict, None, Tuple[Any, ...]]:
+
+        table = for_table(m)
+
         return await Select(
-            with_table(m).fields, m
+            table.fields, m
         ).where(
-            with_table(m).primary.field == _id
-        ).first()
+            table.primary.field == _id
+        ).get(rowtype)
 
     @classmethod
+    @util.argschecker(ids=SEQUENCE)
     async def get_many(
         cls,
         m: Type[Model],
         ids: IdList,
-        columns: Optional[List[FieldBase]] = None
+        columns: Optional[List[FieldBase]] = None,
+        rowtype: Optional[int] = None
     ) -> db.FetchResult:
 
-        columns = columns or with_table(m).fields
+        table = for_table(m)
+        columns = columns or table.fields
 
         return await Select(
             columns, m
         ).where(
-            with_table(m).primary.field.in_(ids)
-        ).all()
+            table.primary.field.in_(ids)
+        ).all(rowtype)
 
     @classmethod
+    @util.argschecker(row=(Model, dict), nullable=False)
+    async def add(
+        cls,
+        m: Type[Model],
+        row: Union[Model, Dict[str, Any]]
+    ) -> db.ExecResult:
+
+        addrow = cls._gen_insert_row(
+            m, row.__self__ if isinstance(row, m) else row
+        )
+        return await Insert(for_table(m), Values(addrow)).do()
+
+    @classmethod
+    @util.argschecker(rows=list, nullable=False)
+    async def add_many(
+        cls,
+        m: Type[Model],
+        rows: Union[List[Model], List[Dict[str, Any]]]
+    ) -> db.ExecResult:
+
+        addrows = []
+        for row in rows:
+            if isinstance(row, m):
+                addrows.append(cls._gen_insert_row(m, row.__self__))
+            elif isinstance(row, dict):
+                addrows.append(cls._gen_insert_row(m, row))
+            else:
+                raise ValueError(f"Invalid data {row!r} to add")
+
+        return await Insert(for_table(m), Values(addrows), many=True).do()
+
+    @classmethod
+    @util.argschecker(values=dict, nullable=False)
     async def set(
         cls,
         m: Type[Model],
@@ -409,36 +551,21 @@ class Api:
         values: Any
     ) -> db.ExecResult:
 
-        return Update(
-            with_table(m), values
-        ).where(with_table(m).primary.field == _id).do()
-
-    @classmethod
-    async def add(cls, m: Type[Model], instance: Model) -> db.ExecResult:
-
-        row = Values(instance.__self__)
-        return await Insert(with_table(m), row).do()
-
-    @classmethod
-    async def add_many(
-        cls, m: Type[Model], instances: List[Model]
-    ) -> db.ExecResult:
-
-        rows = Values([instance.__self__ for instance in instances])
-        return await Insert(with_table(m), rows).do()
-
-    # statement
+        table = for_table(m)
+        return await Update(
+            table, values
+        ).where(table.primary.field == _id).do()
 
     @classmethod
     def select(
         cls, m: Type[Model], *columns: FieldBase
     ) -> Select:
 
-        columns = columns or with_table(m).fields  # type: ignore
+        columns = columns or for_table(m).fields  # type: ignore
+        # columns = columns or [SQL('*')]
         return Select(list(columns), m)
 
     @classmethod
-    @util.argschecker(row=dict)
     def insert(
         cls, m: Type[Model], row: Dict[str, Any]
     ) -> Insert:
@@ -461,14 +588,11 @@ class Api:
             }).do()
         """
 
-        if not row:
-            raise ValueError("No data to insert.")
-
-        cleaned_data = cls._gen_insert_row(m, row)
-        return Insert(with_table(m), Values(cleaned_data))
+        toinsert = cls._gen_insert_row(m, row.copy())
+        return Insert(for_table(m), Values(toinsert))
 
     @classmethod
-    @util.argschecker(rows=SEQUENCE, columns=SEQUENCE)
+    @util.argschecker(rows=SEQUENCE)
     def insert_many(
         cls,
         m: Type[Model],
@@ -492,51 +616,35 @@ class Api:
             ('Nuggie', 'Bar')]
         >>> Person.insert(people, columns=[Person.first, Person.last]).do()
         """
-        if not rows:
-            raise ValueError("No data to insert.")
-
-        if columns:
-            for c in columns:
-                if not isinstance(c, FieldBase):
-                    raise TypeError("Use field")
-
-                if c.name not in m.__names__:
-                    raise err.NoSuchColumnError(c)
-
-        cleaned_rows = []
-        for row in rows:
-            if isinstance(row, SEQUENCE):
-                if not columns:
-                    raise ValueError("Bulk insert must specify columns.")
-                row = dict(zip(row, columns))
-                if len(row) != len(columns):
-                    raise ValueError()
-            elif not isinstance(row, dict):
-                raise ValueError()
-
-            cleaned_rows.append(cls._gen_insert_row(m, row))  # type:ignore
-
-        return Insert(with_table(m), Values(cleaned_rows))
+        normalize_rows = cls._normalize_rows(m, rows, columns)
+        return Insert(for_table(m), Values(normalize_rows), many=True)
 
     @classmethod
-    def update(cls, m: Type[Model], values: Any) -> Update:
+    def update(cls, m: Type[Model], values: Dict[str, Any]) -> Update:
 
-        return Update(with_table(m), values)
+        return Update(for_table(m), values)
 
     @classmethod
     def delete(cls, m: Type[Model]) -> Delete:
 
-        return Delete(with_table(m))
+        return Delete(for_table(m))
 
     @classmethod
-    def replace(cls, m: Type[Model], values: Any) -> Replace:
+    def replace(cls, m: Type[Model], row: Dict[str, Any]) -> Replace:
 
-        return Replace(with_table(m), Values(values))
+        toreplace = cls._gen_insert_row(m, row, for_replace=True)
+        return Replace(for_table(m), Values(toreplace))
 
     @classmethod
-    def replace_many(cls, m: Type[Model], values: Any) -> Replace:
+    def replace_many(
+        cls,
+        m: Type[Model],
+        rows: List[Union[Dict[str, Any], Tuple[Any, ...]]],
+        columns: Optional[List[FieldBase]] = None
+    ) -> Replace:
 
-        return Replace(with_table(m), Values(values))
+        normalize_rows = cls._normalize_rows(m, rows, columns, for_replace=True)
+        return Replace(for_table(m), Values(normalize_rows), many=True)
 
     # model
 
@@ -544,12 +652,19 @@ class Api:
     async def save(cls, mo: Model) -> db.ExecResult:
         """ save mo """
 
-        row = Values(cls._gen_insert_row(mo, mo.__self__))  # type: ignore
-        result = await Replace(with_table(mo), row).do()
+        has_id = False
+        pk_attr = for_table(mo).primary.attr
+        if pk_attr in mo.__self__:
+            has_id = True
+
+        row = Values(
+            cls._gen_insert_row(mo, mo.__self__, for_replace=has_id)
+        )
+        result = await Replace(for_table(mo), row).do()
         mo.__setmodel__(
-            mo.__names__[with_table(mo).primary.field.name],
-            result.last_id,
-            True
+            name=pk_attr,
+            value=result.last_id,
+            __load__=True
         )
         return result
 
@@ -557,298 +672,407 @@ class Api:
     async def remove(cls, mo: Model) -> db.ExecResult:
         """ delete mo """
 
-        primary = getattr(mo, mo.__names__[with_table(mo).primary.field.name])
-        if not primary:
-            raise RuntimeError()
+        table = for_table(mo)
+        primary_value = getattr(mo, table.primary.attr, None)
+        if not primary_value:
+            raise RuntimeError("Remove object has no primary key value")
 
         return await Delete(
-            with_table(mo)
-        ).where(with_table(mo).primary.field == primary).do()
+            table
+        ).where(table.primary.field == primary_value).do()
 
     @classmethod
-    def _get_default_row(cls, m: Type[Model]) -> Dict[str, Any]:
-
-        insert_data = {}  # type: Dict[str, Any]
-
-        for f in with_table(m).fields:
-            if f.primary_key and f.auto:  # type:ignore
-                continue
-            default = f.default() if callable(f.default) else f.default
-            if isinstance(default, SQL):
-                continue
-            insert_data[f.name] = default   # type: ignore
-
-        return insert_data
-
-    @classmethod
+    @util.argschecker(row_data=dict, nullable=False)
     def _gen_insert_row(
-            cls, m: Type[Model], row_data: Dict[str, Any]
+        cls,
+        m: Type[Model],
+        row_data: Dict[str, Any],
+        for_replace: bool = False
     ) -> Dict[str, Any]:
 
-        cleaned_data = {}        # type: Dict[str, Any]
-        for col in row_data:
+        toinserts = {}
+        for name, field in for_table(m).fields_dict.items():
+            # 非 replace 时不包括主键字段
+            if name == for_table(m).primary.attr and not for_replace:
+                continue
+
+            value = row_data.pop(name, None)
+            # 如果没有值就去拿 default
+            if value is None:
+                default = field.default() if callable(field.default) else field.default
+                if isinstance(default, SQL):
+                    continue
+                value = default
+            # 如果为 None 但是不允许 None
+            if value is None and not field.null:
+                if not for_replace:
+                    raise err.InvalidColumnValue(
+                        f"Invalid data(None) for not null attribute {name}"
+                    )
             try:
-                f = with_table(m).fields_dict[col]
-            except KeyError:
-                raise err.NoSuchColumnError()
-            cleaned_data[f.name] = row_data[col]  # type: ignore
+                toinserts[field.name] = value
+            except (ValueError, TypeError):
+                raise ValueError(f'Invalid data({value}) for {name}')
 
-        insert_data = cls._get_default_row(m)
-        for col in insert_data:
-            v = cleaned_data.pop(col, None)
-            f = with_table(m).fields_dict[m.__names__[col]]
-            if v is None and not f.null:
-                raise err.InvalidColumnsVlaueError()
-            try:
-                insert_data[col] = f.db_value(v)
-            except ValueError:
-                raise err.InvalidColumnsVlaueError()
+        for attr in row_data:
+            if not for_replace and attr == for_table(m).primary.attr:
+                raise err.NotAllowedError(
+                    f"Auto field {attr!r} not allowed to set"
+                )
+            raise ValueError(f"'{m!r}' has no attribute {attr}")
 
-        if cleaned_data:
-            for c in cleaned_data:
-                raise err.NoSuchColumnError(c)
+        return toinserts
 
-        return insert_data
+    @classmethod
+    def _normalize_rows(
+        cls,
+        m: Type[Model],
+        rows: List[Union[Dict[str, Any], Tuple[Any, ...]]],
+        columns: Optional[List[FieldBase]] = None,
+        for_replace: bool = False,
+    ) -> List[Dict[str, Any]]:
+
+        cleaned_rows = []  # type:List[Dict[str, Any]]
+
+        if columns:
+            if not isinstance(columns, list):
+                raise ValueError("Specify columns must be list")
+            mattrs = for_attrs(m)
+            for c in columns:
+                if not isinstance(c, FieldBase):
+                    raise TypeError(f"Invalid type of columns element {c}")
+
+                if c.name not in mattrs:
+                    raise ValueError(f"{m!r} has no attribute {c.name}")
+                c = mattrs[c.name]
+
+            for row in rows:
+                if not isinstance(row, SEQUENCE):
+                    raise ValueError(f"Invalid data {row!r} for specify columns")
+                row = dict(zip(columns, row))  # type:ignore
+                if len(row) != len(columns):
+                    raise ValueError("No enough data for columns")
+
+                cleaned_rows.append(cls._gen_insert_row(m, row, for_replace))
+        else:
+            cleaned_rows = [cls._gen_insert_row(m, r, for_replace) for r in rows]
+
+        return cleaned_rows
 
 
-class Values(gh.Node):
+class Values(Node):
+
+    __slots__ = ("_columns", "_params", "_values")
 
     def __init__(
         self, rows: Union[Dict[str, Any], List[Dict[str, Any]]]
     ) -> None:
 
         if isinstance(rows, dict):
-            self._columns = list(rows.keys())
-            self._values = [tuple(rows.values())]
+            columns = list(rows.keys())
+            self._values = tuple(rows.values())
         elif isinstance(rows, list):
-            self._columns = list(rows[0].keys())
-            self._values = [tuple(r.values()) for r in rows]
+            columns = list(rows[0].keys())
+            self._values = tuple([tuple(r.values()) for r in rows])
+        else:
+            raise ValueError("Invalid data unpack to values")
 
-    @property
-    def columns(self) -> List[gh.Node]:
-        return [SQL("``".join(c)) for c in self._columns]
+        self._columns, self._params = [], []  # type: List[Node], List[Node]
+        for col in columns:
+            self._columns.append(SQL(col.join("``")))
+            self._params.append(SQL("%s"))
 
-    @property
-    def params(self) -> List[gh.Node]:
-        return [SQL("%s")] * len(self._columns)
-
-    def __sql__(self, ctx: gh.Context):
-
-        ctx.sql(gh.CommaNodeList(self.columns))
+    def __sql__(self, ctx: Context) -> Context:
 
         ctx.literal(
-            f" VALUES "
+            ' '
+        ).sql(EnclosedNodeList(self._columns))
+
+        ctx.literal(
+            " VALUES "
         ).sql(
-            self.params
+            EnclosedNodeList(self._params)
         ).values(self._values)
 
         return ctx
 
 
-class QueryBase:
+class QueryBase(Node):
 
-    __slots__ = ('_state',)
+    __slots__ = ('_props',)
 
-    def __init__(self):
-        self._state = util.tdict()
+    def __init__(self) -> None:
+        self._props = util.tdict()
 
     def __repr__(self) -> str:
-        return repr(self.__query__())
+        return repr(self.__query__)
 
     def __str__(self) -> str:
-        return str(self.__query__())
-
-    def __query__(self) -> gh.Query:
-        return gh.Context().parse(self).query()
+        return str(self.__query__)
 
     @property
-    def query(self) -> gh.Query:
+    def __query__(self) -> Query:
+        return parse(self)
+
+    @property
+    def query(self) -> Query:
         table = getattr(self, '_table', None)
         if not table and hasattr(self, '_model'):
-            table = with_table(self._model)
-        self._state.db = getattr(table, 'db', None)
-        return self.__query__()
+            table = for_table(getattr(self, '_model'))
+        self._props.db = getattr(table, 'db', None)
+        return self.__query__
 
-
-class WriteQuery(gh.Node, QueryBase):
-
-    async def do(self) -> Any:
-        self.query.r = False
-        return await db.execute(self.query, **self._state)
-
-    def __sql__(self, ctx: gh.Context) -> gh.Context:
+    def __sql__(self, ctx: Context) -> Context:
         raise NotImplementedError
 
 
-class Select(gh.Node, QueryBase):
+class WriteQuery(QueryBase):
+
+    async def do(self) -> Any:
+        self.query.r = False
+        return await db.execute(self.query, **self._props)
+
+    def __sql__(self, ctx: Context) -> Context:
+        raise NotImplementedError
+
+
+class Select(QueryBase):
 
     __slots__ = (
-        '_model', '_select', '_from', '_join', '_where', '_group_by',
-        '_having', '_window', '_order_by', '_limit', '_offset',
-        '_rowtype'
+        '_model', '_select', '_table', '_join', '_where',
+        '_group_by', '_having', '_window', '_order_by',
+        '_limit', '_offset', '_rowtype', '_irange',
     )
+    _single = 1
 
     def __init__(
-            self, columns: List[FieldBase], model: Type[Model]
+            self, columns: Union[List[FieldBase], List[SQL]], model: Type[Model]
     ) -> None:
 
-        self._model = model
+        super().__init__()
         self._select = columns
-        self._from = with_table(model)
+        self._model = model
+        self._table = for_table(model)
         self._join = None
         self._where = None
         self._group_by = None
         self._having = None
         self._window = None
         self._order_by = None
-        self._limit = None
-        self._offset = None
-        self._rowtype = RT.MODEL
-        super().__init__()
+        self._limit = None      # type: Optional[int]
+        self._offset = None     # type: Optional[int]
+        self._irange = None     # type: Optional[slice]
+        self._rowtype = ROWTYPE.MODEL
 
-    def __aiter__(self):
+    async def __genrow__(self) -> Optional[Model]:
+        if self._offset is None:
+            if self._irange:
+                self._offset = self._irange.start
+            else:
+                self._offset = 0
+        else:
+            if self._irange and self._irange.step:
+                self._offset += self._irange.step
+            else:
+                self._offset += 1
+
+        if self._irange and self._irange.stop:
+            if self._offset >= self._irange.stop:  # type:ignore
+                return None
+        ret = await self.limit(self._single).first()
+        return ret  # type: ignore
+
+    async def __anext__(self) -> Optional[Model]:
+        v = await self.__genrow__()
+        if not v:
+            raise StopAsyncIteration
+        return v
+
+    def __aiter__(self) -> Select:
         return self
 
-    async def __anext__(self):
-        pass
+    def __getitem__(self, _range: slice) -> Select:
+        if isinstance(_range, slice):
+            if _range.start is None or _range.stop is None:
+                raise ValueError(
+                    'Iter range must have both a start and end-point.'
+                )
+            if _range.start < 0 or _range.stop < 0 or _range.start >= _range.stop:
+                raise ValueError(f"Invalid range slice({_range})")
 
-    def __getitem__(self, _id):
-        pass
+            if _range.step is not None and _range.step <= 0:
+                raise ValueError(f"Invalid slice step {_range.step}")
 
-    def __contains__(self, key):
-        pass
+            self._irange = _range  # type: ignore
+        else:
+            raise TypeError("Range type must be slice")
+        return self
 
-    def __len__(self):
-        pass
-
-    def __reversed__(self):
-        pass
-
-    def __bool__(self):
-        pass
-
-    def join(self, dest, join_type="", on=None):
+    def join(
+        self, dest: Any, join_type: str = "", on: Optional[str] = None
+    ) -> Select:
         raise NotImplementedError
 
-    def where(self, *filters):
+    def where(self, *filters: Node) -> Select:
         if not filters:
             raise ValueError("Where clause cannot be empty")
 
-        self._where = and_(*filters)
+        self._where = util.and_(*filters)
         return self
 
-    def group_by(self, *columns):
+    def group_by(self, *columns: FieldBase) -> Select:
         if not columns:
             raise ValueError("Group by clause cannot be empty")
+        for f in columns:
+            if not isinstance(f, Node):
+                raise TypeError(
+                    f"Invalid type for {self._model!r} group_by"
+                )
 
-        self._group_by = columns
+        self._group_by = columns  # type: ignore
         return self
 
-    def having(self, *filters):
+    def having(self, *filters: Node) -> Select:
         if not filters:
             raise ValueError("Having clause cannot be empty")
 
-        self._having = and_(*filters)
+        self._having = util.and_(*filters)
         return self
 
-    def window(self):
+    def window(self) -> Select:
         raise NotImplementedError
 
-    def order_by(self, *columns):
+    def order_by(self, *columns: FieldBase):
         if not columns:
             raise ValueError("Order by clause cannot be empty")
+        for f in columns:
+            if not isinstance(f, Node):
+                raise TypeError(
+                    f"Invalid type for {self._model!r} order_by"
+                )
 
-        self._order_by = columns
+        self._order_by = columns  # type: ignore
         return self
 
-    def limit(self, limit=1000, offset=0):
+    def limit(self, limit: int = 1000) -> Select:
         self._limit = limit
+        return self
+
+    def offset(self, offset: Optional[int] = 0) -> Select:
+        if self._limit is None:
+            raise err.ProgrammingError("Offset clause has no limit")
         self._offset = offset
         return self
 
-    def tdicts(self):
-        self._rowtype = RT.TDICT
+    def tdicts(self) -> Select:
+        self._rowtype = ROWTYPE.TDICT
         return self
 
-    def tuples(self):
-        self._rowtype = RT.TUPLE
+    def tuples(self) -> Select:
+        self._rowtype = ROWTYPE.TUPLE
         return self
 
     async def all(
-        self, rowtype=None
-    ) -> Union[None, db.FetchResult, tuple, util.tdict]:
+        self, rowtype: Optional[int] = None
+    ) -> Any:
         self.query.r = True
-        if rowtype and rowtype not in RT.values():
+        if rowtype and rowtype not in ROWTYPE.values():
             raise ValueError(f"Unsupported rowtype {rowtype}")
         if rowtype:
             self._rowtype = rowtype
-        if self._rowtype == RT.TUPLE:
-            self._state.tdict = False
+        if self._rowtype == ROWTYPE.TUPLE:
+            self._props.tdict = False
+
         return Loader(
-            await db.execute(self.query, **self._state),
+            await db.execute(self.query, **self._props),
             self._model, self._rowtype
         ).do()
 
-    async def first(self, rowtype=None):
+    async def first(
+        self, rowtype: Optional[int] = None
+    ) -> Union[None, util.tdict, tuple, Model]:
         self.limit(1)
-        self._state.rows = 1
-        await self.all(rowtype)
+        self._props.rows = self._single
+        return await self.all(rowtype)
 
-    async def get(self):
-        pass
+    async def get(
+        self, rowtype: Optional[int] = None
+    ) -> Union[None, util.tdict, tuple, Model]:
+        self._props.rows = self._single
+        return await self.all(rowtype)
 
-    async def rows(self, rows, start=0, rowtype=None):
-        self.limit(rows, start)
+    async def rows(
+        self,
+        rows: int,
+        start: int = 0,
+        rowtype: Optional[int] = None
+    ) -> db.FetchResult:
+        self.limit(rows).offset(start)
         if rows <= 0:
-            raise ValueError()
-        if rows == 1:
-            self._state.rows = 1
-        await self.all(rowtype)
+            raise ValueError(f"Invalid select rows: {rows}")
+        # if rows == 1:
+        #     self._props.rows = self._single
+        return await self.all(rowtype)
 
-    async def paginate(self, page, size=20, rowtype=None):
+    async def paginate(
+        self,
+        page: int,
+        size: int = 20,
+        rowtype: Optional[int] = None
+    ) -> db.FetchResult:
         if page < 0 or size <= 0:
-            raise ValueError()
+            raise ValueError("Invalid page or size")
         if page > 0:
             page -= 1
-        if size == 1:
-            self._state.rows = 1
+        # if size == 1:
+        #     self._props.rows = self._single
         self._limit = size
         self._offset = page * size
-        await self.all(rowtype)
+        return await self.all(rowtype)
 
-    async def scalar(self):
-        return await self.all()[0]
+    async def scalar(self, as_tuple=False) -> Union[int, Tuple[int, ...]]:
+        row = await self.tuples().first()
+        return row[0] if row and not as_tuple else row  # type: ignore
 
-    async def count(self):
-        pass
+    async def count(self) -> int:
+        self._select = [FS.COUNT(SQL('1'))]
+        return await self.scalar()  # type: ignore
 
-    async def exist(self):
-        pass
+    async def exist(self) -> bool:
+        return bool(await self.limit(1).scalar())
 
-    def __sql__(self, ctx: gh.Context):
-        ctx.literal("SELECT ").sql(gh.CommaNodeList(self._select))  # type: ignore
-        ctx.literal(f" FROM ").sql(self._from)
+    def __sql__(self, ctx: Context) -> Context:
+        ctx.literal(
+            "SELECT "
+        ).sql(CommaNodeList(self._select))  # type: ignore
+        ctx.literal(
+            " FROM "
+        ).sql(self._table)
 
         if self._where:
             ctx.literal(" WHERE ").sql(self._where)
 
         if self._group_by:
-            ctx.literal(" GROUP BY ").sql(gh.CommaNodeList(self._group_by))
+            ctx.literal(
+                " GROUP BY "
+            ).sql(CommaNodeList(self._group_by))
 
         if self._having:
             ctx.literal(f" HAVING ").sql(self._having)
 
         if self._window:
             ctx.literal(" WINDOW ")
-            ctx.sql(gh.CommaNodeList(self._window))
+            ctx.sql(CommaNodeList(self._window))
 
         if self._order_by:
-            ctx.literal(" ORDER BY ").sql(gh.CommaNodeList(self._order_by))
+            ctx.literal(
+                " ORDER BY "
+            ).sql(CommaNodeList(self._order_by))
 
-        if self._limit:
-            ctx.literal(f" LIMIT {self._limit} ")
+        if self._limit is not None:
+            ctx.literal(f" LIMIT {self._limit}")
 
-        if self._offset:
+        if self._offset is not None:
             ctx.literal(f" OFFSET {self._offset}")
 
         return ctx
@@ -858,20 +1082,22 @@ class Insert(WriteQuery):
 
     __slots__ = ('_table', '_values', '_select')
 
-    def __init__(self, table: Table, values: Values, many=False):
+    def __init__(
+        self, table: Table, values: Values, many: bool = False
+    ) -> None:
+        super().__init__()
         self._table = table
         self._values = values
         self._select = None
         if many:
-            self._state.many = True
-        super().__init__()
+            self._props.many = True
 
-    def select(self, *columns):
+    def select(self, *columns: Node) -> Insert:
         raise NotImplementedError
 
-    def __sql__(self, ctx: gh.Context):
+    def __sql__(self, ctx: Context) -> Context:
         ctx.literal(
-            f"INSERT INTO "
+            "INSERT INTO "
         ).sql(self._table)
 
         ctx.sql(self._values)
@@ -879,22 +1105,14 @@ class Insert(WriteQuery):
         return ctx
 
 
-class Replace(WriteQuery):
+class Replace(Insert):
 
-    __slots__ = ('_table', '_values', '_select')
-
-    def __init__(self, table: Table, values: Values):
-        self._table = table
-        self._values = values
-        self._select = None
-        super().__init__()
-
-    def select(self, *columns):
+    def select(self, *columns: Node) -> Replace:
         raise NotImplementedError
 
-    def __sql__(self, ctx):
+    def __sql__(self, ctx: Context) -> Context:
         ctx.literal(
-            f"REPLACE INTO "
+            "REPLACE INTO "
         ).sql(self._table)
 
         ctx.sql(self._values)
@@ -906,20 +1124,20 @@ class Update(WriteQuery):
 
     __slots__ = ('_table', '_update', '_where')
 
-    def __init__(self, table: Table, update: Dict[str, Any]):
+    def __init__(self, table: Table, update: Dict[str, Any]) -> None:
+        super().__init__()
         self._table = table
         self._update = update
         self._where = None
-        super().__init__()
 
-    def where(self, *filters):
+    def where(self, *filters: Node) -> Update:
         if not filters:
             raise ValueError("Where clause cannot be empty")
 
-        self._where = and_(*filters)
+        self._where = util.and_(*filters)
         return self
 
-    def __sql__(self, ctx: gh.Context):
+    def __sql__(self, ctx: Context) -> Context:
         ctx.literal(
             "UPDATE "
         ).sql(self._table)
@@ -927,7 +1145,7 @@ class Update(WriteQuery):
         ctx.literal(
             " SET "
         ).sql(
-            gh.CommaNodeList([SQL(f'{c}=%s') for c in self._update])
+            CommaNodeList([SQL(f'`{c}`=%s') for c in self._update])
         ).values(list(self._update.values()))
 
         if self._where:
@@ -944,42 +1162,47 @@ class Delete(WriteQuery):
 
     __slots__ = ('_table', '_where', '_limit', '_force')
 
-    def __init__(self, table: Table, force=False):
+    def __init__(self, table: Table, force: bool = False) -> None:
 
         self._table = table
         self._where = None
-        self._limit = None
+        self._limit = None  # type: Optional[int]
         self._force = force
         super().__init__()
 
-    def where(self, *filters):
+    def where(self, *filters: Node) -> Delete:
         if not filters:
             raise ValueError("Where clause cannot be empty")
 
-        self._where = and_(*filters)
+        self._where = util.and_(*filters)
         return self
 
-    def limit(self, row_count):
+    def limit(self, row_count: int) -> Delete:
         self._limit = row_count
         return self
 
-    def __sql__(self, ctx: gh.Context):
-        ctx.literal(f"DELETE FROM").sql(self._table)
+    def __sql__(self, ctx: Context) -> Context:
+        ctx.literal(f"DELETE FROM ").sql(self._table)
         if self._where:
             ctx.literal(
                 " WHERE "
             ).sql(self._where)
         elif not self._force:
-            raise RuntimeError()
-        if self._limit:
+            raise err.DangerousOperation(
+                "Delete is too dangerous as no where clause"
+            )
+        if self._limit is not None:
             ctx.literal(f" LIMIT {self._limit}")
 
         return ctx
 
 
-class Join(gh.Node):
+class Join(Node):
 
-    def __sql__(self, ctx):
+    def __init__(self) -> None:
+        raise NotImplementedError
+
+    def __sql__(self, ctx: Context) -> Context:
         return ctx
 
 
@@ -992,7 +1215,7 @@ class Create(WriteQuery):
         self._options = options
         super().__init__()
 
-    def __sql__(self, ctx: gh.Context) -> gh.Context:
+    def __sql__(self, ctx: Context) -> Context:
 
         ctx.literal('CREATE ')
         if self._options.get('temporary'):
@@ -1002,13 +1225,14 @@ class Create(WriteQuery):
             ctx.literal('IF NOT EXISTS ')
         ctx.sql(self._table)
 
-        defs = [f.__def__() for f in self._table.fields]  # type: List[gh.Node]
-        defs.append(SQL(f"PRIMARY KEY (`{self._table.primary.field.name}`)"))
+        defs = [f.__def__() for f in self._table.fields]  # type: List[Node]
+        defs.append(SQL(f"PRIMARY KEY ({self._table.primary.field.column})"))
+        # TODO: add unique and index
         if self._table.indexes:
             defs.extend([i.__def__() for i in self._table.indexes])
 
         ctx.sql(
-            gh.EnclosedNodeList(defs)
+            EnclosedNodeList(defs)
         ).literal(
             f"ENGINE={self._table.engine} "
             f"AUTO_INCREMENT={self._table.auto_increment} "
@@ -1021,7 +1245,7 @@ class Create(WriteQuery):
 
 class Drop(Create):
 
-    def __sql__(self, ctx: gh.Context) -> gh.Context:
+    def __sql__(self, ctx: Context) -> Context:
         ctx.literal('DROP TABLE ')
         if self._options.get('safe'):
             ctx.literal(' IF NOT EXISTS ')
@@ -1029,52 +1253,54 @@ class Drop(Create):
         return ctx
 
 
-class Show:
+class Show(QueryBase):
 
-    __slots__ = ("_table",)
+    __slots__ = ("_table", "_key")
 
-    __fetch__ = True
+    _options = {
+        "create": "SHOW CREATE TABLE ",
+        "columns": "SHOW FULL COLUMNS FROM ",
+        "indexes": "SHOW INDEX FROM ",
+    }
 
-    def __init__(self, table: Table):
+    def __init__(self, table: Table) -> None:
+        super().__init__()
         self._table = table
+        self._key = None  # type: Optional[str]
 
-    def __repr__(self):
-        return f"<Class Show> for table `{self._table.table_name}`"
+    def __repr__(self) -> str:
+        return f"<Show object> for table {self._table.table_name}"
 
     __str__ = __repr__
 
-    async def create_syntax(self):
-        return (await db.execute(
-            gh.Query(
-                f"SHOW CREATE TABLE {self._table.table_name};",
-                read=True
-            ),
-            rows=1
-        ))['Create Table']
+    async def create_syntax(self) -> Optional[util.tdict]:
+        self._key = "create"
+        self._props.rows = 1
+        return (
+            await db.execute(self.query, **self._props)
+        ).get("Create Table")
 
-    async def columns(self):
-        return await db.execute(
-            gh.Query(
-                f"SHOW FULL COLUMNS FROM {self._table.table_name};"
-            ))
+    async def columns(self) -> db.FetchResult:
+        self._key = "columns"
+        return await db.execute(self.query, **self._props)
 
-    async def indexes(self):
-        return await db.execute(
-            gh.Query(
-                f"SHOW INDEX FROM {self._table.table_name};")
-        )
+    async def indexes(self) -> db.FetchResult:
+        self._key = "indexes"
+        return await db.execute(self.query, **self._props)
 
-    async def engine(self):
-        pass
+    def __sql__(self, ctx: Context) -> Context:
+        if self._key is not None:
+            ctx.literal(self._options[self._key]).sql(self._table)
+        return ctx
 
 
 class Alter(WriteQuery):
 
     __slots__ = ('_table',)
 
-    def __init__(self, table):
-        self._table = table
+    def __init__(self, table: Table) -> None:
         super().__init__()
+        raise NotImplementedError
 
     def add(self):
         pass
@@ -1094,18 +1320,23 @@ class Alter(WriteQuery):
     def first(self):
         pass
 
-    def __sql__(self, ctx):
+    def __sql__(self, ctx: Context) -> Context:
         return ctx
 
 
 class Loader:
 
-    def __init__(self, ori, model, rt):
-        self._ori = ori
+    def __init__(
+        self,
+        data: Union[None, db.FetchResult, Tuple[Any, ...], util.tdict],
+        model: Type[Model],
+        rowtype: int
+    ) -> None:
+        self._data = data
         self._model = model
-        self._rt = rt
+        self._rowtype = rowtype
 
-    def do(self):
+    def do(self) -> Union[None, db.FetchResult, util.tdict, Model, Tuple[Any, ...]]:
         """
         1. model:
             - 1: None | {} -> Model
@@ -1119,22 +1350,32 @@ class Loader:
             - 1: None | (xx, xx)
             -!1: () | [(xx, xx), ...]
         """
-        if self._rt == RT.MODEL:
-            if isinstance(self._ori, list):
-                for i in range(len(self._ori)):
-                    mobj = self._to_model(self._ori[i])
-                    self._ori[i] = mobj or self._ori[i]
+        if self._rowtype == ROWTYPE.MODEL:
+            if isinstance(self._data, db.FetchResult):
+                for i in range(self._data.count):
+                    mobj = self._as_model(self._data[i])
+                    self._data[i] = mobj or self._data[i]
 
-            elif self._ori:
-                self._ori = self._to_model(self._ori) or self._ori
-        return self._ori
+            elif self._data:
+                self._data = self._as_model(self._data) or self._data  # type: ignore
 
-    def _to_model(self, row):
+        if isinstance(self._data, dict):
+            mattrs = for_attrs(self._model)
+            for key in self._data.copy():
+                if key not in mattrs.values():
+                    self._data[mattrs.get(key, key)] = self._data.pop(key)
+        return self._data
+
+    def _as_model(self, row: util.tdict) -> Optional[Model]:
 
         model = self._model()
+        mattrs = for_attrs(self._model)
         for name, value in row.items():
+            name = mattrs.get(name)
+            if not name:
+                return None
             try:
-                model.__setmodel__(name, value, __load=True)
-            except Exception:
+                model.__setmodel__(name, value, __load__=True)
+            except Exception:  # pylint: disable=broad-except
                 return None
         return model
