@@ -468,8 +468,7 @@ class TestModel:
         assert user.name == 'user8forset'
         user = await (User.select()
                       .order_by(User.id.desc())
-                      .first(ROWTYPE.TDICT)
-                      )
+                      .first(ROWTYPE.TDICT))
         assert isinstance(user, util.tdict)
         assert user.id == 16
         assert user.name == 'user8forset'
@@ -477,8 +476,7 @@ class TestModel:
                        .order_by(User.id.desc())
                        .limit(1)
                        .offset(4)
-                       .all(ROWTYPE.TUPLE)
-                       )
+                       .all(ROWTYPE.TUPLE))
         user = users[0]
         assert isinstance(user, tuple)
         assert user[0] == 12
@@ -486,42 +484,36 @@ class TestModel:
         assert user[2] is None
         users = await (User.select()
                        .where(User.id.between(100, 200))
-                       .all()
-                       )
+                       .all())
         assert isinstance(users, db.FetchResult)
         assert users.count == 0
         assert users == []
         users = await (User.select()
                        .where(User.id.between(100, 200))
-                       .rows(1)
-                       )
+                       .rows(1))
         assert isinstance(users, db.FetchResult)
         assert users.count == 0
         assert users == []
         users = await (User.select()
                        .where(User.id.between(100, 200))
                        .order_by(User.id.desc())
-                       .paginate(1)
-                       )
+                       .paginate(1))
         assert isinstance(users, db.FetchResult)
         assert users.count == 0
         assert users == []
         users = await (User.select()
                        .where(User.id.between(100, 200))
                        .order_by(User.create_at.desc())
-                       .first()
-                       )
+                       .first())
         assert users is None
         users = await (User.select()
                        .where(User.id.between(100, 200))
-                       .get()
-                       )
+                       .get())
         assert users is None
 
         user = await (User.select()
                       .order_by(User.age.desc())
-                      .get()
-                      )
+                      .get())
         assert isinstance(user, User)
         assert user.age == 90
         assert user.id == 16
@@ -533,17 +525,16 @@ class TestModel:
                            User.age < 25,
                            User.name != 'at7h')
                        .order_by(User.age)
-                       .rows(10)
-                       )
+                       .rows(10))
         assert users.count == 5
         assert users[1].name == 'user2'
         assert users[4].name == 'mejor'
 
         users = await (User.select()
-                       .where(
-                           (User.password == 'xxxx') | (User.name.startswith('at')))
-                       .all()
-                       )
+                       .where((
+                           User.password == 'xxxx')
+                           | (User.name.startswith('at')))
+                       .all())
         assert users.count == 2
         assert users[0].id == 1
         assert users[0].gender == 0
@@ -553,8 +544,7 @@ class TestModel:
                        .where(
                            util.or_(User.password == 'xxxx',
                                     User.name.startswith('at')))
-                       .rows(10, 0)
-                       )
+                       .rows(10, 0))
         assert users.count == 2
         assert users[0].id == 1
         assert users[0].gender == 0
@@ -569,11 +559,9 @@ class TestModel:
         assert users[-1].id == 11
 
         users = await (User.select(User.gender,
-                                   types.f.COUNT(types.SQL('1')).as_('num'))
+                                   types.F.count(types.SQL('1')).as_('num'))
                        .group_by(User.gender)
-                       .all(ROWTYPE.TDICT)
-                       )
-        print(users)
+                       .all(ROWTYPE.TDICT))
         assert users.count == 3
         assert isinstance(users[0], util.tdict)
         assert users[0].gender is None
@@ -583,10 +571,9 @@ class TestModel:
         assert users[2].gender == 1
         assert users[2].num == 3
         users = await (User.select(User.gender,
-                                   types.f.COUNT(types.SQL('1')).as_('num'))
+                                   types.F.count(types.SQL('1')).as_('num'))
                        .group_by(User.gender)
-                       .all()
-                       )
+                       .all())
         assert users.count == 3
         assert isinstance(users[0], util.tdict)
         assert users[0].gender is None
@@ -596,11 +583,11 @@ class TestModel:
         assert users[2].gender == 1
         assert users[2].num == 3
 
-        users = await (User.select(User.age, types.f.COUNT(types.SQL('*')).as_('num'))
+        users = await (User.select(User.age,
+                                   types.F.count(types.SQL('*')).as_('num'))
                        .group_by(User.age)
                        .having(User.age >= 10)
-                       .all()
-                       )
+                       .all())
         assert users.count == 5
         assert users == [
             {'age': 18, 'num': 1},
@@ -614,8 +601,7 @@ class TestModel:
                        .order_by(User.name)
                        .limit(10)
                        .offset(7)
-                       .all()
-                       )
+                       .all())
         assert users.count == 8
         assert isinstance(users[0], User)
         assert users[0].id == 9
@@ -653,8 +639,7 @@ class TestModel:
 
         user_count = await (User.select()
                             .where(User.id.in_(list(range(10))))
-                            .count()
-                            )
+                            .count())
         assert user_count == 8
 
         users = await (User.select(User.age).all())
@@ -664,34 +649,227 @@ class TestModel:
                 sum_age += u.age
         assert sum_age == 261
 
-        age_sum = await (User.select(types.f.SUM(User.age))
-                         .scalar()
-                         )
+        age_sum = await (User.select(types.F.sum(User.age))
+                         .scalar())
         assert age_sum == 261
 
-        user_count = await (User.select(types.f.COUNT(User.age))
+        user_count = await (User.select(types.F.count(User.age)
+                                        .as_('age_count'))
                             .where(User.age > 25)
-                            .get()
-                            )
-        assert user_count == {'COUNT(`age`)': 4}
+                            .get())
+        assert user_count == {'age_count': 4}
 
-        user_count = await (User.select(types.f.COUNT(User.age))
+        user_count = await (User.select(types.F.count(User.age))
                             .where(User.gender == 0)
-                            .scalar()
-                            )
+                            .scalar())
         assert user_count == 2
 
-        user_count = await (User.select(types.f.MAX(User.age))
+        user_count = await (User.select(types.F.max(User.age))
                             .where(User.age > 25)
-                            .scalar()
-                            )
+                            .scalar())
         assert user_count == 90
 
-        age_max = await (User.select(types.f.SUM(User.age))
+        age_max = await (User.select(types.F.sum(User.age))
                          .where(User.age > 25)
-                         .scalar()
-                         )
+                         .scalar())
         assert age_max == 208
+
+        # test insert
+        ret = await User.insert(
+            name='iii1', gender=1, age=20,
+            nickname='nnn1', password='ppp1'
+        ).do()
+        assert ret.affected == 1
+        assert ret.last_id == 17
+        user = await User.get(ret.last_id)
+        assert user.password == 'ppp1'
+        assert isinstance(user.lastlogin, datetime)
+
+        employee = {
+            'name': 'eee1', 'gender': 1, 'age': 40,
+            'salary': 10000, 'departmentid': 17,
+            'phone': 2312421421,
+        }
+        ret = await Employee.insert(employee).do()
+        assert ret.affected == 1
+        assert ret.last_id == 1
+        em = await (Employee.select()
+                    .where(Employee.name == employee['name'])
+                    .all())
+        assert em.count == 1
+        assert em[0].name == employee['name']
+        assert em[0].salary == employee['salary']
+        try:
+            employee = {'id': 2}
+            ret = await Employee.insert(employee).do()
+            assert False
+        except err.NotAllowedError:
+            pass
+        ret = await People.insert(name='ip1', age=10).do()
+        assert ret.affected == 1
+        assert ret.last_id == 1
+        employee = {
+            'name': 'eee1', 'gender': 1, 'age': 40,
+            'salary': 10000, 'departmentid': 17,
+            'phone': 2312421421, 'unkown': 'xx'
+        }
+        try:
+            ret = await Employee.insert(employee).do()
+            assert False
+        except ValueError:
+            pass
+
+        people_list = [
+            ('np1', 0, 37),
+            ('np2', 1, 38),
+            ('np3', 1, 39),
+            ('np4', 0, 40),
+        ]
+        try:
+            ret = await People.minsert(people_list).do()
+            assert False
+        except TypeError:
+            pass
+        ret = await People.minsert(
+            people_list, columns=[People.name, People.gender, People.age]).do()
+        assert ret.affected == 4
+        assert ret.last_id == 2
+        people = await (People.select()
+                        .order_by(People.age.desc())
+                        .all())
+        assert people.count == 5
+        assert people[-1].age == 10
+
+        people_list = [
+            (1, 'np1', 0, 37),
+            (2, 'np2', 1, 38),
+        ]
+        try:
+            ret = await People.minsert(
+                people_list,
+                columns=[People.id, People.name, People.gender, People.age]
+            ).do()
+            assert False
+        except err.NotAllowedError:
+            pass
+
+        people_list = [
+            ('np1', 0, 37),
+            {'name': 'eee1', 'gender': 1, 'age': 40},
+        ]
+        try:
+            ret = await People.minsert(
+                people_list,
+                columns=(People.name, People.gender, People.age)
+            )
+            assert False
+        except ValueError:
+            pass
+
+        # test update
+        ret = await (People.update(name='up1')
+                     .where(People.name == 'np1')
+                     .do())
+        assert ret.affected == 1
+        people = await People.get(2)
+        assert people.name == 'up1'
+        ret = await People.insert(name='up2', age=23).do()
+        assert ret.affected == 1
+        assert ret.last_id == 6
+        ret = await People.update(age=29).where(People.id == ret.last_id).do()
+        people = await People.get(6)
+        assert people.name == 'up2'
+        assert people.age == 29
+
+        # test delete
+        ret = await People.delete().where(People.id == 6).do()
+        assert ret.affected == 1
+        assert ret.last_id == 0
+        people = await People.get(6)
+        assert people is None
+        try:
+            await People.delete().do()
+            assert False
+        except err.DangerousOperation:
+            pass
+
+        # test replace
+        ret = await User.replace(id=18, name='rp1', age=78).do()
+        assert ret.affected == 1
+        assert ret.last_id == 18
+        user = await User.get(ret.last_id)
+        assert user.name == 'rp1'
+        assert user.age == 78
+        # try:
+        #     ret = await User.replace(password='pssforrep').do()
+        #     assert ret.affected == 1
+        #     assert False
+        # except ValueError:
+        #     pass
+        ret = await User.replace(id=ret.last_id, name='rp1forreplace').do()
+        user = await User.get(ret.last_id)
+        assert user.name == 'rp1forreplace'
+
+        people_list = [
+            (0, 37),
+            (1, 38),
+            (1, 39),
+            (0, 40),
+        ]
+        try:
+            ret = await People.mreplace(people_list).do()
+            assert False
+        except TypeError:
+            pass
+
+        try:
+            ret = await People.mreplace(
+                people_list, columns=(People.gender, People.age)).do()
+            assert False
+        except ValueError:
+            pass
+
+        people_list = [
+            (1, 'rnp1', 0, 37),
+            (2, 'rnp2', 1, 38),
+            (3, 'rnp3', 1, 39),
+            (4, 'rnp4', 0, 40),
+        ]
+        ret = await People.mreplace(
+            people_list,
+            columns=[People.id, People.name, People.gender, People.age]
+        ).do()
+        assert ret.affected == 8
+        assert ret.last_id == 4
+        people = await (People.select()
+                        .order_by(People.age.desc())
+                        .all())
+        assert people.count == 5
+        assert people[-1].age == 37
+
+        people_list = [
+            ('rnp1', 0, 57),
+            ('rnp2', 1, 58),
+        ]
+        ret = await People.mreplace(
+            people_list,
+            columns=[People.name, People.gender, People.age]
+        ).do()
+        people = await People.get(ret.last_id)
+        assert people.age == 57
+
+        people_list = [
+            ('np1', 0, 37),
+            {'name': 'eee1', 'gender': 1, 'age': 40},
+        ]
+        try:
+            ret = await People.mreplace(
+                people_list,
+                columns=[People.name, People.gender, People.age]
+            )
+            assert False
+        except ValueError:
+            pass
 
 
 def test_model():
@@ -699,7 +877,7 @@ def test_model():
     assert isinstance(People.id, types.Auto)
     assert str(People.name) == '`name` varchar(45) DEFAULT NULL;'
     assert People.__tablename__ == 'people'
-    assert isinstance(People.__indexes__, tuple)
+    assert isinstance(People.__indexes__, list)
     assert len(People.__indexes__) == 1
     assert People.__indexes__[0].name == 'idx_name'
     assert People.__db__ is None
@@ -719,7 +897,7 @@ def test_model():
     )
 
     assert Employee.__tablename__ == 'employee'
-    assert isinstance(Employee.__indexes__, tuple)
+    assert isinstance(Employee.__indexes__, list)
     assert len(People.__indexes__) == 1
     assert Employee.__indexes__[0].name == 'idx_age_salary'
     assert Employee.test() == 2

@@ -458,13 +458,13 @@ def test_key():
 
 def test_funs():
     age = t.Int(name='age')
-    s = t.f.SUM(age).as_('age_sum')
+    s = t.F.SUM(age).as_('age_sum')
     assert helper.parse(s).sql == 'SUM(`age`) AS `age_sum` ;'
 
-    m_ = t.f.MAX(age).as_('age_max')
+    m_ = t.F.MAX(age).as_('age_max')
     assert helper.parse(m_).sql == 'MAX(`age`) AS `age_max` ;'
     try:
-        t.f.STR(age).as_('age_str')
+        t.F.STR(age).as_('age_str')
         assert False, 'Should be raise RuntimeError'
     except RuntimeError:
         pass

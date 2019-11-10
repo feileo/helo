@@ -6,8 +6,6 @@
 """
 from __future__ import annotations
 
-import asyncio
-import logging
 import warnings
 from copy import deepcopy
 from typing import Any, Dict, Optional, List, Union, Tuple, Type
@@ -19,7 +17,6 @@ from .._helper import (
     Node,
     Context,
     parse,
-    # Value,
     CommaNodeList,
     EnclosedNodeList,
     with_metaclass,
@@ -129,7 +126,7 @@ class ModelType(type):
                     attrs.pop(attr)
 
             indexes = attrs.pop("__indexes__", [])
-            if not isinstance(indexes, (tuple, list)):
+            if indexes and not isinstance(indexes, (tuple, list)):
                 raise TypeError('__indexes__ type must be `tuple` or `list`')
             for index in indexes:
                 if not isinstance(index, IndexBase):
@@ -235,12 +232,6 @@ class ModelType(type):
 
     def __contains__(cls, _id: Id) -> bool:
         raise NotImplementedError
-
-    # def __len__(cls) -> int:
-    #     pass
-
-    # def __bool__(cls) -> bool:
-    #     pass
 
 
 def for_table(m: Union[Type[Model], Model]) -> Table:
@@ -458,6 +449,9 @@ class Api:
     ) -> db.ExecResult:
         """ Do create table """
 
+        if m.__name__ == 'Model':
+            raise err.NotAllowedError("Model is a built-in name")
+
         return await Create(for_table(m), **options).do()
 
     @classmethod
@@ -465,6 +459,9 @@ class Api:
         cls, m: Type[Model], **options: Any
     ) -> db.ExecResult:
         """ Do drop table """
+
+        if m.__name__ == 'Model':
+            raise err.NotAllowedError("Model is a built-in name")
 
         return await Drop(for_table(m), **options).do()
 
@@ -591,11 +588,11 @@ class Api:
             }).do()
         """
 
-        toinsert = cls._gen_insert_row(m, row)
+        toinsert = cls._gen_insert_row(m, row.copy())
         return Insert(for_table(m), Values(toinsert))
 
     @classmethod
-    @util.argschecker(rows=SEQUENCE, columns=SEQUENCE)
+    @util.argschecker(rows=SEQUENCE)
     def insert_many(
         cls,
         m: Type[Model],
@@ -635,7 +632,7 @@ class Api:
     @classmethod
     def replace(cls, m: Type[Model], row: Dict[str, Any]) -> Replace:
 
-        toreplace = cls._gen_insert_row(m, row)
+        toreplace = cls._gen_insert_row(m, row, for_replace=True)
         return Replace(for_table(m), Values(toreplace))
 
     @classmethod
@@ -646,7 +643,7 @@ class Api:
         columns: Optional[List[FieldBase]] = None
     ) -> Replace:
 
-        normalize_rows = cls._normalize_rows(m, rows, columns)
+        normalize_rows = cls._normalize_rows(m, rows, columns, for_replace=True)
         return Replace(for_table(m), Values(normalize_rows), many=True)
 
     # model
@@ -708,18 +705,19 @@ class Api:
                 value = default
             # 如果为 None 但是不允许 None
             if value is None and not field.null:
-                raise err.InvalidColumnVlaueError(
-                    f"Invalid data(None) for not null attribute {name}"
-                )
+                if not for_replace:
+                    raise err.InvalidColumnValue(
+                        f"Invalid data(None) for not null attribute {name}"
+                    )
             try:
                 toinserts[field.name] = value
             except (ValueError, TypeError):
                 raise ValueError(f'Invalid data({value}) for {name}')
 
         for attr in row_data:
-            if attr == for_table(m).primary.attr:
+            if not for_replace and attr == for_table(m).primary.attr:
                 raise err.NotAllowedError(
-                    f"Auto field {attr} not allowed to set"
+                    f"Auto field {attr!r} not allowed to set"
                 )
             raise ValueError(f"'{m!r}' has no attribute {attr}")
 
@@ -730,12 +728,15 @@ class Api:
         cls,
         m: Type[Model],
         rows: List[Union[Dict[str, Any], Tuple[Any, ...]]],
-        columns: Optional[List[FieldBase]] = None
+        columns: Optional[List[FieldBase]] = None,
+        for_replace: bool = False,
     ) -> List[Dict[str, Any]]:
 
         cleaned_rows = []  # type:List[Dict[str, Any]]
 
         if columns:
+            if not isinstance(columns, list):
+                raise ValueError("Specify columns must be list")
             mattrs = for_attrs(m)
             for c in columns:
                 if not isinstance(c, FieldBase):
@@ -748,13 +749,13 @@ class Api:
             for row in rows:
                 if not isinstance(row, SEQUENCE):
                     raise ValueError(f"Invalid data {row!r} for specify columns")
-                row = dict(zip(row, columns))
+                row = dict(zip(columns, row))  # type:ignore
                 if len(row) != len(columns):
                     raise ValueError("No enough data for columns")
 
-                cleaned_rows.append(cls._gen_insert_row(m, row))
+                cleaned_rows.append(cls._gen_insert_row(m, row, for_replace))
         else:
-            cleaned_rows = [cls._gen_insert_row(m, r) for r in rows]
+            cleaned_rows = [cls._gen_insert_row(m, r, for_replace) for r in rows]
 
         return cleaned_rows
 
@@ -829,7 +830,6 @@ class WriteQuery(QueryBase):
 
     async def do(self) -> Any:
         self.query.r = False
-        logging.info(self.query)
         return await db.execute(self.query, **self._props)
 
     def __sql__(self, ctx: Context) -> Context:
@@ -983,7 +983,6 @@ class Select(QueryBase):
         if self._rowtype == ROWTYPE.TUPLE:
             self._props.tdict = False
 
-        print(self.query)
         return Loader(
             await db.execute(self.query, **self._props),
             self._model, self._rowtype
@@ -1377,6 +1376,6 @@ class Loader:
                 return None
             try:
                 model.__setmodel__(name, value, __load__=True)
-            except Exception:
+            except Exception:  # pylint: disable=broad-except
                 return None
         return model

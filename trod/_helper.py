@@ -18,7 +18,7 @@ class Query:
 
     _KEYS = ("SELECT", "SHOW")
 
-    @argschecker(sql=str, params=(list, tuple))
+    @argschecker(sql=str)
     def __init__(
         self,
         sql: str,
@@ -51,6 +51,8 @@ class Query:
 
     @property
     def params(self) -> tuple:
+        if not isinstance(self._params, (tuple, list)):
+            raise TypeError("Invalid query params")
         return tuple(self._params)
 
     @property
@@ -59,7 +61,7 @@ class Query:
             return self._read
 
         for k in self._KEYS:
-            if k in self.sql or k.lower() in self.sql:
+            if k in self.sql.upper():
                 return True
         return False
 
@@ -188,7 +190,7 @@ class Context:
         return self.values(obj)
 
     def __sql__(self, ctx) -> Context:
-        ctx._sql.extend(self._sql)
+        ctx._sql.extend(self._sql)  # pylint: disable=protected-access
         ctx.values(self._values)
         return ctx
 

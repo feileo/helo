@@ -14,9 +14,7 @@ class DataError(Error):
 
 
 class DBError(Error):
-    description = ''
-
-# db
+    description = 'database operation error'
 
 
 class UnboundError(ProgrammingError):
@@ -41,18 +39,10 @@ class UnsupportedError(Error):
     pass
 
 
-#
-
-
-class InvalidColumnVlaueError(DataError):
+class InvalidColumnValue(DataError):
     pass
 
 
-class DuplicateFieldNameError(RuntimeError):
-    pass
-
-
-# pk
 class DuplicatePKError(ProgrammingError):
     pass
 
@@ -62,18 +52,6 @@ class NoPKError(ProgrammingError):
 
 
 class InvalidFieldType(ValueError):
-    pass
-
-
-class IllegalModelAttrAssigendError(RuntimeError):
-    pass
-
-
-class DeleteUnsavedError(RuntimeError):
-    pass
-
-
-class AddEmptyInstanceError(RuntimeError):
     pass
 
 

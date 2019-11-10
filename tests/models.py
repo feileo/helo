@@ -6,7 +6,7 @@ from trod.model import Model
 
 class People(Model):
 
-    __indexes__ = (t.K('idx_name', 'name'),)
+    __indexes__ = [t.K('idx_name', 'name')]
 
     id = t.Auto()
     name = t.VarChar(length=45)
@@ -15,6 +15,9 @@ class People(Model):
     create_at = t.Timestamp(default=t.ON_CREATE)
     update_at = t.Timestamp(default=t.ON_UPDATE)
 
+    class Meta:
+        idxes = t.K('idx_name', 'name')
+
     @classmethod
     def test(cls):
         return 1
@@ -22,11 +25,14 @@ class People(Model):
 
 class Employee(People):
 
-    __indexes__ = (t.K('idx_age_salary', ['age', 'salary']),)
+    __indexes__ = [t.K('idx_age_salary', ['age', 'salary'])]
 
     salary = t.Float()
     departmentid = t.Int()
     phone = t.VarChar(default='')
+
+    # class Table:
+    #     idxes = t.K('idx_age_salary', ['age', 'salary'])
 
     @classmethod
     def test(cls):
@@ -34,8 +40,8 @@ class Employee(People):
 
 
 class User(People):
-    __tablename__ = 'users'
 
+    __tablename__ = 'users'
     __indexes__ = [
         t.K('idx_name', 'name'),
         t.UK('unidx_nickname', 'nickname'),
@@ -44,11 +50,17 @@ class User(People):
     nickname = t.VarChar(length=100)
     password = t.VarChar(name='pwd')
     lastlogin = t.DateTime(default=datetime.now, name='ll')
-    create_at = t.Timestamp(default=t.ON_CREATE)
-    update_at = t.Timestamp(default=t.ON_UPDATE)
+
+    # class Table:
+    #     name = 'users'
+    #     idxes = [
+    #         t.K('idx_name', 'name'),
+    #         t.UK('unidx_nickname', 'nickname'),
+    #     ]
 
 
 class TypesModel(Model):
+
     __tablename__ = 'test_types_table'
     __comment__ = 'type case table'
     __auto_increment__ = 7
@@ -75,3 +87,6 @@ class TypesModel(Model):
     now_ts = t.Timestamp(default=datetime.now, comment='now ts')
     created_at = t.Timestamp(default=t.ON_CREATE, comment='created_at')
     updated_at = t.Timestamp(default=t.ON_UPDATE, comment='updated_at')
+
+
+del Model

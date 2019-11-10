@@ -752,7 +752,7 @@ class Text(FieldBase):
     py_type = str
     db_type = 'text'
 
-    def __init__(
+    def __init__(  # pylint: disable=super-init-not-called
             self,
             encoding: Optional[str] = None,
             null: bool = True,
@@ -848,7 +848,7 @@ class UUID(FieldBase):
             return value.hex
         try:
             return self.py_type(value).hex
-        except Exception:
+        except Exception:  # pylint: disable=broad-except
             return value
 
     def py_value(self, value: Any) -> Optional[uuid.UUID]:
@@ -1040,11 +1040,11 @@ class Func(Node):
 
     __slots__ = ('_func', '_node')
     _supported = (
-        "SUM",
-        "AVG",
-        "MAX",
-        "MIN",
-        "COUNT",
+        "sum",
+        "avg",
+        "max",
+        "min",
+        "count",
     )
 
     def __init__(self, func: str, node: ColumnBase) -> None:
@@ -1052,7 +1052,7 @@ class Func(Node):
         self._node = node
 
     def __getattr__(self, func: str):
-        if func.upper() not in self._supported:
+        if func.lower() not in self._supported:
             raise RuntimeError(f"Not supported func: {func}")
 
         def decorator(*args, **kwargs):
@@ -1064,7 +1064,7 @@ class Func(Node):
         return Alias(self, alias)
 
     def __sql__(self, ctx: Context):
-        ctx.literal(self._func)
+        ctx.literal(self._func.upper())
         with ctx(parens=True):
             ctx.sql(self._node)
         return ctx

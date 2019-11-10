@@ -127,7 +127,7 @@ async def select_db(db: str) -> None:
     """Set current db"""
 
     async with Executer.pool.acquire() as conn:  # type: ignore
-        conn._db = db
+        conn._db = db  # pylint: disable=protected-access
         await conn.select_db(db)
 
 
