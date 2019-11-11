@@ -1,6 +1,10 @@
+from __future__ import annotations
+
 from collections.abc import Iterable
 from functools import wraps, reduce
 from inspect import iscoroutinefunction, isclass, signature
+from typing import Any, Dict
+
 
 __all__ = (
     'tdict',
@@ -19,17 +23,18 @@ class tdict(dict):  # pylint: disable=invalid-name
         with attribute-style access.
     """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, *args, **kwargs: Any) -> None:
 
-        keys = kwargs.pop("keys", None)
-        values = kwargs.pop("values", None)
+        keys = kwargs.pop("__keys__", None)
+        values = kwargs.pop("__values__", None)
+
+        super().__init__(*args, **kwargs)
 
         if keys and values:
             for key, value in zip(keys, values):
                 self[key] = value
 
-    def __getattr__(self, key):
+    def __getattr__(self, key: str) -> Any:
         try:
             return self[key]
         except KeyError:
@@ -37,19 +42,19 @@ class tdict(dict):  # pylint: disable=invalid-name
                 f"tdict object has not attribute {key}."
             )
 
-    def __setattr__(self, key, value) -> None:
+    def __setattr__(self, key: str, value: Any) -> None:
         self[key] = value
 
-    def __iadd__(self, other):
+    def __iadd__(self, other: Dict[str, Any]) -> tdict:
         self.update(other)
         return self
 
-    def __add__(self, other):
+    def __add__(self, other: Dict[str, Any]) -> tdict:
         td = self.copy()
         td.update(other)
         return td
 
-    def copy(self):
+    def copy(self) -> tdict:
         return tdict(**super().copy())
 
 
@@ -103,9 +108,10 @@ class FreeObject:
 
     def __iadd__(self, other):
         self.__dict__.update(other)
+        return self
 
     def __add__(self, other):
-        return self.as_new(**other)
+        return self.as_new(**other.__dict__)
 
     def __str__(self):
         return str(self.__dict__)

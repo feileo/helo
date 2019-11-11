@@ -35,7 +35,7 @@ def __ensure__(bound: bool) -> Callable:
                     cm = Executer.pool.connmeta
                     raise err.DuplicateBinding(host=cm.host, port=cm.port)
             elif bound:
-                raise err.UnboundError()
+                raise err.UnboundError
 
         if iscoroutinefunction(func):
             @wraps(func)
@@ -138,6 +138,7 @@ async def unbinding() -> bool:
     return await Executer.death()
 
 
+@__ensure__(True)
 def is_bound() -> bool:
     return bool(Executer.pool)
 
@@ -221,7 +222,7 @@ class Pool:
         return await cls(**params)  # type: ignore
 
     def __repr__(self) -> str:
-        return "<Pool[{1}:{2}] for {3}:{4}/{5}>".format(
+        return "<Pool[{}:{}] for {}:{}/{}>".format(
             self.minsize, self.maxsize,
             self.connmeta["host"], self.connmeta["port"], self.connmeta["db"]
         )

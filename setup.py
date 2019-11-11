@@ -14,7 +14,7 @@ setup(
     author='at7h',
     author_email='g@at7h.com',
     url='https://github.com/at7h/trod',
-    description='Trod is a very simple asynchronous Python MySQL ORM based on asyncio',
+    description='Trod is a simple asynchronous(asyncio) Python ORM.',
     long_description=TROD_README,
     packages=find_packages(exclude=['tests']),
     include_package_data=True,

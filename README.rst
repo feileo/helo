@@ -16,18 +16,10 @@ trod
         :alt: GitHub
 
 
-**Trod** is a simple asynchronous Python ORM,  
-now it only supports MySQL and uses aiomysql_ as the access 'driver' for the database.
+**Trod** is a simple asynchronous(asyncio) Python ORM.
+Now it supports only MySQL and uses aiomysql_ as the access 'driver' for the database.
 
-* Strictly, trod is not an ORM, it just working in an ORM-like mode. 
-  The objects in trod is completely isolated from the data in the database. 
-  It is only a Python object in memory, changing it does not affect the database. 
-  You must explicitly execute the commit request to the database.
-
-* Trod uses model and object APIs to compose SQL statements and submit 
-  them to the database when executed. When loaded, the data is retrieved 
-  from the database and then packaged into objects. 
-  Of course, you can also choose other data loading methods
+* Requires: Python 3.7+
 
 
 Installation
@@ -38,7 +30,7 @@ Installation
     pip install trod
 
 
-Basic Example
+Simple Example
 -------------
 
 .. code-block:: python
@@ -85,16 +77,22 @@ Basic Example
 
 About
 -----
+
+* Strictly, trod is not an ORM, it just working in an ORM-like mode. 
+  The objects in trod is completely isolated from the data in the database. 
+  It is only a Python object in memory, changing it does not affect the database. 
+  You must explicitly execute the commit request to the database.
+
+* Trod uses model and object APIs to compose SQL statements and submit 
+  them to the database when executed. When loaded, the data is retrieved 
+  from the database and then packaged into objects. 
+  Of course, you can also choose other data loading methods.
+
 Author at7h is a junior Pythoner, and trod has a lot of temporary 
 solutions to optimize and continue to add new features, this is just the beginning 💪.
 
 Welcome your issues and pull requests.
 
-
-Requirements
-------------
-
-* Python 3.7+
 
 .. _asyncio: https://docs.python.org/3/library/asyncio.html
 .. _aiomysql: https://github.com/aio-libs/aiomysql

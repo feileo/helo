@@ -2,6 +2,7 @@ import datetime
 
 import pytest
 import pytz
+import pymysql
 
 from trod import db, err, util, _helper as helper
 
@@ -47,6 +48,8 @@ async def test_sin():
             async with db._impl.Executer.pool.acquire() as conn:
                 assert db.get_state().size == 2
 
+        await db._impl.Executer.pool.clear()
+
         try:
             await db.binding(db.get_db_url())
             assert False, 'Should be raise DuplicateBinding'
@@ -75,8 +78,30 @@ async def test_sin():
         except err.UnsupportedError:
             pass
 
+        try:
+            await db.binding(
+                host='127.0.0.1', user='root', password='xxxx'
+            )
+            assert False, 'Should be raise pymysql.err.OperationalError'
+        except pymysql.err.OperationalError:
+            pass
+
         await db.binding(db.get_db_url(), maxsize=7, autocommit=True)
+        assert str(db._impl.Executer.pool) == (
+            "<Pool[1:7] for {}:{}/{}>".format(
+                db._impl.Executer.pool.connmeta.host,
+                db._impl.Executer.pool.connmeta.port,
+                db._impl.Executer.pool.connmeta.db
+            )
+        )
         assert db.get_state().maxsize == 7
+        assert db.is_bound() is True
+
+        try:
+            result = await db.execute('')
+            assert False, 'Should be raise ValueError'
+        except ValueError:
+            pass
 
         result = await db.execute(
             helper.Query(
@@ -235,6 +260,7 @@ async def test_sin():
             ))
         assert result.affected == 0
         assert result.last_id == 0
+        assert repr(result) == 'ExecResult(affected: 0, last_id: 0)'
 
         result = await db.execute(
             helper.Query(
@@ -242,6 +268,27 @@ async def test_sin():
             ))
         assert result.affected == 1
         assert result.last_id == 0
+        assert repr(result) == 'ExecResult(affected: 1, last_id: 0)'
+
+        try:
+            await db.execute(
+                helper.Query(
+                    "SELECT * FROM `user` WHER `id` IN %s;", params=[(26, 27, 28)]
+                )
+            )
+            assert False, "Should be raise pymysql.err.ProgrammingError"
+        except pymysql.err.ProgrammingError:
+            pass
+
+        try:
+            await db.execute(
+                helper.Query(
+                    "INSERT INTO `user` (`name`, `age`) VALUS ('n', 1);",
+                ),
+            )
+            assert False, "Should be raise pymysql.err.ProgrammingError"
+        except pymysql.err.ProgrammingError:
+            pass
 
 
 @pytest.mark.asyncio
@@ -288,6 +335,12 @@ async def test_mul():
         assert isinstance(users[2].created_at, datetime.datetime)
 
         await db.execute(TEARDOWN_QUERY)
+
+    try:
+        await db.unbinding()
+        assert False, 'Should be raise UnboundError'
+    except err.UnboundError:
+        pass
 
 
 @pytest.mark.asyncio

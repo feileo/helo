@@ -1246,10 +1246,7 @@ class Create(WriteQuery):
 class Drop(Create):
 
     def __sql__(self, ctx: Context) -> Context:
-        ctx.literal('DROP TABLE ')
-        if self._options.get('safe'):
-            ctx.literal(' IF NOT EXISTS ')
-        ctx.sql(self._table)
+        ctx.literal('DROP TABLE ').sql(self._table)
         return ctx
 
 
