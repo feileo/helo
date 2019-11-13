@@ -3,7 +3,7 @@ from datetime import datetime
 
 import pytest
 
-from trod import db, types, err, util
+from trod import db, types, err, util, Model
 from trod.model import ROWTYPE
 
 from .models import People, Employee, User
@@ -14,7 +14,7 @@ class TestModel:
     def setup(self):
 
         async def init():
-            await db.binding(db.get_db_url())
+            await db.binding(db.DefaultURL.get())
             await People.create()
             await Employee.create()
             await User.create()
@@ -34,6 +34,16 @@ class TestModel:
     @pytest.mark.asyncio
     async def test_api(self):
 
+        try:
+            await Model.create()
+            assert False
+        except err.NotAllowedError:
+            pass
+        try:
+            await Model.drop()
+            assert False
+        except err.NotAllowedError:
+            pass
         csql = await People.show().create_syntax()
         assert csql == (
             "CREATE TABLE `people` (\n"
@@ -88,6 +98,12 @@ class TestModel:
         assert (await User.show().indexes())[0]['Key_name'] == 'PRIMARY'
         assert (await User.show().indexes())[1]['Key_name'] == 'unidx_nickname'
         assert (await User.show().indexes())[1]['Column_name'] == 'nickname'
+
+        try:
+            User.alter()
+            assert False
+        except NotImplementedError:
+            pass
 
         # test save remove
         user = User(name='at7h', gender=0, age=25)
@@ -147,6 +163,12 @@ class TestModel:
         ret = await user.remove()
         assert ret.last_id == 0
         assert ret.affected == 1
+        user = User(name='n')
+        try:
+            await user.remove()
+            assert False
+        except RuntimeError:
+            pass
 
         # test get
         user = User(
@@ -865,6 +887,7 @@ class TestModel:
 
 
 def test_model():
+    from trod.model._impl import for_attrs, for_table
 
     assert isinstance(People.id, types.Auto)
     assert str(People.name) == '`name` varchar(45) DEFAULT NULL;'
@@ -879,7 +902,7 @@ def test_model():
     assert People.__comment__ == ''
     assert People.__table__.primary.auto is True
     assert People.test() == 1
-    assert People.__attrs__ == (
+    assert for_attrs(People) == (
         {'age': 'age',
             'create_at': 'create_at',
             'gender': 'gender',
@@ -893,7 +916,7 @@ def test_model():
     assert len(People.__indexes__) == 1
     assert Employee.__indexes__[0].name == 'idx_age_salary'
     assert Employee.test() == 2
-    assert Employee.__attrs__ == (
+    assert for_attrs(Employee) == (
         {'age': 'age',
             'create_at': 'create_at',
             'departmentid': 'departmentid',
@@ -911,7 +934,7 @@ def test_model():
     assert User.__indexes__[0].name == 'idx_name'
     assert User.__indexes__[1].name == 'unidx_nickname'
     assert User.test() == 1
-    assert User.__attrs__ == (
+    assert for_attrs(User) == (
         {'age': 'age',
             'create_at': 'create_at',
             'gender': 'gender',
@@ -922,7 +945,7 @@ def test_model():
             'pwd': 'password',
             'update_at': 'update_at'
          })
-    assert User.__table__.fields_dict == {
+    assert for_table(User).fields_dict == {
         'id': types.Auto('`id` int(11) NOT NULL AUTO_INCREMENT; [PRIMARY KEY, AUTO_INCREMENT]'),
         'name': types.VarChar('`name` varchar(45) DEFAULT NULL;'),
         'gender': types.Tinyint('`gender` tinyint(1) unsigned DEFAULT NULL;'),
@@ -962,6 +985,20 @@ def test_model():
 
     assert repr(User) == "Model<User>"
     assert str(User) == "User"
+
+    assert str(for_table(People)) == 'people'
+    assert repr(for_table(People)) == '<Table `people`>'
+    assert repr(for_table(User)) == '<Table `trod`.`users`>'
+    try:
+        for_table({})
+        assert False
+    except err.ProgrammingError:
+        pass
+    try:
+        for_attrs(None)
+        assert False
+    except err.ProgrammingError:
+        pass
 
 
 def test_model_instance():

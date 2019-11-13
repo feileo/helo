@@ -1,7 +1,6 @@
 from datetime import datetime
 
-from trod import types as t
-from trod.model import Model
+from trod import types as t, Model
 
 
 class People(Model):
@@ -41,6 +40,7 @@ class Employee(People):
 
 class User(People):
 
+    __db__ = 'trod'
     __tablename__ = 'users'
     __indexes__ = [
         t.K('idx_name', 'name'),

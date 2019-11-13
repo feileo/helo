@@ -20,7 +20,6 @@ def test_expr():
     assert helper.parse(e) == helper.Query(
         '((`name` = %s) OR (`age` > %s));', ('test', 10)
     )
-
     e = age + 1
     assert helper.parse(e) == helper.Query(
         '(`age` + %s);', (1,)
@@ -29,7 +28,6 @@ def test_expr():
     assert helper.parse(e) == helper.Query(
         '(%s + `age`);', (1,)
     )
-
     e = age + '20'
     assert helper.parse(e) == helper.Query(
         '(`age` + %s);', (20,)
@@ -38,7 +36,6 @@ def test_expr():
     assert helper.parse(e) == helper.Query(
         '(%s + `age`);', (20,)
     )
-
     e = age * '2'
     assert helper.parse(e) == helper.Query(
         '(`age` * %s);', (2,)
@@ -47,7 +44,6 @@ def test_expr():
     assert helper.parse(e) == helper.Query(
         '(%s * `age`);', (2,)
     )
-
     e = 1000 / age
     assert helper.parse(e) == helper.Query(
         '(%s / `age`);', (1000,)
@@ -56,7 +52,6 @@ def test_expr():
     assert helper.parse(e) == helper.Query(
         '(`age` / %s);', (2,)
     )
-
     e = age ^ name
     assert helper.parse(e) == helper.Query(
         '(`age` # `name`);', ()
@@ -65,7 +60,6 @@ def test_expr():
     assert helper.parse(e) == helper.Query(
         '(`name` # `age`);', ()
     )
-
     e = name == 'at7h'
     assert helper.parse(e) == helper.Query(
         '(`name` = %s);', ('at7h',)
@@ -110,7 +104,6 @@ def test_expr():
     assert helper.parse(e) == helper.Query(
         '(`age` BETWEEN %s AND %s);', (20, 30,)
     )
-
     e = name.concat(10)
     assert helper.parse(e) == helper.Query(
         '(`name` || %s);', ('10',)
@@ -207,7 +200,6 @@ def test_expr():
     assert helper.parse(e) == helper.Query(
         '`age` AS `a` ;', ()
     )
-
     e = (age > 10) & (name == 'test')
     assert helper.parse(e) == helper.Query(
         '((`age` > %s) AND (`name` = %s));', (10, 'test')
@@ -216,12 +208,44 @@ def test_expr():
     assert helper.parse(e) == helper.Query(
         '((`name` = %s) AND (`age` > %s));', ('test', 10)
     )
-
     e = (age >= '20') & name.in_(['at7h', 'mejor']) | phone.startswith('153')
     assert helper.parse(e) == helper.Query(
         '(((`age` >= %s) AND (`name` IN %s)) OR (`phone` LIKE %s));',
         (20, ('at7h', 'mejor'), '153%')
     )
+
+    # helper
+    sql = helper.SQL("SELECT")
+    assert repr(sql) == str(sql) == 'SQL(SELECT)'
+    sql = helper.SQL("SELECT * FROM `user` WHERE `id` IN %s", (1, 2, 3))
+    assert repr(sql) == str(sql) == 'SQL(SELECT * FROM `user` WHERE `id` IN %s) % (1, 2, 3)'
+    assert helper.parse(sql) == helper.Query(
+        "SELECT * FROM `user` WHERE `id` IN %s;", (1, 2, 3)
+    )
+    q = helper.Query("SELECT")
+    assert repr(q) == 'Query({})'.format(str(q))
+    try:
+        assert helper.parse((age > 10) | (name == 'test')) == sql
+        assert False, 'Should be raise TypeError'
+    except TypeError:
+        pass
+    assert q.r is True
+    q.r = False
+    assert q.r is False
+    q = helper.Query("SeLeCT FrOm")
+    assert q.r is True
+    q = helper.Query("SShow")
+    assert q.r is True
+    q = helper.Query("SSow")
+    assert q.r is False
+    try:
+        assert helper.Query("SELECT", {1: 1}).params
+        assert False, 'Should be raise TypeError'
+    except TypeError:
+        pass
+    ctx = helper.Context()
+    ctx.literal("SELECT").values("100")
+    assert helper.parse(ctx) == helper.Query('SELECT;', ("100",))
 
 
 def test_tinyint():
@@ -473,7 +497,7 @@ def test_funs():
 @pytest.mark.asyncio
 async def test_types():
 
-    async with db.BindContext():
+    async with db.Binder():
         await TM.create()
         assert await TM.show().create_syntax() == (
             "CREATE TABLE `test_types_table` (\n"

@@ -1,13 +1,11 @@
 """
-    trod.g._helper
-    ~~~~~~~~~~~~~~
-
-    Implements query completion base.
+    trod._helper
+    ~~~~~~~~~~~~
 """
 
 from __future__ import annotations
 
-from typing import Any, Optional, List, Union
+from typing import Any, Optional, List, Tuple, Union
 
 from .util import argschecker
 
@@ -68,7 +66,7 @@ class Query:
     @r.setter
     def r(self, _is) -> None:
         if not isinstance(_is, bool):
-            raise TypeError()
+            raise TypeError('Invalid value to set')
         self._read = _is
 
 
@@ -138,20 +136,25 @@ class SQL(Node):
 
     __slots__ = ('sql', 'params')
 
-    def __init__(self, sql, params=None):
+    def __init__(
+        self,
+        sql: str,
+        params: Optional[Union[List[Any], Tuple[Any, ...]]] = None
+    ) -> None:
         self.sql = sql
         self.params = params
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if self.params:
-            return f"SQL({self.sql} % {self.params})"
+            return f"SQL({self.sql}) % {self.params}"
         return f"SQL({self.sql})"
 
-    def __sql__(self, ctx):
+    __str__ = __repr__
+
+    def __sql__(self, ctx: Context) -> Context:
         ctx.literal(self.sql)
-        if self.params:
-            for param in self.params:
-                ctx.value(param, False, add_param=False)
+        if self.params is not None:
+            ctx.values(self.params)
         return ctx
 
 
@@ -159,14 +162,14 @@ class Value(Node):
 
     __slots__ = ('_value',)
 
-    def __init__(self, _value):
+    def __init__(self, _value: Any) -> None:
         self._value = _value
 
     @property
-    def v(self):
+    def v(self) -> Any:
         return self._value
 
-    def __sql__(self, ctx):
+    def __sql__(self, ctx: Context) -> Context:
         ctx.literal('%s').values(self.v)
         return ctx
 
