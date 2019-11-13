@@ -31,7 +31,7 @@ Installation
 
 
 Simple Example
--------------
+--------------
 
 .. code-block:: python
 
