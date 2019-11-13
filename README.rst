@@ -37,15 +37,13 @@ Simple Example
 
     import asyncio
 
-    from trod import Trod, types
+    from trod import Trod, Model, types
 
 
-    db = Trod()
-
-    class User(db.Model):
+    class User(Model):
 
         id = types.Auto()
-        name = types.VarChar(length=45)
+        name = types.VarChar(length=45, comment='user nickname')
         password = types.VarChar(length=100)
         create_at = types.Timestamp(default=types.ON_CREATE)
         update_at = types.Timestamp(default=types.ON_UPDATE)
@@ -53,24 +51,25 @@ Simple Example
 
     async show_case():
 
-        await db.bind('mysql://user:password@host:port/db')
+        db = Trod()
 
-        await User.create()
+        async with db.Binder('mysql://user:password@host:port/db'):
 
-        user = User(name='at7h', password='123456')
-        user = await User.get((await user.save()).last_id)
-        print(user.password)  # 123456
+            await User.create()
 
-        await User.insert(name='guax', password='654321').do()
+            user = User(name='at7h', password='123456')
+            user = await User.get((await user.save()).last_id)
+            print(user.password)  # 123456
 
-        async for user in User:
-            if user.name == 'at7h':
-                assert user.name == '123456'
+            await User.insert(name='guax', password='654321').do()
 
-        user = await User.select().order_by(User.create_at.desc()).first()
-        print(user.password) # 654321
+            async for user in User:
+                if user.name == 'at7h':
+                    assert user.name == '123456'
 
-        await db.unbind()
+            user = await User.select().order_by(User.create_at.desc()).first()
+            print(user.password) # 654321
+
 
     asyncio.run(show_case())
 

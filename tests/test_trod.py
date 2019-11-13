@@ -1,22 +1,19 @@
 import asyncio
 from datetime import datetime
 
+import pymysql
 import pytest
 
-from trod import Trod, err, util
-from trod.db import get_db_url
+from . import models
+from trod import Trod, Model, err, util
+from trod.db import DefaultURL
 from trod.types import (
     Auto, Char, VarChar, DateTime, Tinyint,
     Timestamp, ON_CREATE, ON_UPDATE
 )
 
-from . import models
 
-
-db = Trod()
-
-
-class User(db.Model):
+class User(Model):
 
     id = Auto()
     name = VarChar(length=45, comment='username')
@@ -25,7 +22,7 @@ class User(db.Model):
     update_at = Timestamp(default=ON_UPDATE)
 
 
-class Role(db.Model):
+class Role(Model):
 
     id = Auto()
     name = Char(length=100)
@@ -40,7 +37,7 @@ class Role(db.Model):
         table_name = 'role'
 
 
-class Permission(db.Model):
+class Permission(Model):
 
     id = Auto()
     name = Char(length=100)
@@ -49,25 +46,48 @@ class Permission(db.Model):
 
 @pytest.mark.asyncio
 async def test_trod():
-    assert await db.bind(get_db_url())
-    assert await db.create_tables([User, Role, Permission])
-    assert await db.create_all(models)
 
-    ret = await db.text('SHOW TABLES;')
-    assert ret.count == 7
+    db = Trod()
 
-    assert await db.drop_tables([User, Role, Permission])
-    assert await db.drop_all(models)
+    async with db.Binder():
 
-    ret = await db.text('SHOW TABLES;')
-    assert ret.count == 0
+        assert db.is_bound is True
+        assert await db.create_tables([User, Role, Permission])
+        assert await db.create_all(models)
 
-    assert await db.unbind()
+        ret = await db.raw('SHOW TABLES;')
+        assert ret.count == 7
+
+        assert await db.drop_tables([User, Role, Permission])
+        assert await db.drop_all(models)
+
+        ret = await db.raw('SHOW TABLES;')
+        assert ret.count == 0
+
+    assert db.is_bound is False
     try:
-        ret = await db.text('SHOW TABLES;')
+        ret = await db.raw('SHOW TABLES;')
         assert False
     except err.UnboundError:
         pass
+
+    db = Trod('TEST_KEY')
+    try:
+        async with db.Binder():
+            pass
+        assert False
+    except ValueError:
+        pass
+    try:
+        await db.bind(password='1234')
+        assert False
+    except pymysql.err.OperationalError:
+        pass
+    db.set_url_key(None)
+    await db.bind(DefaultURL.get())
+    assert db.is_bound is True
+    await db.unbind()
+    assert db.is_bound is False
 
 
 @pytest.mark.asyncio

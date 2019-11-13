@@ -31,7 +31,7 @@ async def test_sin():
     async def clear():
         await db.execute(TEARDOWN_QUERY)
 
-    async with db.BindContext(init=init, clear=clear, echo=True):
+    async with db.Binder(init=init, clear=clear, echo=True):
 
         assert db.get_state().minsize == 1
         assert db.get_state().maxsize == 15
@@ -51,7 +51,7 @@ async def test_sin():
         await db._impl.Executer.pool.clear()
 
         try:
-            await db.binding(db.get_db_url())
+            await db.binding(db.DefaultURL.get())
             assert False, 'Should be raise DuplicateBinding'
         except err.DuplicateBinding:
             pass
@@ -86,7 +86,7 @@ async def test_sin():
         except pymysql.err.OperationalError:
             pass
 
-        await db.binding(db.get_db_url(), maxsize=7, autocommit=True)
+        await db.binding(db.DefaultURL.get(), maxsize=7, autocommit=True)
         assert str(db._impl.Executer.pool) == (
             "<Pool[1:7] for {}:{}/{}>".format(
                 db._impl.Executer.pool.connmeta.host,
@@ -301,7 +301,7 @@ async def test_mul():
         await db.execute(helper.Query(f'DROP DATABASE `{t1}`;'))
 
     t1 = 'trod_1'
-    async with db.BindContext(init=init, clear=clear):
+    async with db.Binder(init=init, clear=clear):
 
         async with db._impl.Executer.pool.acquire() as conn:
             assert db.get_state().size == 1
@@ -346,7 +346,7 @@ async def test_mul():
 @pytest.mark.asyncio
 async def test_url():
 
-    async with db.BindContext(autocommit=True):
+    async with db.Binder(autocommit=True):
         connmeta = db._impl.Executer.pool.connmeta
 
         assert connmeta.unix_socket is None

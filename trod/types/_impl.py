@@ -2,6 +2,7 @@
     trod.types._impl
     ~~~~~~~~~~~~~~~~
 """
+
 from __future__ import annotations
 
 import calendar

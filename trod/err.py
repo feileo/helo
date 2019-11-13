@@ -1,3 +1,9 @@
+"""
+    trod.err
+    ~~~~~~~~
+"""
+
+
 class Error(Exception):
     description = 'trod internal error'
 
@@ -18,7 +24,7 @@ class DBError(Error):
 
 
 class UnboundError(ProgrammingError):
-    description = 'db has no binding, maybe you should call `trod.bind()` before.'
+    description = 'db has no binding, maybe you should call `bind` before.'
 
 
 class DuplicateBinding(ProgrammingError):

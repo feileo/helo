@@ -4,15 +4,17 @@
 
     Implements the connection pool and executer of db module.
 """
+
 from __future__ import annotations
 
 import asyncio
 import os
 import sys
+import threading
 import urllib.parse as urlparse
 from functools import wraps
 from inspect import iscoroutinefunction
-from typing import Optional, Any, Union, Callable, Dict
+from typing import Optional, Any, Union, Callable, Dict, Tuple
 
 import aiomysql
 
@@ -21,10 +23,9 @@ from .._helper import Query
 
 
 SUPPORTED_SCHEMES = ('mysql',)
-URL_KEY = 'TROD_DB_URL'
 
 
-def __ensure__(bound: bool) -> Callable:
+def __ensure__(bound: bool, errfor: bool = True) -> Callable:
     """A decorator to ensure that the executor has been activated or dead."""
 
     def decorator(func):
@@ -33,8 +34,9 @@ def __ensure__(bound: bool) -> Callable:
             if Executer.active():
                 if not bound:
                     cm = Executer.pool.connmeta
-                    raise err.DuplicateBinding(host=cm.host, port=cm.port)
-            elif bound:
+                    raise err.DuplicateBinding(
+                        host=cm.host, port=cm.port)
+            elif bound and errfor:
                 raise err.UnboundError
 
         if iscoroutinefunction(func):
@@ -53,36 +55,6 @@ def __ensure__(bound: bool) -> Callable:
         return wrapper
 
     return decorator
-
-
-def get_db_url() -> Optional[str]:
-    return os.environ.get(URL_KEY)
-
-
-class BindContext:
-
-    def __init__(self, **bindings: Any) -> None:
-        self.initcmd = bindings.pop('init', None)
-        self.clearcmd = bindings.pop('clear', None)
-        self.bindings = bindings
-
-    async def __aenter__(self) -> None:
-        await binding(get_db_url(), **self.bindings)
-
-        if self.initcmd:
-            if callable(self.initcmd) and iscoroutinefunction(self.initcmd):
-                await self.initcmd()
-            else:
-                raise ValueError('init cmd must be coroutine function')
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        if self.clearcmd:
-            if callable(self.clearcmd) and iscoroutinefunction(self.clearcmd):
-                await self.clearcmd()
-            else:
-                raise ValueError('clear cmd must be coroutine function')
-
-        await unbinding()
 
 
 @__ensure__(False)
@@ -111,13 +83,15 @@ async def binding(
 @__ensure__(True)
 async def execute(
     query: Query, **kwargs: Any
-) -> Union[None, FetchResult, util.tdict, tuple, ExecResult]:
+) -> Union[None, FetchResult, util.tdict, Tuple[Any, ...], ExecResult]:
     """A coroutine that execute sql and return the results of its execution
 
     :param sql ``trod._helper.Query`` : sql query object
     """
     if not query:
         raise ValueError("No query to execute")
+    if not isinstance(query, Query):
+        raise TypeError("Invalid query type")
 
     return await Executer.do(query, **kwargs)
 
@@ -138,9 +112,51 @@ async def unbinding() -> bool:
     return await Executer.death()
 
 
-@__ensure__(True)
+@__ensure__(True, False)
 def is_bound() -> bool:
     return bool(Executer.pool)
+
+
+class DefaultURL:
+    KEY = 'TROD_DB_URL'
+    USER_KEY = None
+
+    _lock = threading.RLock()
+
+    @classmethod
+    def get(cls) -> Optional[str]:
+        return os.environ.get(cls.USER_KEY or cls.KEY)
+
+    @classmethod
+    def set_key(cls, key: str) -> None:
+        with cls._lock:
+            cls.USER_KEY = key
+
+
+class Binder:
+
+    def __init__(self, url: Optional[str] = None, **bindings: Any) -> None:
+        self.url = url or DefaultURL.get()
+        if not self.url:
+            raise ValueError(f"Invalid database url: {url}")
+        self.initcmd = bindings.pop('init', None)
+        self.clearcmd = bindings.pop('clear', None)
+        self.bindings = bindings
+
+    async def __aenter__(self) -> None:
+        await binding(url=self.url, **self.bindings)
+
+        if self.initcmd:
+            if callable(self.initcmd) and iscoroutinefunction(self.initcmd):
+                await self.initcmd()
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        if self.clearcmd:
+            if callable(self.clearcmd) and iscoroutinefunction(self.clearcmd):
+                await self.clearcmd()
+
+        if is_bound():
+            await unbinding()
 
 
 def get_state() -> Optional[util.tdict]:

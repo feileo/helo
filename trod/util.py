@@ -1,3 +1,8 @@
+"""
+    trod.util
+    ~~~~~~~~~
+"""
+
 from __future__ import annotations
 
 from collections.abc import Iterable
@@ -249,3 +254,6 @@ def formattdict(original):
             fmted.append(formattdict(item))
         return fmted
     raise TypeError(f"Non-iterable object can not '{original}' to convert `tdict`")
+
+
+del annotations
