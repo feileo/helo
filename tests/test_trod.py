@@ -145,6 +145,8 @@ async def test_util():
     fo = util.FreeObject(n1='v1', n2='v2')
     assert str(fo) == "{'n1': 'v1', 'n2': 'v2'}"
     assert repr(fo) == "FreeObject({'n1': 'v1', 'n2': 'v2'})"
+    del fo['n1']
+    assert str(fo) == "{'n2': 'v2'}"
     fonew = fo.as_new(n3='v3')
     assert fonew.n3 == 'v3'
     try:
@@ -153,18 +155,21 @@ async def test_util():
     except AttributeError:
         pass
 
-    @util.singleton
-    class TS:
+    try:
+        @util.asyncinit
+        def num():
+            return 1
+        assert False
+    except ValueError:
         pass
 
     @util.singleton
-    @util.asyncinit
-    class TSA:
-
-        async def __init__(self):
-            await asyncio.sleep(0.01)
+    class TS:
+        def __init__(self):
+            self.a = 'ok'
 
     ts = TS()
+    assert ts.a == 'ok'
     ts.attr = 1
     ts1 = TS()
     assert ts1.attr == 1
@@ -175,13 +180,21 @@ async def test_util():
     except AttributeError:
         pass
 
+    @util.singleton_asyncinit
+    class TSA:
+
+        async def __init__(self):
+            await asyncio.sleep(0.01)
+            self.a = 'ok'
+
     tsa = await TSA()
+    assert tsa.a == 'ok'
     tsa.attr = 1
-    try:
-        await TSA()
-        assert False
-    except RuntimeError:
-        pass
+    assert tsa.attr == 1
+    tsa1 = await TSA()
+    assert tsa1.attr == 1
+    del tsa1.attr
+    assert getattr(tsa, 'attr', None) is None
 
     @util.tdictformatter
     def c1():
@@ -201,6 +214,16 @@ async def test_util():
             ('k1', 'v1', 'k2', 'v2'),
         ]
 
+    @util.tdictformatter
+    async def c4():
+        await asyncio.sleep(0.1)
+        return 1
+
+    @util.tdictformatter
+    async def c5():
+        await asyncio.sleep(0.1)
+        return None
+
     cv1 = c1()
     assert isinstance(cv1, util.tdict)
     assert cv1 == util.tdict(**cv1)
@@ -214,3 +237,10 @@ async def test_util():
         assert False
     except TypeError:
         pass
+
+    try:
+        await c4()
+        assert False
+    except TypeError:
+        pass
+    assert await c5() is None
