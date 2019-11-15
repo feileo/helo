@@ -9,18 +9,16 @@ service:
   - mysql
 
 before_install: 
-  - export TROD_DB_URL=mysql://root:flzxsqc1234567@bj-cdb-cto48dn2.sql.tencentcdb.com:61834/trod
+  - export TROD_DB_URL=mysql://root:flzxsqc1234567@gz-cdb-dp6vrc6h.sql.tencentcdb.com:60693/trod
   - pip install aiomysql
   - pip install pytz
   - pip install pytest pytest-asyncio pytest-cov
-  - pip install codecov coverage
+  - pip install coveralls coverage
   - pip install pylint
-  - pip install coveralls
 
 script: 
   - pylint trod --jobs=4 --reports=yes
   - pytest -svq --color=yes --cov=trod tests/
 
 after_success:
-  - codecov
   - coveralls
