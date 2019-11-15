@@ -87,6 +87,3 @@ class TypesModel(Model):
     now_ts = t.Timestamp(default=datetime.now, comment='now ts')
     created_at = t.Timestamp(default=t.ON_CREATE, comment='created_at')
     updated_at = t.Timestamp(default=t.ON_UPDATE, comment='updated_at')
-
-
-del Model

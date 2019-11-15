@@ -12,6 +12,18 @@ def test_expr():
     name = t.Char(name='name')
     phone = t.VarChar(name='phone')
 
+    e = (age > 10) & True
+    assert helper.parse(e) == helper.Query(
+        '((`age` > %s) AND %s);', (10, True)
+    )
+    e = True & (age > 10)
+    assert helper.parse(e) == helper.Query(
+        '(%s AND (`age` > %s));', (True, 10,)
+    )
+    e = False | (age > 10)
+    assert helper.parse(e) == helper.Query(
+        '(%s OR (`age` > %s));', (False, 10,)
+    )
     e = (age > 10) | (name == 'test')
     assert helper.parse(e) == helper.Query(
         '((`age` > %s) OR (`name` = %s));', (10, 'test')
@@ -35,6 +47,27 @@ def test_expr():
     e = 20 + age
     assert helper.parse(e) == helper.Query(
         '(%s + `age`);', (20,)
+    )
+    e = name + 'name'
+    assert helper.parse(e) == helper.Query(
+        '(`name` || %s);', ('name',)
+    )
+    e = 'name' + name
+    assert helper.parse(e) == helper.Query(
+        '(%s || `name`);', ('name',)
+    )
+    nickname = t.VarChar(name='nickname')
+    e = nickname + name
+    assert helper.parse(e) == helper.Query(
+        '(`nickname` || `name`);', ()
+    )
+    e = age - 1
+    assert helper.parse(e) == helper.Query(
+        '(`age` - %s);', (1,)
+    )
+    e = 100 - age
+    assert helper.parse(e) == helper.Query(
+        '(%s - `age`);', (100,)
     )
     e = age * '2'
     assert helper.parse(e) == helper.Query(
@@ -104,6 +137,17 @@ def test_expr():
     assert helper.parse(e) == helper.Query(
         '(`age` BETWEEN %s AND %s);', (20, 30,)
     )
+    e = age[10]
+    assert helper.parse(e) == helper.Query(
+        '(`age` = %s);', (10,)
+    )
+    try:
+        e = age[slice(20)]
+        helper.parse(e)
+        assert False
+    except ValueError:
+        pass
+
     e = name.concat(10)
     assert helper.parse(e) == helper.Query(
         '(`name` || %s);', ('10',)
@@ -120,6 +164,16 @@ def test_expr():
     assert helper.parse(e) == helper.Query(
         '(`name` IN %s);', (('at7h', 'mejor'),)
     )
+    e = name.in_(helper.SQL("SELECT * FROM `user`"))
+    assert helper.parse(e) == helper.Query(
+        '(`name` IN (SELECT * FROM `user`));', ()
+    )
+    e = name.in_(10)
+    try:
+        helper.parse(e)
+        assert False
+    except TypeError:
+        pass
     e = name.nin_(['at7h', 'mejor'])
     assert helper.parse(e) == helper.Query(
         '(`name` NOT IN %s);', (('at7h', 'mejor'),)
@@ -200,6 +254,10 @@ def test_expr():
     assert helper.parse(e) == helper.Query(
         '`age` AS `a` ;', ()
     )
+    e = age.as_('')
+    assert helper.parse(e) == helper.Query(
+        '`age`;', ()
+    )
     e = (age > 10) & (name == 'test')
     assert helper.parse(e) == helper.Query(
         '((`age` > %s) AND (`name` = %s));', (10, 'test')
@@ -246,6 +304,22 @@ def test_expr():
     ctx = helper.Context()
     ctx.literal("SELECT").values("100")
     assert helper.parse(ctx) == helper.Query('SELECT;', ("100",))
+
+
+def test_fieldbase():
+    nickname = t.VarChar()
+    try:
+        hash(nickname)
+        assert False
+    except err.NoColumnNameError:
+        pass
+    assert isinstance(nickname.seqnum, int)
+    assert nickname.to_str({}) == '{}'
+    try:
+        nickname.to_str(None)
+        assert False
+    except ValueError:
+        pass
 
 
 def test_tinyint():
@@ -301,6 +375,10 @@ def test_int():
         pass
     try:
         int_ = t.Int(name='int', primary_key=True, default=1)
+        assert False, "Should be raise ProgrammingError"
+    except err.ProgrammingError:
+        pass
+    try:
         int_ = t.Int(name='int', auto=True)
         assert False, "Should be raise ProgrammingError"
     except err.ProgrammingError:
@@ -382,12 +460,22 @@ def test_decimal():
         assert False, 'Should be raise TypeError'
     except TypeError:
         pass
+    decimal = t.Decimal(name='decimal', auto_round=True)
+    assert decimal.py_value(d.Decimal(10)) == d.Decimal(10)
+    assert decimal.db_value(10) == d.Decimal(10)
 
 
 def test_text():
     text = t.Text(name='text', encoding=t.ENCODING.utf8mb4)
     assert str(text) == "`text` text CHARACTER SET utf8mb4 NULL;"
     assert hasattr(text, 'default') is False
+    try:
+        text = t.Text(name='text', encoding='utf7')
+        assert False
+    except ValueError:
+        pass
+    assert text.py_value(100) == '100'
+    assert text.db_value(100) == '100'
 
 
 def test_char():
@@ -412,6 +500,16 @@ def test_uuid():
     id_ = str(uu.uuid1())
     assert isinstance(uuid.py_value(id_), uu.UUID)
     assert isinstance(uuid.db_value(uu.uuid1()), str)
+    try:
+        uuid = t.UUID(primary_key=True, default='uuid')
+        assert False
+    except err.ProgrammingError:
+        pass
+    idr = '1a862a72-6a34-4772-8c22-ad8fa3316db5'
+    assert uuid.db_value(idr) == '1a862a726a3447728c22ad8fa3316db5'
+    assert uuid.py_value(idr) == uu.UUID(idr)
+    assert uuid.py_value(uu.UUID(idr)) == uu.UUID(idr)
+    assert uuid.py_value(None) is None
 
 
 def test_date():
@@ -425,6 +523,7 @@ def test_date():
     assert isinstance(date_.py_value(datetime.now()), date)
     assert isinstance(date_.py_value("2019-10-01"), date)
     assert date_.to_str(td) == "2019-10-01"
+    assert isinstance(date_(), date)
 
 
 def test_time():
@@ -444,6 +543,7 @@ def test_time():
     time_ = t.Time(name='time', default=td)
     assert str(time_) == "`time` time DEFAULT '22:19:34';"
     assert time_.to_str(td) == "22:19:34"
+    assert isinstance(time_(), time)
 
 
 def test_datetime():
@@ -454,6 +554,7 @@ def test_datetime():
     datetime_ = t.DateTime(name='dt', default=datetime.now)
     assert str(datetime_) == "`dt` datetime DEFAULT NULL;"
     assert datetime_.to_str(datetime(2019, 10, 10, 10, 23, 23)) == "2019-10-10 10:23:23.000000"
+    assert isinstance(datetime_(), datetime)
 
 
 def test_timestamp():
@@ -478,6 +579,14 @@ def test_key():
     assert str(key) == 'KEY `idx_name_age` (`name`, `age`);'
     key = t.UK('uk_phone', phone, comment='phone')
     assert str(key) == "UNIQUE KEY `uk_phone` (`phone`) COMMENT 'phone';"
+    assert repr(key) == "types.UKey(UNIQUE KEY `uk_phone` (`phone`) COMMENT 'phone';)"
+    assert key.seqnum == 11
+    assert hash(key) == hash('uk_phone')
+    try:
+        t.K('idx_name', [1, 2, 4])
+        assert False
+    except TypeError:
+        pass
 
 
 def test_funs():

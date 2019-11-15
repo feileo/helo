@@ -83,7 +83,7 @@ def tdictformatter(func):
 
 
 def singleton(cls):
-    """ A singleton decorator of class """
+    """A singleton decorator of class"""
 
     instances = {}
 
@@ -134,7 +134,7 @@ def asyncinit(obj):
 
 
 def singleton_asyncinit(cls):
-    """ A singleton decorator of asyncinit class """
+    """A singleton decorator of asyncinit class"""
 
     instances = {}
 

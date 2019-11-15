@@ -70,6 +70,80 @@ class Query:
         self._read = _is
 
 
+class Context:
+
+    __slots__ = ('_sql', '_values', 'stack', 'state')
+    _multi_types = (tuple, list)
+    _semi = ';'
+
+    def __init__(self, **settings: Any) -> None:
+        self._sql = []      # type: List[str]
+        self._values = []   # type: List[Any]
+        self.stack = []     # type: List[dict]
+        self.state = settings
+
+    def sql(self, obj) -> Context:
+        if isinstance(obj, (Node, Context)):
+            return obj.__sql__(self)
+
+        return self.values(obj)
+
+    def __sql__(self, ctx) -> Context:
+        ctx._sql.extend(self._sql)  # pylint: disable=protected-access
+        ctx.values(self._values)
+        return ctx
+
+    @property
+    def parens(self) -> Optional[bool]:
+        return self.state.get('parens')
+
+    def literal(self, kwd: str) -> Context:
+        self._sql.append(kwd)
+        return self
+
+    def __enter__(self) -> Context:
+        if self.parens:
+            self.literal('(')
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        if self.parens:
+            self.literal(')')
+        self.state = self.stack.pop()
+
+    def __call__(self, **overrides: Any) -> Context:
+        self.stack.append(self.state)
+        self.state = overrides
+        return self
+
+    def values(self, value: Any) -> Context:
+
+        converter = self.state.get('converter')
+        if value is not None and converter:
+            if isinstance(value, self._multi_types):
+                value = tuple(map(converter, value))
+            else:
+                value = converter(value)
+
+        if self.state.get('params'):
+            self.literal('%s')
+
+        if isinstance(value, self._multi_types):
+            if not self.state.get('nesting'):
+                self._values.extend(value)
+                return self
+        self._values.append(value)
+        return self
+
+    def parse(self, node: Any) -> Context:
+        return self.sql(node)
+
+    def query(self) -> Query:
+        if self._sql[-1] != self._semi:
+            self.literal(self._semi)
+        return Query(''.join(self._sql), params=tuple(self._values))
+
+
 class Node:
 
     __slots__ = ()
@@ -172,80 +246,6 @@ class Value(Node):
     def __sql__(self, ctx: Context) -> Context:
         ctx.literal('%s').values(self.v)
         return ctx
-
-
-class Context:
-
-    __slots__ = ('_sql', '_values', 'stack', 'state')
-    _multi_types = (tuple, list)
-    _semi = ';'
-
-    def __init__(self, **settings: Any) -> None:
-        self._sql = []  # type: List[str]
-        self._values = []  # type: List[Any]
-        self.stack = []  # type:List[dict]
-        self.state = settings
-
-    def sql(self, obj) -> Context:
-        if isinstance(obj, (Node, Context)):
-            return obj.__sql__(self)
-
-        return self.values(obj)
-
-    def __sql__(self, ctx) -> Context:
-        ctx._sql.extend(self._sql)  # pylint: disable=protected-access
-        ctx.values(self._values)
-        return ctx
-
-    @property
-    def parens(self) -> Optional[bool]:
-        return self.state.get('parens')
-
-    def literal(self, kwd: str) -> Context:
-        self._sql.append(kwd)
-        return self
-
-    def __enter__(self) -> Context:
-        if self.parens:
-            self.literal('(')
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        if self.parens:
-            self.literal(')')
-        self.state = self.stack.pop()
-
-    def __call__(self, **overrides: Any) -> Context:
-        self.stack.append(self.state)
-        self.state = overrides
-        return self
-
-    def values(self, value: Any) -> Context:
-
-        converter = self.state.get('converter')
-        if value is not None and converter:
-            if isinstance(value, self._multi_types):
-                value = tuple(map(converter, value))
-            else:
-                value = converter(value)
-
-        if self.state.get('params'):
-            self.literal('%s')
-
-        if isinstance(value, self._multi_types):
-            if not self.state.get('nesting'):
-                self._values.extend(value)
-                return self
-        self._values.append(value)
-        return self
-
-    def parse(self, node: Any) -> Context:
-        return self.sql(node)
-
-    def query(self) -> Query:
-        if self._sql[-1] != self._semi:
-            self.literal(self._semi)
-        return Query(''.join(self._sql), params=tuple(self._values))
 
 
 def parse(node: Node) -> Query:

@@ -63,11 +63,12 @@ class Trod:
     async def create_all(self, module: ModuleType, **options: Any) -> bool:
 
         if not isinstance(module, ModuleType):
-            raise TypeError()
+            raise TypeError(f"{module!r} is not a module")
 
         return await self.create_tables(
             [m for _, m in vars(module).items()
-             if isinstance(m, type) and issubclass(m, Model)],
+             if isinstance(m, type) and issubclass(m, Model) and m is not Model
+             ],
             **options
         )
 
@@ -81,11 +82,12 @@ class Trod:
     async def drop_all(self, module: ModuleType) -> bool:
 
         if not isinstance(module, ModuleType):
-            raise TypeError()
+            raise TypeError(f"{module!r} is not a module")
 
         return await self.drop_tables(
             [m for _, m in vars(module).items()
-             if isinstance(m, type) and issubclass(m, Model)],
+             if isinstance(m, type) and issubclass(m, Model) and m is not Model
+             ]
         )
 
     async def raw(

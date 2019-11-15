@@ -14,12 +14,14 @@ import threading
 import urllib.parse as urlparse
 from functools import wraps
 from inspect import iscoroutinefunction
-from typing import Optional, Any, Union, Callable, Dict, Tuple
+from typing import Optional, Any, Union, Callable, Dict, Tuple, Type
 
 import aiomysql
+import pymysql
 
 from .. import util, err
 from .._helper import Query
+from ._log import logger
 
 
 SUPPORTED_SCHEMES = ('mysql',)
@@ -88,10 +90,13 @@ async def execute(
 
     :param sql ``trod._helper.Query`` : sql query object
     """
-    if not query:
-        raise ValueError("No query to execute")
     if not isinstance(query, Query):
         raise TypeError("Invalid query type")
+
+    if not query:
+        raise ValueError("No query to execute")
+
+    logger.debug(query)
 
     return await Executer.do(query, **kwargs)
 
@@ -128,7 +133,7 @@ class DefaultURL:
         return os.environ.get(cls.USER_KEY or cls.KEY)
 
     @classmethod
-    def set_key(cls, key: str) -> None:
+    def set_key(cls, key: Optional[str]) -> None:
         with cls._lock:
             cls.USER_KEY = key
 
@@ -163,6 +168,31 @@ def get_state() -> Optional[util.tdict]:
     """Return the current state of the connection pool"""
 
     return Executer.poolstate()
+
+
+class _ExcAdapter:
+
+    _exc_map = {
+        pymysql.err.Error: err.MySQLError,
+        pymysql.err.DatabaseError: err.MySQLError,
+        pymysql.err.MySQLError: err.MySQLError,
+        pymysql.err.InternalError: err.MySQLError,
+        pymysql.err.InterfaceError: err.InterfaceError,
+        pymysql.err.DataError: err.MySQLDataError,
+        pymysql.err.IntegrityError: err.IntegrityError,
+        pymysql.err.NotSupportedError: err.NotSupportedError,
+        pymysql.err.OperationalError: err.OperationalError,
+        pymysql.err.ProgrammingError: err.ProgrammingError,
+        pymysql.err.Warning: err.MySQLWarning,
+    }  # type: Dict[Type[BaseException], Type[BaseException]]
+
+    @classmethod
+    def err(cls) -> BaseException:
+        exc_type, exc_value, _traceback = sys.exc_info()
+        if exc_type is not None:
+            exc_cls = cls._exc_map.get(exc_type, exc_type)
+            return exc_cls(exc_value)
+        return err.ProgrammingError("No Exception info")
 
 
 @util.asyncinit
@@ -200,7 +230,7 @@ class Pool:
     )
     _POOL_KWARGS = ('minsize', 'maxsize', 'echo', 'pool_recycle', 'loop')
 
-    __slots__ = ('_pool', '_connmeta')
+    __slots__ = ('_pool', '_connmeta', '_closed')
 
     async def __init__(  # type: ignore
             self,
@@ -213,11 +243,15 @@ class Pool:
     ) -> None:
 
         conn_kwargs = self._check_conn_kwargs(conn_kwargs)
-        self._pool = await aiomysql.create_pool(
-            minsize=minsize, maxsize=maxsize, echo=echo,
-            pool_recycle=pool_recycle, loop=loop,
-            **conn_kwargs
-        )
+        try:
+            self._pool = await aiomysql.create_pool(
+                minsize=minsize, maxsize=maxsize, echo=echo,
+                pool_recycle=pool_recycle, loop=loop,
+                **conn_kwargs
+            )
+        except Exception:
+            raise _ExcAdapter.err()
+        self._closed = False
         self._connmeta = conn_kwargs
 
     @classmethod
@@ -321,14 +355,19 @@ class Pool:
         if self._pool is not None:
             self._pool.close()
             await self._pool.wait_closed()
+        self._closed = True
 
-    async def terminate(self) -> None:
+    def terminate(self) -> None:
         """A coroutine that terminate pool.
 
         Close pool with instantly closing all acquired connectionions also.
         """
 
-        await self._pool.terminate()
+        self._pool.terminate()
+        self._closed = True
+
+    def __bool__(self) -> bool:
+        return not self._closed
 
 
 class TdictCursor(aiomysql.DictCursor):
@@ -412,9 +451,7 @@ class Executer:
                     if rows != 1 and not isinstance(result, list):
                         result = list(result)
                 except Exception:
-                    exc_type, exc_value, _traceback = sys.exc_info()
-                    error = exc_type(exc_value)  # type: ignore
-                    raise error
+                    raise _ExcAdapter.err()
 
         return FetchResult(result) if isinstance(result, list) else result
 
@@ -446,9 +483,7 @@ class Executer:
             except Exception:
                 if not autocommit:
                     await connection.rollback()
-                exc_type, exc_value, _traceback = sys.exc_info()
-                error = exc_type(exc_value)  # type: ignore
-                raise error
+                raise _ExcAdapter.err()
 
         return ExecResult(affected, last_id)
 
@@ -493,7 +528,7 @@ class UrlParser:
         url = urlparse.urlparse(self.url)
 
         if url.scheme not in SUPPORTED_SCHEMES:
-            raise err.UnsupportedError(
+            raise err.NotSupportedError(
                 f'Unsupported scheme {url.scheme}'
             )
 
@@ -511,11 +546,11 @@ class UrlParser:
             hostname = hostname.replace('%2f', '/').replace('%2F', '/')
 
         parsed = {
-            'db': urlparse.unquote(path or ''),
-            'user': urlparse.unquote(url.username or ''),
+            'db': urlparse.unquote(path or '') or None,
+            'user': urlparse.unquote(url.username or '') or None,
             'password': urlparse.unquote(url.password or ''),
             'host': hostname,
-            'port': url.port or '',
+            'port': int(url.port or 3306),
         }
 
         options = {}  # type: Dict[str, Any]
@@ -523,6 +558,12 @@ class UrlParser:
             if url.scheme == 'mysql' and key == 'ssl-ca':
                 options['ssl'] = {'ca': values[-1]}
                 continue
+
+            if isinstance(values[-1], str):
+                if values[-1].isdigit():
+                    values[-1] = int(values[-1])   # type: ignore
+                elif values[-1] in ('True', 'False'):
+                    values[-1] = eval(values[-1])  # pylint: disable=eval-used
 
             options[key] = values[-1]
 

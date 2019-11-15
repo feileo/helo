@@ -5,6 +5,7 @@ import pytest
 
 from trod import db, types, err, util, Model
 from trod.model import ROWTYPE
+from trod import _helper
 
 from .models import People, Employee, User
 
@@ -14,7 +15,7 @@ class TestModel:
     def setup(self):
 
         async def init():
-            await db.binding(db.DefaultURL.get())
+            await db.binding(db.DefaultURL.get(), echo=True)
             await People.create()
             await Employee.create()
             await User.create()
@@ -98,6 +99,7 @@ class TestModel:
         assert (await User.show().indexes())[0]['Key_name'] == 'PRIMARY'
         assert (await User.show().indexes())[1]['Key_name'] == 'unidx_nickname'
         assert (await User.show().indexes())[1]['Column_name'] == 'nickname'
+        assert str(User.show()) == '<Show object> for table <`trod`.`users`>'
 
         try:
             User.alter()
@@ -214,6 +216,11 @@ class TestModel:
 
         user = await User.get(10000)
         assert user is None
+        assert await User.get(None) is None
+        assert await User.get('') is None
+        assert await User.get({}) is None
+        assert await User.get(()) is None
+        assert await User.get([]) is None
 
         # test mget
         # no 3
@@ -303,6 +310,12 @@ class TestModel:
         assert users[1][6] == 'huhu'
         assert users[1][7] == 'xxxx'
 
+        try:
+            assert await User.mget([])
+            assert False
+        except ValueError:
+            pass
+
         # test add
         user = User(name='add', gender=1, age=45, nickname='addn')
         user.password = 'passadd'
@@ -355,6 +368,11 @@ class TestModel:
         #     assert False, "Should raise ValueError"
         # except ValueError:
         #     pass
+        try:
+            assert await User.add(None)
+            assert False
+        except ValueError:
+            pass
 
         # test madd
         user1 = User(name='user1', age=1)
@@ -385,6 +403,12 @@ class TestModel:
         assert user.name == 'user8'
         assert user.age is None
 
+        try:
+            assert await User.madd([])
+            assert False
+        except ValueError:
+            pass
+
         # test set
         ret = await User.set(16, name='user8forset', age=90)
         assert ret.last_id == 0
@@ -392,6 +416,12 @@ class TestModel:
         user = await User.get(16)
         assert user.name == 'user8forset'
         assert user.age == 90
+
+        try:
+            assert await User.set(1)
+            assert False
+        except ValueError:
+            pass
 
         # test model aiter
         count = 0
@@ -426,6 +456,41 @@ class TestModel:
             count += 1
         assert idx == 13
         assert count == 3
+        try:
+            async for user in User.select()[slice(-1, 1)]:
+                pass
+            assert False
+        except ValueError:
+            pass
+        try:
+            async for user in User.select()[slice(None, -1)]:
+                pass
+            assert False
+        except ValueError:
+            pass
+        try:
+            async for user in User.select()[slice(9, 7)]:
+                pass
+            assert False
+        except ValueError:
+            pass
+        try:
+            async for user in User.select()[10]:
+                pass
+            assert False
+        except TypeError:
+            pass
+
+        try:
+            assert User[1]
+            assert False
+        except NotImplementedError:
+            pass
+        try:
+            assert user in User
+            assert False
+        except NotImplementedError:
+            pass
 
         # test select
         users = await User.select().all()
@@ -468,6 +533,8 @@ class TestModel:
         assert users[-1][0] == 11
         assert users[-1][1] == 'user3'
         assert users[-1][3] == 3
+        users1 = await User.select().tuples().rows(10)
+        assert users == users1
 
         users = await User.select().paginate(1, 100, ROWTYPE.TDICT)
         assert isinstance(users, db.FetchResult)
@@ -475,6 +542,29 @@ class TestModel:
         assert isinstance(users[-1], util.tdict)
         assert users[6].id == 8
         assert users[9].age == 3
+        users2 = await User.select().tdicts().paginate(1, 100, ROWTYPE.TDICT)
+        assert users == users2
+
+        try:
+            await User.select().order_by(User.id.desc()).first(10)
+            assert False
+        except ValueError:
+            pass
+        try:
+            await User.select().order_by(User.id.desc()).rows(-10)
+            assert False
+        except ValueError:
+            pass
+        try:
+            await User.select().order_by(User.id.desc()).paginate(-1)
+            assert False
+        except ValueError:
+            pass
+        try:
+            await User.select().order_by(User.id.desc()).paginate(1, -1)
+            assert False
+        except ValueError:
+            pass
 
         user = await User.select().order_by(User.id.desc()).first()
         assert isinstance(user, User)
@@ -641,6 +731,33 @@ class TestModel:
                       .where(User.age > 90)
                       .exist())
         assert user is False
+        user = await (User.select()
+                      .where(User.id
+                             .in_(People.select(People.id)
+                                  .where(People.id > 0))
+                             )
+                      .all())
+        assert user.count == 0
+        user = await (User.select()
+                      .where(User.id
+                             .in_(Employee.select(Employee.id)
+                                  .where(Employee.name
+                                         .nin_(People.select(People.name)
+                                               .where(People.id > 0))))
+                             )
+                      .all())
+        assert user.count == 0
+        try:
+            await User.select().join(People)
+        except NotImplementedError:
+            pass
+
+        s = User.select(User.name).where(User.name == 'at7h')
+        q = _helper.Query(
+            'SELECT `name` FROM `trod`.`users` WHERE (`name` = %s);', ('at7h',)
+        )
+        assert str(s) == str(q)
+        assert repr(s) == repr(q)
 
         # test funcs and scalar
         user_count = await User.select().count()
@@ -728,7 +845,17 @@ class TestModel:
             'phone': 2312421421, 'unkown': 'xx'
         }
         try:
+            await People.insert(gae='str_age').do()
+            assert False
+        except ValueError:
+            pass
+        try:
             ret = await Employee.insert(employee).do()
+            assert False
+        except ValueError:
+            pass
+        try:
+            ret = await Employee.insert({}).do()
             assert False
         except ValueError:
             pass
@@ -779,6 +906,26 @@ class TestModel:
             assert False
         except ValueError:
             pass
+        try:
+            ret = await Employee.minsert(
+                [('np1', 0, 37)],
+                columns=[1]
+            ).do()
+            assert False
+        except TypeError:
+            pass
+        try:
+            ret = await Employee.minsert(
+                [{'unknow': 'xxxx'}]
+            ).do()
+            assert False
+        except ValueError:
+            pass
+        try:
+            ret = await Employee.minsert([]).do()
+            assert False
+        except ValueError:
+            pass
 
         # test update
         ret = await (People.update(name='up1')
@@ -795,8 +942,14 @@ class TestModel:
         assert people.name == 'up2'
         assert people.age == 29
 
+        try:
+            ret = await Employee.update().do()
+            assert False
+        except ValueError:
+            pass
+
         # test delete
-        ret = await People.delete().where(People.id == 6).do()
+        ret = await People.delete().where(People.id == 6).limit(1).do()
         assert ret.affected == 1
         assert ret.last_id == 0
         people = await People.get(6)
@@ -823,6 +976,11 @@ class TestModel:
         ret = await User.replace(id=ret.last_id, name='rp1forreplace').do()
         user = await User.get(ret.last_id)
         assert user.name == 'rp1forreplace'
+        try:
+            ret = await Employee.replace({}).do()
+            assert False
+        except ValueError:
+            pass
 
         people_list = [
             (0, 37),
@@ -881,6 +1039,11 @@ class TestModel:
                 people_list,
                 columns=[People.name, People.gender, People.age]
             )
+            assert False
+        except ValueError:
+            pass
+        try:
+            ret = await Employee.mreplace([]).do()
             assert False
         except ValueError:
             pass
@@ -983,12 +1146,42 @@ def test_model():
     except err.DuplicatePKError:
         pass
 
+    try:
+        class TM1(Model):
+            tp = types.Int()
+        assert False, "Should be raise NoPKError"
+    except err.NoPKError:
+        pass
+    try:
+        class TM2(Model):
+            __indexes__ = 'idx'
+
+            tp = types.Int()
+        assert False, "Should be raise TypeError"
+    except TypeError:
+        pass
+    try:
+        class TM3(Model):
+            __indexes__ = ['idx', 1]
+
+            tp = types.Int()
+        assert False, "Should be raise TypeError"
+    except TypeError:
+        pass
+
+    class TM4(Model):
+
+        pk = types.Auto()
+
+    assert for_table(TM4).name == 'tm4'
+
     assert repr(User) == "Model<User>"
     assert str(User) == "User"
 
     assert str(for_table(People)) == 'people'
     assert repr(for_table(People)) == '<Table `people`>'
     assert repr(for_table(User)) == '<Table `trod`.`users`>'
+    assert hash(User) == hash(User()) == hash('users')
     try:
         for_table({})
         assert False
@@ -1007,7 +1200,6 @@ def test_model_instance():
     assert not User()
 
     assert repr(user) == '<User object> at None'
-    # assert str(user) == "{'name': 'at7h', 'age': 20}"
     assert str(user) == "<User object> at None"
 
     assert user.name == 'at7h'

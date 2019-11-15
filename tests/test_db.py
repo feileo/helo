@@ -2,7 +2,6 @@ import datetime
 
 import pytest
 import pytz
-import pymysql
 
 from trod import db, err, util, _helper as helper
 
@@ -37,6 +36,7 @@ async def test_sin():
         assert db.get_state().maxsize == 15
         assert db.get_state().size == 1
         assert db.get_state().freesize == 1
+        assert db._impl.Executer.pool.echo is True
 
         async with db._impl.Executer.pool.acquire() as conn:
             assert db.get_state().size == 1
@@ -74,16 +74,16 @@ async def test_sin():
 
         try:
             await db.binding("postgres://user:password@host:port/db")
-            assert False, 'Should be raise UnsupportedError'
-        except err.UnsupportedError:
+            assert False, 'Should be raise NotSupportedError'
+        except err.NotSupportedError:
             pass
 
         try:
             await db.binding(
                 host='127.0.0.1', user='root', password='xxxx'
             )
-            assert False, 'Should be raise pymysql.err.OperationalError'
-        except pymysql.err.OperationalError:
+            assert False, 'Should be raise OperationalError'
+        except err.OperationalError:
             pass
 
         await db.binding(db.DefaultURL.get(), maxsize=7, autocommit=True)
@@ -99,6 +99,11 @@ async def test_sin():
 
         try:
             result = await db.execute('')
+            assert False, 'Should be raise TypeError'
+        except TypeError:
+            pass
+        try:
+            result = await db.execute(helper.Query(''))
             assert False, 'Should be raise ValueError'
         except ValueError:
             pass
@@ -225,10 +230,11 @@ async def test_sin():
 
         users = await db.execute(
             helper.Query(
-                "SELECT * FROM `user` WHERE `created_at` < %s ;",
-                params=[datetime.datetime.now(tz)]
+                "SELECT * FROM `user` WHERE `created_at` <= %s ;",
+                params=[datetime.datetime.now(tz)+datetime.timedelta(minutes=1)]
             )
         )
+
         assert isinstance(users, db.FetchResult)
         assert users.count == 4
         assert isinstance(users[0], util.tdict)
@@ -239,7 +245,7 @@ async def test_sin():
         users = await db.execute(
             helper.Query(
                 "SELECT * FROM `user` WHERE `created_at` >= %s ;",
-                params=[datetime.datetime.now(tz)]
+                params=[datetime.datetime.now(tz)+datetime.timedelta(minutes=1)]
             )
         )
         assert isinstance(users, db.FetchResult)
@@ -248,7 +254,7 @@ async def test_sin():
         users = await db.execute(
             helper.Query(
                 "SELECT * FROM `user` WHERE `created_at` >= %s ;",
-                params=[datetime.datetime.now(tz)]
+                params=[datetime.datetime.now(tz)+datetime.timedelta(minutes=1)]
             ),
             rows=1
         )
@@ -276,8 +282,8 @@ async def test_sin():
                     "SELECT * FROM `user` WHER `id` IN %s;", params=[(26, 27, 28)]
                 )
             )
-            assert False, "Should be raise pymysql.err.ProgrammingError"
-        except pymysql.err.ProgrammingError:
+            assert False, "Should be raise ProgrammingError"
+        except err.ProgrammingError:
             pass
 
         try:
@@ -286,8 +292,8 @@ async def test_sin():
                     "INSERT INTO `user` (`name`, `age`) VALUS ('n', 1);",
                 ),
             )
-            assert False, "Should be raise pymysql.err.ProgrammingError"
-        except pymysql.err.ProgrammingError:
+            assert False, "Should be raise ProgrammingError"
+        except err.ProgrammingError:
             pass
 
 
@@ -337,6 +343,21 @@ async def test_mul():
         await db.execute(TEARDOWN_QUERY)
 
     try:
+        async with db.Binder(test='testarg'):
+            pass
+        assert False, 'Should be raise TypeError'
+    except TypeError:
+        pass
+
+    try:
+        await db.unbinding()
+        assert False, 'Should be raise UnboundError'
+    except err.UnboundError:
+        pass
+
+    await db.binding(db.DefaultURL.get())
+    db._impl.Executer.pool.terminate()
+    try:
         await db.unbinding()
         assert False, 'Should be raise UnboundError'
     except err.UnboundError:
@@ -355,6 +376,32 @@ async def test_url():
         assert connmeta.connect_timeout == 20
         assert connmeta.local_infile is False
         assert connmeta.ssl is None
+        assert connmeta.auth_plugin == ''
+        assert connmeta.program_name == ''
+        assert connmeta.server_public_key is None
+
+        async with db._impl.Executer.pool.acquire() as conn:
+            assert connmeta.host == conn.host
+            assert connmeta.port == conn.port
+            assert connmeta.user == conn.user
+            assert connmeta.db == conn.db
+            assert connmeta.charset == conn.charset
+            assert connmeta.autocommit == conn.get_autocommit()
+
+    async with db.Binder(
+        ("mysql://root:HELLOxm123@10.235.158.241:3306/trod"
+         "?charset=utf8mb4&maxsize=20&connect_timeout=15"
+         )
+    ):
+        connmeta = db._impl.Executer.pool.connmeta
+
+        assert connmeta.unix_socket is None
+        assert connmeta.read_default_file is None
+        assert connmeta.init_command is None
+        assert connmeta.connect_timeout == 15
+        assert connmeta.local_infile is False
+        assert connmeta.ssl is None
+        assert connmeta.charset == 'utf8mb4'
         assert connmeta.auth_plugin == ''
         assert connmeta.program_name == ''
         assert connmeta.server_public_key is None
