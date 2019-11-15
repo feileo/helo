@@ -1,16 +1,16 @@
 import asyncio
 from datetime import datetime
 
-import pymysql
 import pytest
 
-from . import models
 from trod import Trod, Model, err, util
 from trod.db import DefaultURL
 from trod.types import (
     Auto, Char, VarChar, DateTime, Tinyint,
     Timestamp, ON_CREATE, ON_UPDATE
 )
+
+from . import models
 
 
 class User(Model):
@@ -64,6 +64,17 @@ async def test_trod():
         ret = await db.raw('SHOW TABLES;')
         assert ret.count == 0
 
+        try:
+            await db.create_all([User])
+            assert False
+        except TypeError:
+            pass
+        try:
+            await db.create_all([User])
+            assert False
+        except TypeError:
+            pass
+
     assert db.is_bound is False
     try:
         ret = await db.raw('SHOW TABLES;')
@@ -81,7 +92,7 @@ async def test_trod():
     try:
         await db.bind(password='1234')
         assert False
-    except pymysql.err.OperationalError:
+    except err.OperationalError:
         pass
     db.set_url_key(None)
     await db.bind(DefaultURL.get())
@@ -145,6 +156,8 @@ async def test_util():
     fo = util.FreeObject(n1='v1', n2='v2')
     assert str(fo) == "{'n1': 'v1', 'n2': 'v2'}"
     assert repr(fo) == "FreeObject({'n1': 'v1', 'n2': 'v2'})"
+    del fo['n1']
+    assert str(fo) == "{'n2': 'v2'}"
     fonew = fo.as_new(n3='v3')
     assert fonew.n3 == 'v3'
     try:
@@ -153,18 +166,21 @@ async def test_util():
     except AttributeError:
         pass
 
-    @util.singleton
-    class TS:
+    try:
+        @util.asyncinit
+        def num():
+            return 1
+        assert False
+    except ValueError:
         pass
 
     @util.singleton
-    @util.asyncinit
-    class TSA:
-
-        async def __init__(self):
-            await asyncio.sleep(0.01)
+    class TS:
+        def __init__(self):
+            self.a = 'ok'
 
     ts = TS()
+    assert ts.a == 'ok'
     ts.attr = 1
     ts1 = TS()
     assert ts1.attr == 1
@@ -175,13 +191,39 @@ async def test_util():
     except AttributeError:
         pass
 
-    tsa = await TSA()
+    @util.singleton_asyncinit
+    class TSA:
+
+        async def __init__(self, **kwargs):
+            await asyncio.sleep(0.01)
+            self.a = 'ok'
+            for name in kwargs:
+                setattr(self, name, kwargs[name])
+
+    tsa = await TSA(b=1)
+    assert tsa.a == 'ok'
+    assert tsa.b == 1
     tsa.attr = 1
+    assert tsa.attr == 1
+
+    tsa1 = await TSA(c=2)
     try:
-        await TSA()
+        assert tsa1.c == 2
         assert False
-    except RuntimeError:
+    except AttributeError:
         pass
+    assert tsa1.attr == 1
+    try:
+        assert tsa.c == 2
+        assert False
+    except AttributeError:
+        pass
+    del tsa1.attr
+    assert getattr(tsa, 'attr', None) is None
+    tsa2 = await TSA()
+    tsa2.t = 7
+    assert tsa.t == 7
+    assert tsa1.t == 7
 
     @util.tdictformatter
     def c1():
@@ -201,6 +243,16 @@ async def test_util():
             ('k1', 'v1', 'k2', 'v2'),
         ]
 
+    @util.tdictformatter
+    async def c4():
+        await asyncio.sleep(0.1)
+        return 1
+
+    @util.tdictformatter
+    async def c5():
+        await asyncio.sleep(0.1)
+        return None
+
     cv1 = c1()
     assert isinstance(cv1, util.tdict)
     assert cv1 == util.tdict(**cv1)
@@ -214,3 +266,10 @@ async def test_util():
         assert False
     except TypeError:
         pass
+
+    try:
+        await c4()
+        assert False
+    except TypeError:
+        pass
+    assert await c5() is None

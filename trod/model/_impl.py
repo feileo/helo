@@ -47,7 +47,7 @@ JOINTYPE = util.tdict(
     FULL='FULL',
 )
 
-_BUILTIN_NAMES = ("ModelBase", "Model")
+_BUILTIN_NAMES = ("_ModelBase", "Model")
 
 
 class Table(Node):
@@ -144,7 +144,7 @@ class ModelType(type):
                 raise TypeError('__indexes__ type must be `tuple` or `list`')
             for index in indexes:
                 if not isinstance(index, IndexBase):
-                    raise err.InvalidFieldType()
+                    raise TypeError(f"Invalid index type {index!r}")
 
             bound = attrs.pop("__db__", None)
             engine = attrs.pop("__engine__", None)
@@ -237,13 +237,20 @@ class ModelType(type):
     def __str__(cls) -> str:
         return cls.__name__
 
+    def __hash__(cls) -> int:
+        if cls.__table__:
+            return hash(cls.__table__.name)
+        return 0
+
     def __aiter__(cls) -> Select:
         return Api.select(cls)  # type: ignore
 
     def __getitem__(cls, _id: Id) -> Model:
+        """ NotImplementedError """
         raise NotImplementedError
 
     def __contains__(cls, _id: Id) -> bool:
+        """NotImplementedError"""
         raise NotImplementedError
 
 
@@ -261,7 +268,7 @@ def for_attrs(m: Union[Type[Model], Model]) -> dict:
         raise err.ProgrammingError("Must be ModelType")
 
 
-class ModelBase:
+class _ModelBase:
     """Model Base Class"""
 
     def __init__(self, **kwargs: Any) -> None:
@@ -318,7 +325,7 @@ class ModelBase:
         return deepcopy(self.__dict__)
 
 
-class Model(with_metaclass(ModelType, ModelBase)):  # type: ignore
+class Model(with_metaclass(ModelType, _ModelBase)):  # type: ignore
     """Model API"""
 
     @classmethod
@@ -343,7 +350,7 @@ class Model(with_metaclass(ModelType, ModelBase)):  # type: ignore
         _id: Id,
         rowtype: Optional[int] = None
     ) -> Union[Model, util.tdict, None, Tuple[Any, ...]]:
-        if not _id:
+        if not isinstance(_id, int) and not _id:
             return None
         return await Api.get(cls, _id, rowtype=rowtype)
 
@@ -378,7 +385,7 @@ class Model(with_metaclass(ModelType, ModelBase)):  # type: ignore
 
     @classmethod
     async def set(cls, _id: Id, **values: Any) -> db.ExecResult:
-        if not (_id and values):
+        if not values:
             raise ValueError('No _id or values to set')
         return await Api.set(cls, _id, values)
 
@@ -563,7 +570,6 @@ class Api:
     ) -> Select:
 
         columns = columns or for_table(m).fields  # type: ignore
-        # columns = columns or [SQL('*')]
         return Select(list(columns), m)
 
     @classmethod
@@ -697,7 +703,7 @@ class Api:
                 value = default
             if value is None and not field.null:
                 if not for_replace:
-                    raise err.InvalidColumnValue(
+                    raise ValueError(
                         f"Invalid data(None) for not null attribute {name}"
                     )
             try:
@@ -857,7 +863,7 @@ class Select(QueryBase):
 
     async def __genrow__(self) -> Optional[Model]:
         if self._offset is None:
-            if self._irange:
+            if self._irange and self._irange.start:
                 self._offset = self._irange.start
             else:
                 self._offset = 0
@@ -884,11 +890,13 @@ class Select(QueryBase):
 
     def __getitem__(self, _range: slice) -> Select:
         if isinstance(_range, slice):
-            if _range.start is None or _range.stop is None:
-                raise ValueError(
-                    'Iter range must have both a start and end-point.'
-                )
-            if _range.start < 0 or _range.stop < 0 or _range.start >= _range.stop:
+            if _range.start and _range.start < 0:
+                raise ValueError(f"Invalid range slice start: {_range.start}")
+
+            if _range.stop and _range.stop < 0:
+                raise ValueError(f"Invalid range slice stop: {_range.stop}")
+
+            if _range.start and _range.stop and _range.start >= _range.stop:
                 raise ValueError(f"Invalid range slice({_range})")
 
             if _range.step is not None and _range.step <= 0:
@@ -900,17 +908,17 @@ class Select(QueryBase):
         return self
 
     def join(
-        self, dest: Any,
+        self,
+        dest: Any,
         join_type: str = JOINTYPE.INNER,
         on: Optional[str] = None
     ) -> Select:
-        raise NotImplementedError
+        self._join = Join(dest, join_type, on)  # type: ignore
+        return self
 
     def where(self, *filters: Node) -> Select:
-        if not filters:
-            raise ValueError("Where clause cannot be empty")
 
-        self._where = util.and_(*filters)
+        self._where = util.and_(*filters) or None
         return self
 
     def group_by(self, *columns: FieldBase) -> Select:
@@ -926,10 +934,8 @@ class Select(QueryBase):
         return self
 
     def having(self, *filters: Node) -> Select:
-        if not filters:
-            raise ValueError("Having clause cannot be empty")
 
-        self._having = util.and_(*filters)
+        self._having = util.and_(*filters) or None
         return self
 
     def window(self) -> Select:
@@ -1120,10 +1126,8 @@ class Update(WriteQuery):
         self._where = None
 
     def where(self, *filters: Node) -> Update:
-        if not filters:
-            raise ValueError("Where clause cannot be empty")
 
-        self._where = util.and_(*filters)
+        self._where = util.and_(*filters) or None
         return self
 
     def __sql__(self, ctx: Context) -> Context:
@@ -1160,10 +1164,8 @@ class Delete(WriteQuery):
         super().__init__()
 
     def where(self, *filters: Node) -> Delete:
-        if not filters:
-            raise ValueError("Where clause cannot be empty")
 
-        self._where = util.and_(*filters)
+        self._where = util.and_(*filters) or None
         return self
 
     def limit(self, row_count: int) -> Delete:
@@ -1188,7 +1190,7 @@ class Delete(WriteQuery):
 
 class Join(Node):
 
-    def __init__(self) -> None:
+    def __init__(self, *args) -> None:
         raise NotImplementedError
 
     def __sql__(self, ctx: Context) -> Context:
@@ -1255,7 +1257,7 @@ class Show(QueryBase):
         self._key = None  # type: Optional[str]
 
     def __repr__(self) -> str:
-        return f"<Show object> for table {self._table.table_name}"
+        return f"<Show object> for table <{self._table.table_name}>"
 
     __str__ = __repr__
 
@@ -1288,26 +1290,26 @@ class Alter(WriteQuery):
         super().__init__()
         raise NotImplementedError
 
-    # def add(self):
-    #     pass
+    def add(self):
+        """NotImplementedError"""
 
-    # def drop(self):
-    #     pass
+    def drop(self):
+        """NotImplementedError"""
 
-    # def modify(self):
-    #     pass
+    def modify(self):
+        """NotImplementedError"""
 
-    # def change(self):
-    #     pass
+    def change(self):
+        """NotImplementedError"""
 
-    # def after(self):
-    #     pass
+    def after(self):
+        """NotImplementedError"""
 
-    # def first(self):
-    #     pass
+    def first(self):
+        """NotImplementedError"""
 
     def __sql__(self, ctx: Context) -> Context:
-        return ctx
+        """NotImplementedError"""
 
 
 class Loader:

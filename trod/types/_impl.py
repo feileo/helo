@@ -285,11 +285,13 @@ class Expression(ColumnBase):
                        self.OPERATOR.NOT_IN,
                        self.OPERATOR.EXISTS,
                        self.OPERATOR.NEXISTS):
-            if not isinstance(self.rhs, SEQUENCE):
+            if not isinstance(self.rhs, (SEQUENCE, Node)):
                 raise TypeError(
-                    f"Invalid values {self.rhs} for operator '{self.op}', "
-                    f"expected {SEQUENCE}")
-            self.rhs = tuple(self.rhs)
+                    f"Invalid values {self.rhs} for operator '{self.op}'")
+            if isinstance(self.rhs, Node):
+                self.rhs = EnclosedNodeList([self.rhs])
+            else:
+                self.rhs = tuple(self.rhs)
             overrides['nesting'] = True
 
         with ctx(**overrides):
@@ -1098,8 +1100,8 @@ class IndexBase(Node):
         if not isinstance(fields, SEQUENCE):
             fields = [fields]  # type: ignore
 
-        self.fields = []  # type: List[str]
-        for f in fields:  # type: ignore
+        self.fields = []       # type: List[str]
+        for f in fields:       # type: ignore
             if isinstance(f, str):
                 self.fields.append(f"`{f}`")
             elif isinstance(f, FieldBase):
@@ -1108,6 +1110,7 @@ class IndexBase(Node):
                 raise TypeError(f"Invalid field type: {f}")
 
         IndexBase._field_counter += 1
+        # TODO: Abandon it
         self._seqnum = IndexBase._field_counter
 
     @property

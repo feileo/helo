@@ -5,30 +5,25 @@
 
 
 class Error(Exception):
-    description = 'trod internal error'
+    """Exception that is the base class of all other error exceptions"""
+
+    description = 'Trod internal error'
 
     def __init__(self, msg=None):
         super().__init__(msg or self.description)
 
 
 class ProgrammingError(Error):
-    description = 'user programming error'
-
-
-class DataError(Error):
-    description = 'data error'
-
-
-class DBError(Error):
-    description = 'database operation error'
+    """Exception that caused by incorrect user programming logic"""
+    description = 'User programming error'
 
 
 class UnboundError(ProgrammingError):
-    description = 'db has no binding, maybe you should call `bind` before.'
+    description = 'Database is not bound yet, maybe you should call `bind` before.'
 
 
 class DuplicateBinding(ProgrammingError):
-    description = 'db already bound to {host}:{port}'
+    description = 'Database already bound to {host}:{port}'
 
     def __init__(self, msg=None, **kwargs):
         super().__init__(msg or self.description.format(**kwargs))
@@ -41,33 +36,62 @@ class NoColumnNameError(ProgrammingError):
         super().__init__(msg or self.description)
 
 
-class UnsupportedError(Error):
-    pass
-
-
-class InvalidColumnValue(DataError):
-    pass
-
-
 class DuplicatePKError(ProgrammingError):
-    pass
+    """Exceptions of two primary key fields in the same model"""
 
 
 class NoPKError(ProgrammingError):
-    pass
-
-
-class InvalidFieldType(ValueError):
-    pass
+    """Exception for model missing primary key"""
 
 
 class NotAllowedError(ProgrammingError):
-    pass
+    """Operation not allowed in trod"""
+
+
+class DangerousOperation(NotAllowedError):
+    """Dangerous operation due to wrong programming"""
 
 
 class ProgrammingWarning(RuntimeWarning):
-    pass
+    """Some warnings about not being appreciated"""
 
 
-class DangerousOperation(RuntimeError):
-    pass
+class InterfaceError(Error):  # for pymysql
+    """Exception raised for errors that are related to the database
+    interface rather than the database itself."""
+
+
+class MySQLError(Error):  # for pymysql
+    description = 'Exception related to operation with MySQL.'
+
+
+class MySQLWarning(Warning, MySQLError):  # for pymysql
+    """Exception raised for important warnings like data truncations
+    while inserting, etc."""
+
+
+class MySQLDataError(MySQLError):  # for pymysql
+    """Exception raised for errors that are due to problems with the
+    processed data like division by zero, numeric value out of range,
+    etc."""
+
+
+class OperationalError(MySQLError):  # for pymysql
+    """Exception raised for errors that are related to the database's
+    operation and not necessarily under the control of the programmer,
+    e.g. an unexpected disconnect occurs, the data source name is not
+    found, a transaction could not be processed, a memory allocation
+    error occurred during processing, etc."""
+
+
+class IntegrityError(MySQLError):  # for pymysql
+    """Exception raised when the relational integrity of the database
+    is affected, e.g. a foreign key check fails, duplicate key,
+    etc."""
+
+
+class NotSupportedError(MySQLError):  # for pymysql
+    """Exception raised in case a method or database API was used
+    which is not supported by the database, e.g. requesting a
+    .rollback() on a connection that does not support transaction or
+    has transactions turned off."""
