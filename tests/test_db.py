@@ -389,9 +389,9 @@ async def test_url():
             assert connmeta.autocommit == conn.get_autocommit()
 
     async with db.Binder(
-        ("mysql://root:HELLOxm123@10.235.158.241:3306/trod"
+        (db.DefaultURL.get() +
          "?charset=utf8mb4&maxsize=20&connect_timeout=15"
-         )
+         ),
     ):
         connmeta = db._impl.Executer.pool.connmeta
 
