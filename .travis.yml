@@ -9,7 +9,7 @@ service:
   - mysql
 
 before_install: 
-  - export TROD_DB_URL=mysql://root:flzxsqc1234567@gz-cdb-dp6vrc6h.sql.tencentcdb.com:60693/trod
+  - export TROD_DB_URL=mysql://root:flzxsqc1234567@gz-cdb-j9riel8h.sql.tencentcdb.com:60684/trod
   - pip install aiomysql
   - pip install pytz
   - pip install pytest pytest-asyncio pytest-cov

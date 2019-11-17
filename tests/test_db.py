@@ -1,3 +1,7 @@
+"""
+tests for db module
+"""
+
 import datetime
 
 import pytest
@@ -219,7 +223,8 @@ async def test_sin():
         users = await db.execute(
             helper.Query(
                 "SELECT * FROM `user` WHERE `id` IN %s;", params=[(26, 27, 28)]
-            )
+            ),
+            rows=10
         )
         assert isinstance(users, db.FetchResult)
         assert users.count == 3
@@ -296,6 +301,12 @@ async def test_sin():
         except err.ProgrammingError:
             pass
 
+        try:
+            await db._impl.Pool.from_url('')
+            assert False
+        except ValueError:
+            pass
+
 
 @pytest.mark.asyncio
 async def test_mul():
@@ -357,11 +368,14 @@ async def test_mul():
 
     await db.binding(db.DefaultURL.get())
     db._impl.Executer.pool.terminate()
+
+    assert (await db._impl.Executer.death()) is False
     try:
         await db.unbinding()
         assert False, 'Should be raise UnboundError'
     except err.UnboundError:
         pass
+    assert (await db._impl.Executer.death()) is False
 
 
 @pytest.mark.asyncio
@@ -389,9 +403,9 @@ async def test_url():
             assert connmeta.autocommit == conn.get_autocommit()
 
     async with db.Binder(
-        ("mysql://root:HELLOxm123@10.235.158.241:3306/trod"
-         "?charset=utf8mb4&maxsize=20&connect_timeout=15"
-         )
+        (db.DefaultURL.get() +
+         "?charset=utf8mb4&maxsize=20&connect_timeout=15&echo=True&autocommit=False"
+         ),
     ):
         connmeta = db._impl.Executer.pool.connmeta
 

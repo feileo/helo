@@ -5,7 +5,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional, List, Tuple, Union
+import datetime
+from typing import Any, Optional, List, Tuple, Union, Callable
 
 from .util import argschecker
 
@@ -260,3 +261,34 @@ def with_metaclass(meta, *bases):
             return meta(name, bases, attrs)
 
     return type.__new__(MetaClass, 'temporary_class', (), {})
+
+
+def format_datetime(
+        value: str,
+        formats: Union[List[str], tuple],
+        extractor: Optional[Callable] = None
+) -> Any:
+    extractor = extractor or (lambda x: x)
+    for fmt in formats:
+        try:
+            return extractor(datetime.datetime.strptime(value, fmt))
+        except ValueError:
+            pass
+    return value
+
+
+def simple_datetime(value: str) -> Union[datetime.datetime, str]:
+    try:
+        return datetime.datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
+    except (TypeError, ValueError):
+        return value
+
+
+def dt_strftime(value: Any, formats: Union[List[str], tuple]) -> str:
+    if hasattr(value, 'strftime'):
+        for fmt in formats:
+            try:
+                return value.strftime(fmt)
+            except (TypeError, ValueError):
+                pass
+    return value

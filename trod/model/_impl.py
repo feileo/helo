@@ -51,6 +51,7 @@ _BUILTIN_NAMES = ("_ModelBase", "Model")
 
 
 class Table(Node):
+    """Table meta of Model"""
 
     __slots__ = (
         "db", "name", "fields_dict", "fields", "primary",
@@ -120,9 +121,7 @@ class Table(Node):
 
 
 class ModelType(type):
-    """ Model metaclass.
-    TODO: Should be optimized
-    """
+    """ Model metaclass, should be optimized"""
 
     def __new__(cls, name: str, bases: Tuple[type, ...], attrs: dict) -> type:
 
@@ -243,14 +242,14 @@ class ModelType(type):
         return 0
 
     def __aiter__(cls) -> Select:
+        """async for Model"""
+
         return Api.select(cls)  # type: ignore
 
     def __getitem__(cls, _id: Id) -> Model:
-        """ NotImplementedError """
         raise NotImplementedError
 
     def __contains__(cls, _id: Id) -> bool:
-        """NotImplementedError"""
         raise NotImplementedError
 
 
@@ -261,7 +260,7 @@ def for_table(m: Union[Type[Model], Model]) -> Table:
         raise err.ProgrammingError("Must be ModelType")
 
 
-def for_attrs(m: Union[Type[Model], Model]) -> dict:
+def for_attrs(m: Union[Type[Model], Model]) -> Dict[str, Any]:
     try:
         return m.__attrs__
     except AttributeError:
@@ -269,7 +268,6 @@ def for_attrs(m: Union[Type[Model], Model]) -> dict:
 
 
 class _ModelBase:
-    """Model Base Class"""
 
     def __init__(self, **kwargs: Any) -> None:
         for attr in kwargs:
@@ -326,30 +324,58 @@ class _ModelBase:
 
 
 class Model(with_metaclass(ModelType, _ModelBase)):  # type: ignore
-    """Model API"""
+    """From Model defining your model is easy
+
+    >>> from trod import types
+    >>>
+    >>> class User(Model):
+    >>>     id = types.Auto()
+    >>>     nickname = types.VarChar(length=45)
+    >>>     password = types.VarChar(length=100)
+    """
 
     @classmethod
     async def create(cls, **options: Any) -> db.ExecResult:
+        """Create a table in the database from the model
+
+        >>> await User.create()
+        """
         return await Api.create_table(cls, **options)
 
     @classmethod
     async def drop(cls, **options: Any) -> db.ExecResult:
+        """Drop a table in the database from the model
+
+        >>> await User.drop()
+        """
         return await Api.drop_table(cls, **options)
 
     @classmethod
     def alter(cls) -> Alter:
+        """Alter a table in the database from the model
+        """
         return Api.alter(cls)
 
     @classmethod
     def show(cls) -> Show:
+        """Show information about table
+        """
         return Api.show(cls)
 
+    # Some apis for shortcuts
+    #
     @classmethod
     async def get(
         cls,
         _id: Id,
         rowtype: Optional[int] = None
     ) -> Union[Model, util.tdict, None, Tuple[Any, ...]]:
+        """Get a row of records from the primary key of the table
+
+        >>> user = await User.get(1)
+        >>> user.nickname
+        'at7h'
+        """
         if not isinstance(_id, int) and not _id:
             return None
         return await Api.get(cls, _id, rowtype=rowtype)
@@ -361,6 +387,11 @@ class Model(with_metaclass(ModelType, _ModelBase)):  # type: ignore
         columns: Optional[List[FieldBase]] = None,
         rowtype: Optional[int] = None
     ) -> db.FetchResult:
+        """Get rows from the table's primary key list
+
+        >>> await User.mget([1, 2, 3])
+        [<User object> at 1, <User object> at 2, <User object> at 3]
+        """
         if not ids:
             raise ValueError("No ids to mget")
         return await Api.get_many(cls, ids, columns=columns, rowtype=rowtype)
@@ -370,6 +401,18 @@ class Model(with_metaclass(ModelType, _ModelBase)):  # type: ignore
         cls,
         row: Union[Model, Dict[str, Any]]
     ) -> db.ExecResult:
+        """Add a row of records
+
+        # Values mappings
+        >>> await User.add({'nickname': 'at7h', 'password': '777'})
+        ExecResult(affected: 1, last_id: 1)
+
+        # User object
+        >>> user = User(nickname='at7h', password='7777')
+        >>> await User.add(user)
+        ExecResult(affected: 1, last_id: 1)
+        """
+
         if row is None:
             raise ValueError("No data to add")
         return await Api.add(cls, row)
@@ -379,24 +422,70 @@ class Model(with_metaclass(ModelType, _ModelBase)):  # type: ignore
         cls,
         rows: Union[List[Model], List[Dict[str, Any]]]
     ) -> db.ExecResult:
+        """Batch add rows
+
+        # Values mappings list
+        >>> users = [
+        >>>    {'nickname': 'at7h', 'password': '777'}
+        >>>    {'nickname': 'mebo', 'password': '666'}]
+        >>> await User.madd(users)
+        ExecResult(affected: 2, last_id: 1)
+
+        # add a User object
+        >>> users = [User(**u) for u in users]
+        >>> await User.madd(users)
+        ExecResult(affected: 2, last_id: 1)
+        """
+
         if not rows:
             raise ValueError("No data to madd")
         return await Api.add_many(cls, rows)
 
     @classmethod
     async def set(cls, _id: Id, **values: Any) -> db.ExecResult:
+        """Set the value of a row with the primary key
+
+        >>> user = await User.get(1)
+        >>> user.password
+        777
+        >>> await User.set(1, password='888')
+        ExecResult(affected: 1, last_id: 0)
+        >>> user = await User.get(1)
+        >>> user.password
+        888
+        """
+
         if not values:
             raise ValueError('No _id or values to set')
         return await Api.set(cls, _id, values)
 
+    # Direct SQL(DQL, DML) statement
+    # You must explicitly execute them via the do() method.
     @classmethod
     def select(cls, *columns: FieldBase) -> Select:
+        """Select Query, see ``Select``
+        """
+
         return Api.select(cls, *columns)
 
     @classmethod
     def insert(
         cls, __row: Optional[Dict[str, Any]] = None, **values: Any
     ) -> Insert:
+        """Insert a row
+
+        # Using keyword arguments:
+        >>> await User.insert(nickname='at7h', password='777').do()
+        ExecResult(affected: 1, last_id: 1)
+
+        # Using value mappings:
+        >>> await User.insert({
+               'nickname': 'at7h',
+               'password': '777',
+            }).do()
+        ExecResult(affected: 1, last_id: 1)
+        """
+
         row = __row or values
         if not row:
             raise ValueError("No data to insert")
@@ -408,24 +497,59 @@ class Model(with_metaclass(ModelType, _ModelBase)):  # type: ignore
         rows: List[Union[Dict[str, Any], Tuple[Any, ...]]],
         columns: Optional[List[FieldBase]] = None
     ) -> Insert:
+        """Batch insert rows
+
+        >>> users = [
+            {'nickname': 'Bob', 'password': '666'},
+            {'nickname': 'Her', 'password: '777'},
+            {'nickname': 'Nug', 'password': '888'}]
+
+        # Inserting multiple
+        >>> result = await User.insert(users).do()
+
+        # We can also specify row tuples
+        # columns the tuple values correspond to:
+        >>> users = [
+            ('Bob', '666'),
+            ('Her', '777'),
+            ('Nug', '888')]
+        >>> result = await User.insert(
+        >>>    users, columns=[User.nickname, User.password]
+        >>> ).do()
+        """
+
         if not rows:
             raise ValueError("No data to minsert {}")
         return Api.insert_many(cls, rows, columns=columns)
 
     @classmethod
     def update(cls, **values: Any) -> Update:
+        """Update record
+
+        >>> await User.update(
+        >>>    password='888').where(User.id == 1).do()
+        ExecResult(affected: 1, last_id: 0)
+        """
         if not values:
             raise ValueError("No data to update")
         return Api.update(cls, values)
 
     @classmethod
     def delete(cls) -> Delete:
+        """Delete record
+
+        >>> await User.delete().where(User.id == 1).do()
+        ExecResult(affected: 1, last_id: 0)
+        """
         return Api.delete(cls)
 
     @classmethod
     def replace(
         cls, __row: Optional[Dict[str, Any]] = None, **values: Any
     ) -> Replace:
+        """MySQL REPLACE, similar to ``insert``
+        """
+
         row = __row or values
         if not row:
             raise ValueError("No data to replace")
@@ -437,14 +561,30 @@ class Model(with_metaclass(ModelType, _ModelBase)):  # type: ignore
         rows: List[Union[Dict[str, Any], Tuple[Any, ...]]],
         columns: Optional[List[FieldBase]] = None
     ) -> Replace:
+        """MySQL REPLACE, similar to ``minsert``
+        """
+
         if not rows:
             raise ValueError("No data to mreplace")
         return Api.replace_many(cls, rows, columns=columns)
 
-    async def save(self) -> db.ExecResult:
+    async def save(self) -> Id:
+        """Write objects in memory to database
+
+        >>> user = User(nickname='at7h',password='777')
+        >>> await user.save()
+        1
+        """
         return await Api.save(self)
 
-    async def remove(self) -> db.ExecResult:
+    async def remove(self) -> bool:
+        """Remove a row
+
+        >>> user = await User.get(1)
+        >>> await user.remove()
+        True
+        """
+
         return await Api.remove(self)
 
 
@@ -455,7 +595,7 @@ class Api:
     async def create_table(
         cls, m: Type[Model], **options: Any
     ) -> db.ExecResult:
-        """ Do create table """
+        """Do create table"""
 
         if m.__name__ in _BUILTIN_NAMES:
             raise err.NotAllowedError(f"{m.__name__} is a built-in model name")
@@ -466,7 +606,7 @@ class Api:
     async def drop_table(
         cls, m: Type[Model], **options: Any
     ) -> db.ExecResult:
-        """ Do drop table """
+        """Do drop table"""
 
         if m.__name__ in _BUILTIN_NAMES:
             raise err.NotAllowedError(f"{m.__name__} is a built-in model name")
@@ -576,17 +716,6 @@ class Api:
     def insert(
         cls, m: Type[Model], row: Dict[str, Any]
     ) -> Insert:
-        """
-        # Using keyword arguments:
-        >>> zaizee_id = Person.insert(first='zaizee', last='cat').do()
-
-        # Using value mappings:
-        >>> Person.insert({
-            'first': 'zsizee',
-            'last': 'meeeeowwww',
-            'timestamp': datetime.datetime.now()
-            }).do()
-        """
 
         toinsert = cls._gen_insert_row(m, row.copy())
         return Insert(for_table(m), Values(toinsert))
@@ -599,23 +728,7 @@ class Api:
         rows: List[Union[Dict[str, Any], Tuple[Any, ...]]],
         columns: Optional[List[FieldBase]] = None
     ) -> Insert:
-        """
-        >>> people = [
-            {'first': 'Bob', 'last': 'Foo'},
-            {'first': 'Herb', 'last': 'Bar'},
-            {'first': 'Nuggie', 'last': 'Bar'}]
 
-        # Inserting multiple
-        >>> result = Person.insert(people).do()
-
-        # We can also specify row tuples, so long as we tell Peewee which
-        # columns the tuple values correspond to:
-        >>> people = [
-            ('Bob', 'Foo'),
-            ('Herb', 'Bar'),
-            ('Nuggie', 'Bar')]
-        >>> Person.insert(people, columns=[Person.first, Person.last]).do()
-        """
         normalize_rows = cls._normalize_rows(m, rows, columns)
         return Insert(for_table(m), Values(normalize_rows), many=True)
 
@@ -647,7 +760,7 @@ class Api:
         return Replace(for_table(m), Values(normalize_rows), many=True)
 
     @classmethod
-    async def save(cls, mo: Model) -> db.ExecResult:
+    async def save(cls, mo: Model) -> Id:
         """ save model object """
 
         has_id = False
@@ -664,10 +777,10 @@ class Api:
             value=result.last_id,
             __load__=True
         )
-        return result
+        return result.last_id
 
     @classmethod
-    async def remove(cls, mo: Model) -> db.ExecResult:
+    async def remove(cls, mo: Model) -> bool:
         """ delete model object"""
 
         table = for_table(mo)
@@ -675,9 +788,10 @@ class Api:
         if not primary_value:
             raise RuntimeError("Remove object has no primary key value")
 
-        return await Delete(
+        ret = await Delete(
             table
         ).where(table.primary.field == primary_value).do()
+        return bool(ret.affected)
 
     @classmethod
     @util.argschecker(row_data=dict, nullable=False)
@@ -874,19 +988,18 @@ class Select(QueryBase):
                 self._offset += 1
 
         if self._irange and self._irange.stop:
-            if self._offset >= self._irange.stop:  # type:ignore
+            if self._offset >= self._irange.stop:      # type:ignore
                 return None
-        ret = await self.limit(self._single).first()
-        return ret  # type: ignore
+        return await self.limit(self._single).first()  # type: ignore
+
+    def __aiter__(self) -> Select:
+        return self
 
     async def __anext__(self) -> Optional[Model]:
         v = await self.__genrow__()
         if not v:
             raise StopAsyncIteration
         return v
-
-    def __aiter__(self) -> Select:
-        return self
 
     def __getitem__(self, _range: slice) -> Select:
         if isinstance(_range, slice):

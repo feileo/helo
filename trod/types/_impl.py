@@ -20,7 +20,10 @@ from .._helper import (
     Context,
     Value,
     NodeList,
-    EnclosedNodeList
+    EnclosedNodeList,
+    format_datetime,
+    simple_datetime,
+    dt_strftime,
 )
 
 ENCODING = util.tdict(
@@ -595,6 +598,7 @@ class Bigint(Int):
 class Auto(Int):
 
     __slots__ = ()
+
     default_length = 11
 
     def __init__(
@@ -621,6 +625,7 @@ class Auto(Int):
 class BigAuto(Auto):
 
     __slots__ = ()
+
     db_type = 'bigint'
     default_length = 20
 
@@ -861,37 +866,6 @@ class UUID(FieldBase):
 
     def _custom_wain(self):
         pass
-
-
-def format_datetime(
-        value: str,
-        formats: Union[List[str], tuple],
-        extractor: Optional[Callable] = None
-) -> Any:
-    extractor = extractor or (lambda x: x)
-    for fmt in formats:
-        try:
-            return extractor(datetime.datetime.strptime(value, fmt))
-        except ValueError:
-            pass
-    return value
-
-
-def simple_datetime(value: str) -> Union[datetime.datetime, str]:
-    try:
-        return datetime.datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
-    except (TypeError, ValueError):
-        return value
-
-
-def dt_strftime(value: Any, formats: Union[List[str], tuple]) -> str:
-    if hasattr(value, 'strftime'):
-        for fmt in formats:
-            try:
-                return value.strftime(fmt)
-            except (TypeError, ValueError):
-                pass
-    return value
 
 
 class Date(FieldBase):

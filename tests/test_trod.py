@@ -70,7 +70,7 @@ async def test_trod():
         except TypeError:
             pass
         try:
-            await db.create_all([User])
+            await db.drop_all([User])
             assert False
         except TypeError:
             pass

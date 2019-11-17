@@ -28,7 +28,8 @@ SUPPORTED_SCHEMES = ('mysql',)
 
 
 def __ensure__(bound: bool, errfor: bool = True) -> Callable:
-    """A decorator to ensure that the executor has been activated or dead."""
+    """A decorator to ensure that the executor has been
+    activated or dead."""
 
     def decorator(func):
 
@@ -68,7 +69,6 @@ async def binding(
     The pool is a singleton, repeated create will cause errors.
     Returns true after successful create
 
-    :param url: db url
     more parameters, see ``Pool` and ``Pool.from_url``
     """
 
@@ -86,9 +86,8 @@ async def binding(
 async def execute(
     query: Query, **kwargs: Any
 ) -> Union[None, FetchResult, util.tdict, Tuple[Any, ...], ExecResult]:
-    """A coroutine that execute sql and return the results of its execution
-
-    :param sql ``trod._helper.Query`` : sql query object
+    """A coroutine that execute sql and return the results of its
+    execution
     """
     if not isinstance(query, Query):
         raise TypeError("Invalid query type")
@@ -103,7 +102,7 @@ async def execute(
 
 @__ensure__(True)
 async def select_db(db: str) -> None:
-    """Set current db"""
+    """A coroutine to set current db"""
 
     async with Executer.pool.acquire() as conn:  # type: ignore
         conn._db = db  # pylint: disable=protected-access
@@ -112,17 +111,26 @@ async def select_db(db: str) -> None:
 
 @__ensure__(True)
 async def unbinding() -> bool:
-    """A coroutine that unbinding a database(close the connection pool)."""
+    """A coroutine that unbinding a
+    database(close the connection pool)."""
 
     return await Executer.death()
 
 
 @__ensure__(True, False)
 def is_bound() -> bool:
+    """Returns a bool indicating
+    whether the database is already bound"""
+
     return bool(Executer.pool)
 
 
 class DefaultURL:
+    """By default, the value of the key "KEY" is taken from
+    the system's environment variable as the url of the database.
+    Of course, you can also change this key with the set method.
+    """
+
     KEY = 'TROD_DB_URL'
     USER_KEY = None
 
@@ -139,6 +147,11 @@ class DefaultURL:
 
 
 class Binder:
+    """A auto binder applies to use in scripts
+
+    >>> async with db.Binder():
+            pass
+    """
 
     def __init__(self, url: Optional[str] = None, **bindings: Any) -> None:
         self.url = url or DefaultURL.get()
@@ -171,6 +184,7 @@ def get_state() -> Optional[util.tdict]:
 
 
 class _ExcAdapter:
+    """Exception adapter for pymysql"""
 
     _exc_map = {
         pymysql.err.Error: err.MySQLError,
@@ -376,7 +390,7 @@ class TdictCursor(aiomysql.DictCursor):
 
 
 class Executer:
-    """Executor of MySQL query."""
+    """Executor of MySQL Query."""
 
     __slots__ = ()
 
@@ -388,10 +402,10 @@ class Executer:
 
     @classmethod
     async def death(cls) -> bool:
-        if cls.pool is None:
+        if not cls.active():
             return False
 
-        await cls.pool.close()
+        await cls.pool.close()  # type: ignore
         cls.pool = None
         return True
 
@@ -496,6 +510,7 @@ class FetchResult(list):
 
 
 class ExecResult:
+
     def __init__(self, affected, last_id):
         self.affected = affected
         self.last_id = last_id

@@ -1,3 +1,7 @@
+"""
+tests for model module
+"""
+
 import asyncio
 from datetime import datetime
 
@@ -109,10 +113,8 @@ class TestModel:
 
         # test save remove
         user = User(name='at7h', gender=0, age=25)
-        ret = await user.save()
-        assert isinstance(ret, db.ExecResult)
-        assert ret.last_id == 1
-        assert ret.affected == 1
+        uid = await user.save()
+        assert uid == 1
         assert user.id == 1
         assert user.password is None
         assert user.lastlogin is None
@@ -122,10 +124,8 @@ class TestModel:
             password='xxxx', nickname='huhu',
             lastlogin=datetime.now()
         )
-        ret = await user.save()
-        assert isinstance(ret, db.ExecResult)
-        assert ret.last_id == 2
-        assert ret.affected == 1
+        uid = await user.save()
+        assert uid == 2
         assert user.id == 2
         assert user.age == 22
         assert user.nickname == 'huhu'
@@ -134,9 +134,8 @@ class TestModel:
 
         user.age = 18
         user.gender = 0
-        ret = await user.save()
-        assert ret.last_id == 2
-        assert ret.affected == 2
+        uid = await user.save()
+        assert uid == 2
         user = await User.get(2)
         assert user.id == 2
         assert user.nickname == 'huhu'
@@ -160,11 +159,10 @@ class TestModel:
             password='mmmm', nickname='jiajia',
             lastlogin=datetime.now()
         )
-        ret = await user.save()
-        assert ret.last_id == 3
+        uid = await user.save()
+        assert uid == 3
         ret = await user.remove()
-        assert ret.last_id == 0
-        assert ret.affected == 1
+        assert ret is True
         user = User(name='n')
         try:
             await user.remove()
@@ -178,9 +176,9 @@ class TestModel:
             password='mmmm', nickname='jiajia',
             lastlogin=datetime.now()
         )
-        ret = await user.save()
-        assert ret.last_id == 4
-        user = await User.get(4)
+        uid = await user.save()
+        assert uid == 4
+        user = await User.get(uid)
         assert isinstance(user, User)
         assert user.name == 'keyoxu'
         assert user.gender == 1
@@ -386,8 +384,9 @@ class TestModel:
         assert user.name == 'user4'
         assert user.age == 4
         user.name = 'user4forsave'
-        await user.save()
-        user = await User.get(12)
+        uid = await user.save()
+        user = await User.get(uid)
+        assert user.id == 12
         assert user.name == 'user4forsave'
 
         users = [
@@ -405,6 +404,17 @@ class TestModel:
 
         try:
             assert await User.madd([])
+            assert False
+        except ValueError:
+            pass
+        users = [
+            ('name', 'user5'),
+            ('name', 'user6'),
+            ('name', 'user7'),
+            ('name', 'user8'),
+        ]
+        try:
+            assert await User.madd(users)
             assert False
         except ValueError:
             pass
@@ -470,6 +480,12 @@ class TestModel:
             pass
         try:
             async for user in User.select()[slice(9, 7)]:
+                pass
+            assert False
+        except ValueError:
+            pass
+        try:
+            async for user in User.select()[slice(0, 7, -1)]:
                 pass
             assert False
         except ValueError:
@@ -749,7 +765,38 @@ class TestModel:
         assert user.count == 0
         try:
             await User.select().join(People)
+            assert False
         except NotImplementedError:
+            pass
+        try:
+            await User.select().window()
+            assert False
+        except NotImplementedError:
+            pass
+        try:
+            await User.select().group_by()
+            assert False
+        except ValueError:
+            pass
+        try:
+            await User.select().group_by(1)
+            assert False
+        except TypeError:
+            pass
+        try:
+            await User.select().order_by()
+            assert False
+        except ValueError:
+            pass
+        try:
+            await User.select().order_by(1)
+            assert False
+        except TypeError:
+            pass
+        try:
+            await User.select().offset(1)
+            assert False
+        except err.ProgrammingError:
             pass
 
         s = User.select(User.name).where(User.name == 'at7h')
@@ -859,6 +906,11 @@ class TestModel:
             assert False
         except ValueError:
             pass
+        try:
+            ret = await Employee.insert(name='name').select()
+            assert False
+        except NotImplementedError:
+            pass
 
         people_list = [
             ('np1', 0, 37),
@@ -881,6 +933,26 @@ class TestModel:
         assert people.count == 5
         assert people[-1].age == 10
 
+        try:
+            ret = await Employee.minsert(
+                people_list, columns=[User.password]
+            ).do()
+            assert False
+        except ValueError:
+            pass
+        people_list = [
+            ('np1',),
+            ('np2',),
+            ('np3',),
+            ('np4',),
+        ]
+        try:
+            ret = await Employee.minsert(
+                people_list, columns=[People.name, People.gender]
+            ).do()
+            assert False
+        except ValueError:
+            pass
         people_list = [
             (1, 'np1', 0, 37),
             (2, 'np2', 1, 38),
@@ -981,6 +1053,11 @@ class TestModel:
             assert False
         except ValueError:
             pass
+        try:
+            ret = await Employee.replace(name='test').select()
+            assert False
+        except NotImplementedError:
+            pass
 
         people_list = [
             (0, 37),
@@ -1044,6 +1121,14 @@ class TestModel:
             pass
         try:
             ret = await Employee.mreplace([]).do()
+            assert False
+        except ValueError:
+            pass
+
+        # Values
+        from trod.model._impl import Values
+        try:
+            Values(('1', '2', 3))
             assert False
         except ValueError:
             pass

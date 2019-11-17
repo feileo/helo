@@ -1,4 +1,8 @@
-from datetime import datetime, date, time
+"""
+tests for types module
+"""
+
+from datetime import datetime, date, time, timedelta
 
 import pytest
 
@@ -8,6 +12,7 @@ from .models import TypesModel as TM
 
 
 def test_expr():
+
     age = t.Int(name='age')
     name = t.Char(name='name')
     phone = t.VarChar(name='phone')
@@ -89,9 +94,9 @@ def test_expr():
     assert helper.parse(e) == helper.Query(
         '(`age` # `name`);', ()
     )
-    e = name ^ age
+    e = 'name' ^ name
     assert helper.parse(e) == helper.Query(
-        '(`name` # `age`);', ()
+        '(%s # `name`);', ('name',)
     )
     e = name == 'at7h'
     assert helper.parse(e) == helper.Query(
@@ -283,6 +288,11 @@ def test_expr():
     q = helper.Query("SELECT")
     assert repr(q) == 'Query({})'.format(str(q))
     try:
+        q.r = 1
+        assert False, 'Should be raise TypeError'
+    except TypeError:
+        pass
+    try:
         assert helper.parse((age > 10) | (name == 'test')) == sql
         assert False, 'Should be raise TypeError'
     except TypeError:
@@ -320,6 +330,8 @@ def test_fieldbase():
         assert False
     except ValueError:
         pass
+    nickname = t.VarChar(null=False)
+    assert nickname.db_value(1) == '1'
 
 
 def test_tinyint():
@@ -415,6 +427,8 @@ def test_bool():
     assert str(bool_) == "`bool` bool NOT NULL DEFAULT '1';"
     assert bool_.db_value(0) is False
     assert bool_.py_value(1) is True
+    assert bool_.to_str(True) == '1'
+    assert bool_.to_str(False) == '0'
 
 
 def test_float():
@@ -476,11 +490,20 @@ def test_text():
         pass
     assert text.py_value(100) == '100'
     assert text.db_value(100) == '100'
+    e = text + 'text'
+    assert helper.parse(e) == helper.Query('(`text` || %s);', ('text',))
+    e = 'text' + text
+    assert helper.parse(e) == helper.Query('(%s || `text`);', ('text',))
 
 
 def test_char():
     char = t.Char(name='char', length=100)
     assert str(char) == "`char` char(100) DEFAULT NULL;"
+    try:
+        char = t.Char(name='char', encoding='utf7')
+        assert False
+    except ValueError:
+        pass
 
 
 def test_varchar():
@@ -507,6 +530,8 @@ def test_uuid():
         pass
     idr = '1a862a72-6a34-4772-8c22-ad8fa3316db5'
     assert uuid.db_value(idr) == '1a862a726a3447728c22ad8fa3316db5'
+    assert uuid.db_value('1a862a726a3447728c22ad8fa3316db5') == '1a862a726a3447728c22ad8fa3316db5'
+    assert uuid.db_value(uuid) is uuid
     assert uuid.py_value(idr) == uu.UUID(idr)
     assert uuid.py_value(uu.UUID(idr)) == uu.UUID(idr)
     assert uuid.py_value(None) is None
@@ -544,6 +569,7 @@ def test_time():
     assert str(time_) == "`time` time DEFAULT '22:19:34';"
     assert time_.to_str(td) == "22:19:34"
     assert isinstance(time_(), time)
+    assert isinstance(time_.db_value(timedelta(weeks=7)), time)
 
 
 def test_datetime():
@@ -565,6 +591,13 @@ def test_timestamp():
     assert isinstance(timestamp.db_value(datetime(2019, 10, 10, 10, 23, 23)), int)
     timestamp = t.Timestamp(name='ts', default=datetime.now)
     assert str(timestamp) == "`ts` timestamp NULL DEFAULT NULL;"
+    assert timestamp.db_value(None) is None
+    assert isinstance(timestamp.db_value(date(2019, 10, 10)), int)
+    assert isinstance(timestamp.db_value(1573984070), int)
+    assert isinstance(timestamp.py_value(1573984070), datetime)
+    timestamp = t.Timestamp(name='ts', utc=True)
+    assert isinstance(timestamp.db_value(1573984070), int)
+    assert isinstance(timestamp.py_value(1573984070), datetime)
 
 
 def test_key():
