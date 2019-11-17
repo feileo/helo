@@ -16,7 +16,7 @@ from . import (
 
 from .model import Model, ROWTYPE, JOINTYPE
 
-__version__ = '0.0.16'
+__version__ = '0.0.17'
 __all__ = (
     'types',
     'util',

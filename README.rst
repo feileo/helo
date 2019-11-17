@@ -11,10 +11,9 @@ trod
 .. image:: https://coveralls.io/repos/github/at7h/trod/badge.svg?branch=master
         :target: https://coveralls.io/github/at7h/trod?branch=master
 
-.. image:: https://img.shields.io/github/license/at7h/trod   
-        :target: https://img.shields.io/github/license/at7h/trod
+.. image:: https://img.shields.io/github/license/at7h/trod?color=9cf   
+        :target: https://img.shields.io/github/license/at7h/trod?color=9cf
         :alt: GitHub
-
 
 **Trod** is a simple asynchronous ORM using the asyncio_ (PEP-3156/tulip) framework.
 Now it supports only MySQL and uses aiomysql_ as the access 'driver' for the database.
@@ -33,7 +32,7 @@ Installation
 Base Examples
 -------------
 
-First, let's create a model:
+Create a model:
 
 .. code-block:: python
     
@@ -68,8 +67,10 @@ Create and retrieve row data in a table as a shortcut:
 .. code-block:: python
 
     user = User(name='at7h', password='7777')
-    # Save it, and get by user id
-    user = User.get(await user.save())
+    # Save it
+    user_id = await user.save()
+    # Get by user id
+    user = await User.get(user_id)
     print(user.id, user.name) 
     # 1 at7h
 
@@ -82,17 +83,19 @@ Create and retrieve row data in a table as a shortcut:
     # [<User object> at 1, <User object> at 2]
 
 
-More commonly, use the direct translation of the SQL statement(DQL, DML) API.
-And You must explicitly execute them via the do() method.
+Using API that translates directly from SQL statements(DML, DQL).
 
 .. code-block:: python
 
+    # Must explicitly execute them via the do()
     ret = await User.insert(name='guax', password='9999').do()
 
     await User.update(password='0000').where(User.id == ret.last_id).do()
 
+    # Support expressive and combined queries
     user = await User.select().order_by(User.create_at.desc()).first()
-    print(user.name) # guax
+    print(user.name, user.password) 
+    # guax 0000
 
     users = await User.select().where(User.name.startswith('at')).all()
     print(users)
@@ -104,12 +107,12 @@ About
 
 * Trod is like a newborn baby, and it currently has a lot of missing 
   features and temporary solutions, waiting for us to supplement and 
-  optimize. Anyway, this is just the beginning.
+  optimize. Anyway, this is just the beginning 💪.
 
-* Any kind of contribution is expected: report a bug, give a advice or create a pull request.
+* Any kind of contribution is expected 😊: report a bug, give a advice or create a pull request.
 
 
-TODO
+Todo
 ----
 
 * Documents
