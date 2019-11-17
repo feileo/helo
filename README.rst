@@ -68,8 +68,10 @@ Create and retrieve row data in a table as a shortcut:
 .. code-block:: python
 
     user = User(name='at7h', password='7777')
-    # Save it, and get by user id
-    user = User.get(await user.save())
+    # Save it
+    user_id = await user.save()
+    # Get by user id
+    user = await User.get(user_id)
     print(user.id, user.name) 
     # 1 at7h
 
@@ -92,7 +94,8 @@ And You must explicitly execute them via the do() method.
     await User.update(password='0000').where(User.id == ret.last_id).do()
 
     user = await User.select().order_by(User.create_at.desc()).first()
-    print(user.name) # guax
+    print(user.name, user.password) 
+    # guax 0000
 
     users = await User.select().where(User.name.startswith('at')).all()
     print(users)
@@ -104,9 +107,9 @@ About
 
 * Trod is like a newborn baby, and it currently has a lot of missing 
   features and temporary solutions, waiting for us to supplement and 
-  optimize. Anyway, this is just the beginning.
+  optimize. Anyway, this is just the beginning 💪.
 
-* Any kind of contribution is expected: report a bug, give a advice or create a pull request.
+* Any kind of contribution is expected 😊: report a bug, give a advice or create a pull request.
 
 
 TODO
