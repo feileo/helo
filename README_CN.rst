@@ -11,34 +11,31 @@ trod
 .. image:: https://coveralls.io/repos/github/at7h/trod/badge.svg?branch=master
         :target: https://coveralls.io/github/at7h/trod?branch=master
 
-.. image:: https://img.shields.io/github/license/at7h/trod?color=9cf   
+.. image:: https://img.shields.io/github/license/at7h/trod?color=9cf
         :target: https://img.shields.io/github/license/at7h/trod?color=9cf
         :alt: GitHub
 
-**Trod** is a low-level simple asynchronous ORM using Python asyncio_.
+**Trod** 是一个使用 Python asyncio_ 开发的低级别的简单的异步 ORM。
 
-View `Chinese </README_CN.rst>`_
-
-* Use it to easily build expressive and commonly used SQL, 
-  suitable for scenarios with simple business structures and a certain amount of concurrency
-* Requires: Python 3.7+
-* Now only supports MySQL, using aiomysql_ as the connection driver
-* Not support table relationship operations
-* See `basic example </tree/master/examples>`_
+* 用它能轻松的构建出富有表达力的常用 SQL，适于业务结构较简单有一定并发量的场景
+* 支持的 Python 版本为 3.7+
+* 目前仅支持 MySQL，使用 aiomysql_ 作为连接驱动
+* 不支持表关系操作
+* 查看一些 `基础示例 </tree/master/examples>`_
 
 
-Installation
-------------
+安装
+----
 
 .. code-block:: console
 
     pip install trod
 
 
-Base Examples
--------------
+简单示例
+--------
 
-Defining models is very simple:
+定义 `Model` 是非常简单的:
 
 .. code-block:: python
 
@@ -61,7 +58,7 @@ Defining models is very simple:
         update_at = types.Timestamp(default=types.ON_UPDATE)
 
 
-Shows some basic examples:
+下面的脚本展示一些基本的示例:
 
 .. code-block:: python
 
@@ -121,7 +118,7 @@ Shows some basic examples:
         ).all(wrap=False)
         print(user)  # [{'id': 1, 'name': 'at7h'}]
 
-        # Paginate get users who wrote Python posts this year 
+        # Paginate get users who wrote Python posts this year
         users = await User.select().where(
             User.id.in_(
                 Post.select(Post.author).where(
@@ -146,23 +143,21 @@ Shows some basic examples:
 
     asyncio.run(base_example())
 
-👉 See `more examples </tree/master/examples>`_
+👉 查看 `更多示例 </tree/master/examples>`_
 
 
-About
------
+其他
+----
 
-* 🌱 Trod is immature and has many shortcomings. I hope everyone who is interested can 
-  participate in it and I will update it often
-* 😊 Special thanks to projects aiomysql_ and peewee_, trod uses aiomysql_, 
-  and referenced peewee_ in program design
-* 👏 Any kind of contribution is expected: report a bug 🐞, give a advice or create a pull request 🙋‍♂️.
+* 🌱 Trod 还很稚嫩，有很多不足，希望大家感兴趣的可以参与进来，我也会常常更新
+* 😊 特别感谢项目 aiomysql_ 和 peewee_, trod 直接使用了前者，并在在设计上参考了后者
+* 👏 十分欢迎任何类型的贡献：报 bug 🐞，提 issues 或提交 PR 🙋‍♂️
 
 
 Todo
 ----
 
-* ✍️  Documents
+* ✍️  编写文档
 
 
 .. _asyncio: https://docs.python.org/3.7/library/asyncio.html

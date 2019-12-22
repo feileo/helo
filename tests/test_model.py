@@ -3,15 +3,67 @@ tests for model module
 """
 
 import asyncio
+import logging
 from datetime import datetime
 
 import pytest
 
-from trod import db, types, err, util, Model
-from trod.model import ROWTYPE
+from trod import db, types as t, err, util, Model, JOINTYPE
 from trod import _helper
 
-from .models import People, Employee, User
+logging.getLogger().setLevel(logging.INFO)
+
+
+class People(Model):
+
+    id = t.Auto()
+    name = t.VarChar(length=45)
+    gender = t.Tinyint(length=1, unsigned=True)
+    age = t.Tinyint(unsigned=True)
+    create_at = t.Timestamp(default=t.ON_CREATE)
+    update_at = t.Timestamp(default=t.ON_UPDATE)
+
+    class Meta:
+        indexes = [t.K('idx_name', 'name')]
+
+
+class Employee(People):
+
+    salary = t.Float()
+    departmentid = t.Int()
+    phone = t.VarChar(default='')
+    email = t.Email(length=100, default='')
+
+    class Meta:
+        indexes = [t.K('idx_age_salary', ['age', 'salary'])]
+
+
+class User(People):
+
+    nickname = t.VarChar(length=100)
+    password = t.VarChar(name='pwd')
+    role = t.Int(default=0)
+    lastlogin = t.DateTime(default=datetime.now, name='loginat')
+
+    class Meta:
+        db = 'trod'
+        name = 'user_'
+        indexes = (
+            t.K('idx_name', 'name'),
+            t.UK('unidx_nickname', 'nickname')
+        )
+
+
+class Role(Model):
+
+    id = t.Int(primary_key=True, auto=True)
+    name = t.VarChar(length=50)
+    is_deleted = t.Bool(default=False)
+    create_at = t.Timestamp(default=t.ON_CREATE)
+    update_at = t.Timestamp(default=t.ON_UPDATE)
+
+    class Meta:
+        name = 'role_'
 
 
 class TestModel:
@@ -23,6 +75,7 @@ class TestModel:
             await People.create()
             await Employee.create()
             await User.create()
+            await Role.create()
 
         asyncio.get_event_loop().run_until_complete(init())
 
@@ -32,23 +85,42 @@ class TestModel:
             await People.drop()
             await Employee.drop()
             await User.drop()
+            await Role.drop()
             await db.unbinding()
 
         asyncio.get_event_loop().run_until_complete(clear())
 
     @pytest.mark.asyncio
-    async def test_api(self):
+    async def tests(self):
+        await self.for_ddl()
+        await self.for_save_and_remove()
+        await self.for_get()
+        await self.for_mget()
+        await self.for_add()
+        await self.for_madd()
+        await self.for_set()
+        await self.for_select()
+        await self.for_insert()
+        await self.for_minsert()
+        await self.for_insert_from()
+        await self.for_update()
+        await self.for_update_from()
+        await self.for_replace()
+        await self.for_mreplace()
+        await self.for_aiter()
 
+    async def for_ddl(self):
         try:
             await Model.create()
-            assert False
+            assert False, "Should raise err.NotAllowedError"
         except err.NotAllowedError:
             pass
         try:
             await Model.drop()
-            assert False
+            assert False, "Should raise err.NotAllowedError"
         except err.NotAllowedError:
             pass
+
         csql = await People.show().create_syntax()
         assert csql == (
             "CREATE TABLE `people` (\n"
@@ -75,14 +147,15 @@ class TestModel:
             " ON UPDATE CURRENT_TIMESTAMP,\n"
             "  `salary` float DEFAULT NULL,\n"
             "  `departmentid` int(11) DEFAULT NULL,\n"
-            "  `phone` varchar(255) DEFAULT '',\n"
+            "  `phone` varchar(254) DEFAULT '',\n"
+            "  `email` varchar(100) DEFAULT '',\n"
             "  PRIMARY KEY (`id`),\n"
             "  KEY `idx_age_salary` (`age`,`salary`)\n"
             ") ENGINE=InnoDB DEFAULT CHARSET=utf8"
         )
         csql = await User.show().create_syntax()
         assert csql == (
-            "CREATE TABLE `users` (\n"
+            "CREATE TABLE `user_` (\n"
             "  `id` int(11) NOT NULL AUTO_INCREMENT,\n"
             "  `name` varchar(45) DEFAULT NULL,\n"
             "  `gender` tinyint(1) unsigned DEFAULT NULL,\n"
@@ -91,8 +164,9 @@ class TestModel:
             "  `update_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP"
             " ON UPDATE CURRENT_TIMESTAMP,\n"
             "  `nickname` varchar(100) DEFAULT NULL,\n"
-            "  `pwd` varchar(255) DEFAULT NULL,\n"
-            "  `ll` datetime DEFAULT NULL,\n"
+            "  `pwd` varchar(254) DEFAULT NULL,\n"
+            "  `role` int(11) DEFAULT '0',\n"
+            "  `loginat` datetime DEFAULT NULL,\n"
             "  PRIMARY KEY (`id`),\n"
             "  UNIQUE KEY `unidx_nickname` (`nickname`),\n"
             "  KEY `idx_name` (`name`)\n"
@@ -103,15 +177,9 @@ class TestModel:
         assert (await User.show().indexes())[0]['Key_name'] == 'PRIMARY'
         assert (await User.show().indexes())[1]['Key_name'] == 'unidx_nickname'
         assert (await User.show().indexes())[1]['Column_name'] == 'nickname'
-        assert str(User.show()) == '<Show object> for table <`trod`.`users`>'
+        assert str(User.show()) == '<Show object> for <Table `trod`.`user_`>>'
 
-        try:
-            User.alter()
-            assert False
-        except NotImplementedError:
-            pass
-
-        # test save remove
+    async def for_save_and_remove(self):
         user = User(name='at7h', gender=0, age=25)
         uid = await user.save()
         assert uid == 1
@@ -145,12 +213,11 @@ class TestModel:
 
         try:
             user = User(
-                id=3,
-                name='mejor', gender=1, age=22,
+                id=3, name='mejor', gender=1, age=22,
                 password='xxxx', nickname='huhu',
                 lastlogin=datetime.now()
             )
-            assert False, "Should be raise NotAllowedError"
+            assert False, "Should raise err.NotAllowedError"
         except err.NotAllowedError:
             pass
 
@@ -162,15 +229,23 @@ class TestModel:
         uid = await user.save()
         assert uid == 3
         ret = await user.remove()
-        assert ret is True
+        assert ret == 1
         user = User(name='n')
         try:
             await user.remove()
-            assert False
+            assert False, "Should raise RuntimeError"
         except RuntimeError:
             pass
 
-        # test get
+        employee = Employee(name='at7h', email='g@at7h.com')
+        assert (await employee.save()) == 1
+        try:
+            await Employee(email='g..@a.c').save()
+            assert False, "Should raise ValueError"
+        except ValueError:
+            pass
+
+    async def for_get(self):
         user = User(
             name='keyoxu', gender=1, age=28,
             password='mmmm', nickname='jiajia',
@@ -187,30 +262,33 @@ class TestModel:
         assert user.nickname == 'jiajia'
         assert isinstance(user.lastlogin, datetime)
         assert isinstance(user.create_at, datetime)
+        user = await User.get(User.id == uid)
+        assert isinstance(user, User)
+        assert user.name == user.name
+        assert user.gender == user.gender
+        assert user.age == user.age
+        assert user.password == user.password
+        assert user.nickname == user.nickname
+        assert isinstance(user.lastlogin, datetime)
+        assert isinstance(user.create_at, datetime)
+        user = await User.get(User.name == user.name)
+        assert user.name == 'keyoxu'
+        try:
+            user.email = ''
+            assert False, "Should raise err.NotAllowedError"
+        except err.NotAllowedError:
+            pass
+        try:
+            assert user.email
+            assert False, "Should raise AttributeError"
+        except AttributeError:
+            pass
 
-        user = await User.get(1, rowtype=ROWTYPE.TDICT)
-        assert isinstance(user, util.tdict)
-        assert user.id == 1
-        assert user.name == 'at7h'
-        assert user.gender == 0
-        assert user.age == 25
-        assert user.password is None
-        assert user.nickname is None
-
-        user = await User.get(1, rowtype=ROWTYPE.TUPLE)
-        assert isinstance(user, tuple)
-        # (1, 'at7h', 0, 25,
-        #  datetime.datetime(2019, 11, 3, 20, 49, 3),
-        #  datetime.datetime(2019, 11, 3, 20, 49, 3),
-        #  None, None, None
-        #  )
-        assert len(user) == 9
-        assert user[0] == 1
-        assert user[1] == 'at7h'
-        assert user[2] == 0
-        assert user[3] == 25
-        assert isinstance(user[4], datetime)
-        assert user[6] is None
+        try:
+            assert user.email
+            assert False, "Should raise AttributeError"
+        except AttributeError:
+            pass
 
         user = await User.get(10000)
         assert user is None
@@ -220,22 +298,26 @@ class TestModel:
         assert await User.get(()) is None
         assert await User.get([]) is None
 
-        # test mget
+    async def for_mget(self):
         # no 3
         user_ids = [1, 2, 3, 4]
         users = await User.mget(user_ids)
         assert isinstance(users, db.FetchResult)
+        assert repr(users) == (
+            "[<User object> at 1, <User object> at 2, <User object> at 4]")
         assert users.count == 3
         assert isinstance(users[0], User)
         assert isinstance(users[2], User)
         assert users[0].id == 1
         assert users[0].name == 'at7h'
         assert users[0].age == 25
+        assert isinstance(users[0].update_at, datetime)
         assert users[1].id == 2
         assert users[1].name == 'mejor'
         assert users[1].nickname == 'huhu'
         assert users[1].gender == 0
         assert users[1].age == 18
+        assert isinstance(users[1].create_at, datetime)
         assert users[2].name == 'keyoxu'
         assert users[2].password == 'mmmm'
         assert users[2].nickname == 'jiajia'
@@ -254,132 +336,130 @@ class TestModel:
         assert users[0].age == 25
         assert users[0].password is None
         assert users[0].lastlogin is None
+        assert users[0].update_at is None
         assert users[1].id is None
         assert users[1].name == 'mejor'
         assert users[1].age == 18
         assert users[1].nickname is None
         assert users[1].lastlogin is None
+        assert users[0].create_at is None
+        assert users[2].id is None
         assert users[2].name == 'keyoxu'
         assert users[2].create_at is None
         assert users[2].age == 28
 
         users = await User.mget(
-            user_ids,
+            User.id.in_(user_ids),
             columns=[User.name, User.age, User.password],
-            rowtype=ROWTYPE.TDICT
         )
         assert isinstance(users, db.FetchResult)
         assert users.count == 3
-        assert isinstance(users[0], util.tdict)
-        assert isinstance(users[2], util.tdict)
-        try:
-            assert users[0].id is None
-            assert False, "Should be raise AttributeError"
-        except AttributeError:
-            pass
+        assert users[0].id is None
+        assert users[0].lastlogin is None
         assert users[0].name == 'at7h'
         assert users[0].age == 25
         assert users[1].name == 'mejor'
         assert users[1].age == 18
-        try:
-            assert users[1].nickname is None
-            assert users[1].lastlogin is None
-            assert users[2].create_at is None
-            assert False, "Should be raise AttributeError"
-        except AttributeError:
-            pass
+        assert users[1].nickname is None
+        assert users[1].lastlogin is None
+        assert users[2].create_at is None
         assert users[2].name == 'keyoxu'
         assert users[2].age == 28
 
-        user_ids = [1, 2]
-        users = await User.mget(user_ids, rowtype=ROWTYPE.TUPLE)
-        assert isinstance(users, db.FetchResult)
-        assert users.count == 2
-        assert isinstance(users[1], tuple)
-        assert users[0][0] == 1
-        assert users[0][1] == 'at7h'
-        assert users[0][2] == 0
-        assert users[0][3] == 25
-        assert users[0][6] is None
-        assert users[1][0] == 2
-        assert users[1][1] == 'mejor'
-        assert users[1][2] == 0
-        assert users[1][3] == 18
-        assert users[1][6] == 'huhu'
-        assert users[1][7] == 'xxxx'
+        users = await User.mget(
+            User.name.startswith('at')
+        )
+        assert users.count == 1
+        assert users[0].name == 'at7h'
 
         try:
+            assert await User.mget({'id': 1})
+            assert False, "Should raise TypeError"
+        except TypeError:
+            pass
+        try:
             assert await User.mget([])
-            assert False
+            assert False, "Should raise ValueError"
         except ValueError:
             pass
 
-        # test add
-        user = User(name='add', gender=1, age=45, nickname='addn')
-        user.password = 'passadd'
-        ret = await User.add(user)
-        assert ret.last_id == 5
-        assert ret.affected == 1
-        user = await User.get(5)
-        assert user.password == 'passadd'
+    async def for_add(self):
+        uid = await User.add(
+            name='add', gender=1, age=45, nickname='passadd'
+        )
+        assert uid == 5
+        user = await User.get(uid)
+        assert user.password is None
         assert user.name == 'add'
-        assert user.nickname == 'addn'
+        assert user.age == 45
+        assert user.nickname == 'passadd'
+        assert isinstance(user.lastlogin, datetime)
+        assert isinstance(user.create_at, datetime)
+        assert isinstance(user.update_at, datetime)
+
         user.name = 'add1'
         user.nickname = 'addn1'
+        user_dict = user.__self__
         try:
-            ret = await User.add(user)
+            uid = await User.add(user_dict)
             assert False, "Should raise NotAllowedError"
         except err.NotAllowedError:
             pass
         del user.id
-        ret = await User.add(user)
-        assert ret.last_id == 6
+        user_dict = user.__self__
+        uid = await User.add(user_dict)
+        assert uid == 6
         user = await User.get(6)
         assert user.name == 'add1'
 
-        ret = await User.add({'name': 'add2', 'nickname': 'add2n', 'password': 'p2'})
-        assert ret.last_id == 7
+        uid = await User.add({
+            'name': 'add2',
+            'nickname': 'add2n',
+            'password': 'p2'
+        })
+        assert uid == 7
         user = await User.get(7)
         assert user.password == 'p2'
-
         try:
             await User.add({'n': 1})
+            assert False, "Should raise ValueError"
         except ValueError:
             pass
         try:
             await User.add(None)
-        except ValueError:
-            pass
-        try:
-            ret = await User.add({})
             assert False, "Should raise ValueError"
         except ValueError:
             pass
-        ret = await User.add({'name': 'nnnn'})
-        assert ret.last_id == 8
+        try:
+            await User.add({})
+            assert False, "Should raise ValueError"
+        except ValueError:
+            pass
+        uid = await User.add({'name': 'nnnn'})
+        assert uid == 8
         user = await User.get(8)
         assert user.name == 'nnnn'
         assert user.nickname is None
         assert user.age is None
-        # try:
-        #     ret = await User.add({'name': 'aaaa'})
-        #     assert False, "Should raise ValueError"
-        # except ValueError:
-        #     pass
         try:
             assert await User.add(None)
-            assert False
+            assert False, "Should raise ValueError"
         except ValueError:
             pass
 
-        # test madd
+        try:
+            await Employee.add(email='gg')
+            assert False, "Should raise ValueError"
+        except ValueError:
+            pass
+
+    async def for_madd(self):
         user1 = User(name='user1', age=1)
         user2 = User(name='user2', age=2)
         user3 = User(name='user3', age=3)
         user4 = User(name='user4', age='4')
-        ret = await User.madd([user1, user2, user3, user4])
-        assert ret.last_id == 9
-        assert ret.affected == 4
+        affected = await User.madd([user1, user2, user3, user4])
+        assert affected == 4
         user = await User.get(12)
         assert user.name == 'user4'
         assert user.age == 4
@@ -395,16 +475,15 @@ class TestModel:
             {'name': 'user7'},
             {'name': 'user8'},
         ]
-        ret = await User.madd(users)
-        assert ret.last_id == 13
-        assert ret.affected == 4
+        affected = await User.madd(users)
+        assert affected == 4
         user = await User.get(16)
         assert user.name == 'user8'
         assert user.age is None
 
         try:
             assert await User.madd([])
-            assert False
+            assert False, "Should raise ValueError"
         except ValueError:
             pass
         users = [
@@ -415,103 +494,50 @@ class TestModel:
         ]
         try:
             assert await User.madd(users)
-            assert False
+            assert False, "Should raise ValueError"
         except ValueError:
             pass
 
-        # test set
+        roles = [
+            {'name': 'Manager'},
+            {'name': 'admin'},
+            {'name': 'developer'},
+            {'name': 'member'},
+        ]
+        ret = await Role.madd(roles)
+        assert ret == 4
+
+    async def for_set(self):
         ret = await User.set(16, name='user8forset', age=90)
-        assert ret.last_id == 0
-        assert ret.affected == 1
+        assert ret == 1
         user = await User.get(16)
         assert user.name == 'user8forset'
         assert user.age == 90
 
         try:
+            assert await User.set(1, email='')
+            assert False, "Should raise ValueError"
+        except ValueError:
+            pass
+        try:
             assert await User.set(1)
-            assert False
+            assert False, "Should raise ValueError"
         except ValueError:
             pass
 
-        # test model aiter
-        count = 0
-        async for user in User:
-            assert isinstance(user, User)
-            if user.id == 1:
-                assert user.name == 'at7h'
-            count += 1
-        assert count == 15
-
-        count = 0
-        async for user in User.select():
-            assert isinstance(user, User)
-            if user.id == 1:
-                assert user.name == 'at7h'
-            count += 1
-        assert count == 15
-
-        idx = 7
-        async for user in User.select()[slice(5, 10)]:
-            assert isinstance(user, User)
-            assert user.id == idx
-            idx += 1
-        assert idx == 12
-
-        idx, step = 7, 2
-        count = 0
-        async for user in User.select()[slice(5, 10, step)]:
-            assert isinstance(user, User)
-            assert user.id == idx
-            idx += 2
-            count += 1
-        assert idx == 13
-        assert count == 3
+        employee = await Employee.get(1)
+        assert employee.email == 'g@at7h.com'
         try:
-            async for user in User.select()[slice(-1, 1)]:
-                pass
-            assert False
+            await employee.set(1, email='gg')
+            assert False, "Should raise ValueError"
         except ValueError:
             pass
-        try:
-            async for user in User.select()[slice(None, -1)]:
-                pass
-            assert False
-        except ValueError:
-            pass
-        try:
-            async for user in User.select()[slice(9, 7)]:
-                pass
-            assert False
-        except ValueError:
-            pass
-        try:
-            async for user in User.select()[slice(0, 7, -1)]:
-                pass
-            assert False
-        except ValueError:
-            pass
-        try:
-            async for user in User.select()[10]:
-                pass
-            assert False
-        except TypeError:
-            pass
 
-        try:
-            assert User[1]
-            assert False
-        except NotImplementedError:
-            pass
-        try:
-            assert user in User
-            assert False
-        except NotImplementedError:
-            pass
-
-        # test select
+    async def for_select(self):
         users = await User.select().all()
         assert isinstance(users, db.FetchResult)
         assert users.count == 15
+        assert isinstance(users[1], User)
         assert users[0].id == 1
         assert users[0].name == 'at7h'
         assert users[1].id == 2
@@ -526,6 +552,7 @@ class TestModel:
             User.id, User.name
         ).where(User.id > 10).all()
         assert users.count == 6
+        assert isinstance(users[0], User)
         assert users[1].id == 12
         assert users[1].name == 'user4forsave'
         assert users[1].lastlogin is None
@@ -533,52 +560,49 @@ class TestModel:
         assert users[3].id == 14
         assert users[3].name == 'user6'
 
+        users = await User.select(
+            User.id.as_('uid'), User.name.as_('username')
+        ).where(User.id < 3).all()
+        assert users.count == 2
+        assert isinstance(users[0], User)
+        assert users[0].id == 1
+        assert users[0].name == 'at7h'
+        users = await User.select(
+            User.id.as_('uid'), User.name.as_('username')
+        ).where(User.id < 3).all(False)
+        assert users.count == 2
+        assert isinstance(users[0], util.tdict)
+        assert users[0].id == 1
+        assert users[0].name == 'at7h'
+
         users = await User.select().all()
         assert isinstance(users, db.FetchResult)
         assert users.count == 15
         assert users[-1].id == 16
         assert users[-2].name == 'user7'
 
-        users = await User.select().rows(10, rowtype=ROWTYPE.TUPLE)
-        assert isinstance(users, db.FetchResult)
-        assert users.count == 10
-        assert isinstance(users[0], tuple)
-        assert users[0][0] == 1
-        assert users[0][1] == 'at7h'
-        assert users[0][3] == 25
-        assert users[-1][0] == 11
-        assert users[-1][1] == 'user3'
-        assert users[-1][3] == 3
-        users1 = await User.select().tuples().rows(10)
-        assert users == users1
-
-        users = await User.select().paginate(1, 100, ROWTYPE.TDICT)
+        users = await User.select().paginate(1, 100, wrap=False)
         assert isinstance(users, db.FetchResult)
         assert users.count == 15
         assert isinstance(users[-1], util.tdict)
         assert users[6].id == 8
         assert users[9].age == 3
-        users2 = await User.select().tdicts().paginate(1, 100, ROWTYPE.TDICT)
-        assert users == users2
+        users_ = await User.select().paginate(1, 100, wrap=False)
+        assert users == users_
 
         try:
-            await User.select().order_by(User.id.desc()).first(10)
-            assert False
-        except ValueError:
-            pass
-        try:
             await User.select().order_by(User.id.desc()).rows(-10)
-            assert False
+            assert False, "Should raise ValueError"
         except ValueError:
             pass
         try:
             await User.select().order_by(User.id.desc()).paginate(-1)
-            assert False
+            assert False, "Should raise ValueError"
         except ValueError:
             pass
         try:
             await User.select().order_by(User.id.desc()).paginate(1, -1)
-            assert False
+            assert False, "Should raise ValueError"
         except ValueError:
             pass
 
@@ -588,7 +612,7 @@ class TestModel:
         assert user.name == 'user8forset'
         user = await (User.select()
                       .order_by(User.id.desc())
-                      .first(ROWTYPE.TDICT))
+                      .first(False))
         assert isinstance(user, util.tdict)
         assert user.id == 16
         assert user.name == 'user8forset'
@@ -596,12 +620,12 @@ class TestModel:
                        .order_by(User.id.desc())
                        .limit(1)
                        .offset(4)
-                       .all(ROWTYPE.TUPLE))
+                       .all(False))
         user = users[0]
-        assert isinstance(user, tuple)
-        assert user[0] == 12
-        assert user[1] == 'user4forsave'
-        assert user[2] is None
+        assert isinstance(user, util.tdict)
+        assert user.id == 12
+        assert user.name == 'user4forsave'
+        assert user.age == 4
         users = await (User.select()
                        .where(User.id.between(100, 200))
                        .all())
@@ -639,32 +663,28 @@ class TestModel:
         assert user.id == 16
         assert user.name == 'user8forset'
 
-        users = await (User.select()
-                       .where(
-                           User.lastlogin < datetime.now(),
-                           User.age < 25,
-                           User.name != 'at7h')
-                       .order_by(User.age)
-                       .rows(10))
+        users = await User.select().where(
+            User.lastlogin < datetime.now(),
+            User.age < 25,
+            User.name != 'at7h'
+        ).order_by(
+            User.age
+        ).rows(10)
         assert users.count == 5
         assert users[1].name == 'user2'
         assert users[4].name == 'mejor'
 
-        users = await (User.select()
-                       .where((
-                           User.password == 'xxxx')
-                           | (User.name.startswith('at')))
-                       .all())
+        users = await User.select().where(
+            (User.password == 'xxxx') | (User.name.startswith('at'))
+        ).all()
         assert users.count == 2
         assert users[0].id == 1
         assert users[0].gender == 0
         assert users[0].name == 'at7h'
         assert users[1].name == 'mejor'
-        users = await (User.select()
-                       .where(
-                           util.or_(User.password == 'xxxx',
-                                    User.name.startswith('at')))
-                       .rows(10, 0))
+        users = await User.select().where(
+            util.or_(User.password == 'xxxx', User.name.startswith('at'))
+        ).rows(10, 0)
         assert users.count == 2
         assert users[0].id == 1
         assert users[0].gender == 0
@@ -678,22 +698,11 @@ class TestModel:
         assert users.count == 5
         assert users[-1].id == 11
 
-        users = await (User.select(User.gender,
-                                   types.F.count(types.SQL('1')).as_('num'))
-                       .group_by(User.gender)
-                       .all(ROWTYPE.TDICT))
-        assert users.count == 3
-        assert isinstance(users[0], util.tdict)
-        assert users[0].gender is None
-        assert users[0].num == 10
-        assert users[1].gender == 0
-        assert users[1].num == 2
-        assert users[2].gender == 1
-        assert users[2].num == 3
-        users = await (User.select(User.gender,
-                                   types.F.count(types.SQL('1')).as_('num'))
-                       .group_by(User.gender)
-                       .all())
+        users = await User.select(
+            User.gender, t.F.count(t.SQL('1')).as_('num')
+        ).group_by(
+            User.gender
+        ).all(False)
         assert users.count == 3
         assert isinstance(users[0], util.tdict)
         assert users[0].gender is None
@@ -703,11 +712,27 @@ class TestModel:
         assert users[2].gender == 1
         assert users[2].num == 3
 
-        users = await (User.select(User.age,
-                                   types.F.count(types.SQL('*')).as_('num'))
-                       .group_by(User.age)
-                       .having(User.age >= 10)
-                       .all())
+        users = await User.select(
+            User.gender, t.F.count(t.SQL('1')).as_('num')
+        ).group_by(
+            User.gender
+        ).all()
+        assert users.count == 3
+        assert isinstance(users[0], util.tdict)
+        assert users[0].gender is None
+        assert users[0].num == 10
+        assert users[1].gender == 0
+        assert users[1].num == 2
+        assert users[2].gender == 1
+        assert users[2].num == 3
+
+        users = await User.select(
+            User.age, t.F.count(t.SQL('*')).as_('num')
+        ).group_by(
+            User.age
+        ).having(
+            User.age >= 10
+        ).all()
         assert users.count == 5
         assert users == [
             {'age': 18, 'num': 1},
@@ -717,91 +742,126 @@ class TestModel:
             {'age': 90, 'num': 1}
         ]
 
-        users = await (User.select()
-                       .order_by(User.name)
-                       .limit(10)
-                       .offset(7)
-                       .all())
+        users = await User.select().order_by(
+            User.name).limit(10).offset(7).all()
         assert users.count == 8
         assert isinstance(users[0], User)
         assert users[0].id == 9
         assert users[0].name == 'user1'
 
-        user = await (User.select()
-                      .where(User.name == 'xxxx')
-                      .exist())
+        user = await User.select().where(
+            User.name == 'xxxx'
+        ).exist()
         assert user is False
-        user = await (User.select()
-                      .where(User.name == 'at7h')
-                      .exist())
+        user = await User.select().where(
+            User.name == 'at7h'
+        ).exist()
         assert user is True
-        user = await (User.select()
-                      .where(User.age > 10)
-                      .exist())
+        user = await User.select().where(
+            User.age > 10
+        ).exist()
         assert user is True
-        user = await (User.select()
-                      .where(User.age > 80)
-                      .exist())
+        user = await User.select().where(
+            User.age > 80
+        ).exist()
         assert user is True
-        user = await (User.select()
-                      .where(User.age > 90)
-                      .exist())
+        user = await User.select().where(
+            User.age > 90
+        ).exist()
         assert user is False
-        user = await (User.select()
-                      .where(User.id
-                             .in_(People.select(People.id)
-                                  .where(People.id > 0))
-                             )
-                      .all())
+        user = await User.select().where(
+            User.id.in_(
+                People.select(People.id).where(
+                    People.id > 1)
+            )
+        ).all()
         assert user.count == 0
-        user = await (User.select()
-                      .where(User.id
-                             .in_(Employee.select(Employee.id)
-                                  .where(Employee.name
-                                         .nin_(People.select(People.name)
-                                               .where(People.id > 0))))
-                             )
-                      .all())
-        assert user.count == 0
-        try:
-            await User.select().join(People)
-            assert False
-        except NotImplementedError:
-            pass
-        try:
-            await User.select().window()
-            assert False
-        except NotImplementedError:
-            pass
+        user = await User.select().where(
+            User.id.in_(
+                Employee.select(Employee.id).where(
+                    Employee.name.nin_(
+                        People.select(People.name).where(
+                            People.id > 1)
+                    )
+                )
+            )
+        ).all()
+        assert user.count == 1
+
+        user_count = await User.select().count()
+        assert user_count == 15
+        ret = await User.select().join(
+            Employee
+        ).all()
+        assert ret.count == 15
+
+        ret = await User.select(
+            User.id, Employee.id
+        ).join(
+            Employee, on=(User.name == Employee.name)
+        ).all()
+        assert ret.count == 1
+        assert ret[0]['id'] == 1
+        assert ret[0]['t2.id'] == 1
+
+        assert (await Employee(name='mejor').save()) == 2
+
+        ret = await User.select(
+            User.id, Employee.id
+        ).join(
+            Employee, on=(User.name == Employee.name)
+        ).all()
+        assert ret.count == 2
+        assert ret[1]['id'] == 2
+        assert ret[1]['t2.id'] == 2
+
+        ret = await User.select(
+            User.id, Employee.id
+        ).join(
+            Employee, JOINTYPE.LEFT, on=(User.name == Employee.name)
+        ).all()
+        assert ret.count == 15
+
+        ret = await User.select(
+            User.id, User.name, Employee.id
+        ).join(
+            Employee, JOINTYPE.RIGHT, on=(User.name == Employee.name)
+        ).all()
+        assert ret.count == 2
+        assert ret[0].name == 'at7h'
+        assert ret[1].name == 'mejor'
+
         try:
             await User.select().group_by()
-            assert False
+            assert False, "Should raise ValueError"
         except ValueError:
             pass
         try:
             await User.select().group_by(1)
-            assert False
+            assert False, "Should raise TypeError"
         except TypeError:
             pass
         try:
             await User.select().order_by()
-            assert False
+            assert False, "Should raise ValueError"
         except ValueError:
             pass
         try:
             await User.select().order_by(1)
-            assert False
+            assert False, "Should raise TypeError"
         except TypeError:
             pass
         try:
             await User.select().offset(1)
-            assert False
+            assert False, "Should raise err.ProgrammingError"
         except err.ProgrammingError:
             pass
 
         s = User.select(User.name).where(User.name == 'at7h')
         q = _helper.Query(
-            'SELECT `name` FROM `trod`.`users` WHERE (`name` = %s);', ('at7h',)
+            'SELECT `t1`.`name` FROM `trod`.`user_` AS `t1` '
+            'WHERE (`t1`.`name` = %s);',
+            params=['at7h']
         )
         assert str(s) == str(q)
         assert repr(s) == repr(q)
@@ -810,49 +870,57 @@ class TestModel:
         user_count = await User.select().count()
         assert user_count == 15
 
-        user_count = await (User.select()
-                            .where(User.age > 25)
-                            .count())
+        user_count = await User.select().where(
+            User.age > 25
+        ).count()
         assert user_count == 4
 
-        user_count = await (User.select()
-                            .where(User.id.in_(list(range(10))))
-                            .count())
+        user_count = await User.select().where(
+            User.id.in_(list(range(10)))
+        ).count()
         assert user_count == 8
 
-        users = await (User.select(User.age).all())
+        users = await User.select(User.age).all()
         sum_age = 0
         for u in users:
             if u.age is not None:
                 sum_age += u.age
         assert sum_age == 261
 
-        age_sum = await (User.select(types.F.sum(User.age))
-                         .scalar())
+        age_sum = await User.select(
+            t.F.sum(User.age)
+        ).scalar()
         assert age_sum == 261
 
-        user_count = await (User.select(types.F.count(User.age)
-                                        .as_('age_count'))
-                            .where(User.age > 25)
-                            .get())
+        user_count = await User.select(
+            t.F.count(User.age).as_('age_count')
+        ).where(
+            User.age > 25
+        ).get()
         assert user_count == {'age_count': 4}
 
-        user_count = await (User.select(types.F.count(User.age))
-                            .where(User.gender == 0)
-                            .scalar())
+        user_count = await User.select(
+            t.F.count(User.age)
+        ).where(
+            User.gender == 0
+        ).scalar()
         assert user_count == 2
 
-        user_count = await (User.select(types.F.max(User.age))
-                            .where(User.age > 25)
-                            .scalar())
+        user_count = await User.select(
+            t.F.max(User.age)
+        ).where(
+            User.age > 25
+        ).scalar()
         assert user_count == 90
 
-        age_max = await (User.select(types.F.sum(User.age))
-                         .where(User.age > 25)
-                         .scalar())
+        age_max = await User.select(
+            t.F.sum(User.age)
+        ).where(
+            User.age > 25
+        ).scalar()
         assert age_max == 208
 
-        # test insert
+    async def for_insert(self):
         ret = await User.insert(
             name='iii1', gender=1, age=20,
             nickname='nnn1', password='ppp1'
@@ -870,17 +938,17 @@ class TestModel:
         }
         ret = await Employee.insert(employee).do()
         assert ret.affected == 1
-        assert ret.last_id == 1
-        em = await (Employee.select()
-                    .where(Employee.name == employee['name'])
-                    .all())
+        assert ret.last_id == 3
+        em = await Employee.select().where(
+            Employee.name == employee['name']
+        ).all()
         assert em.count == 1
         assert em[0].name == employee['name']
         assert em[0].salary == employee['salary']
         try:
             employee = {'id': 2}
             ret = await Employee.insert(employee).do()
-            assert False
+            assert False, "Should raise err.NotAllowedError"
         except err.NotAllowedError:
             pass
         ret = await People.insert(name='ip1', age=10).do()
@@ -893,25 +961,26 @@ class TestModel:
         }
         try:
             await People.insert(gae='str_age').do()
-            assert False
+            assert False, "Should raise ValueError"
+        except ValueError:
+            pass
+        try:
+            await Employee.insert(email='..@..').do()
+            assert False, "Should raise ValueError"
         except ValueError:
             pass
         try:
             ret = await Employee.insert(employee).do()
-            assert False
+            assert False, "Should raise ValueError"
         except ValueError:
             pass
         try:
             ret = await Employee.insert({}).do()
-            assert False
+            assert False, "Should raise ValueError"
         except ValueError:
             pass
-        try:
-            ret = await Employee.insert(name='name').select()
-            assert False
-        except NotImplementedError:
-            pass
 
+    async def for_minsert(self):
         people_list = [
             ('np1', 0, 37),
             ('np2', 1, 38),
@@ -920,16 +989,17 @@ class TestModel:
         ]
         try:
             ret = await People.minsert(people_list).do()
-            assert False
+            assert False, "Should raise TypeError"
         except TypeError:
             pass
         ret = await People.minsert(
-            people_list, columns=[People.name, People.gender, People.age]).do()
+            people_list, columns=[People.name, People.gender, People.age]
+        ).do()
         assert ret.affected == 4
         assert ret.last_id == 2
-        people = await (People.select()
-                        .order_by(People.age.desc())
-                        .all())
+        people = await People.select().order_by(
+            People.age.desc()
+        ).all()
         assert people.count == 5
         assert people[-1].age == 10
 
@@ -937,7 +1007,7 @@ class TestModel:
             ret = await Employee.minsert(
                 people_list, columns=[User.password]
             ).do()
-            assert False
+            assert False, "Should raise ValueError"
         except ValueError:
             pass
         people_list = [
@@ -950,7 +1020,7 @@ class TestModel:
             ret = await Employee.minsert(
                 people_list, columns=[People.name, People.gender]
             ).do()
-            assert False
+            assert False, "Should raise ValueError"
         except ValueError:
             pass
         people_list = [
@@ -962,7 +1032,7 @@ class TestModel:
                 people_list,
                 columns=[People.id, People.name, People.gender, People.age]
             ).do()
-            assert False
+            assert False, "Should raise err.NotAllowedError"
         except err.NotAllowedError:
             pass
 
@@ -975,7 +1045,7 @@ class TestModel:
                 people_list,
                 columns=(People.name, People.gender, People.age)
             )
-            assert False
+            assert False, "Should raise ValueError"
         except ValueError:
             pass
         try:
@@ -990,75 +1060,173 @@ class TestModel:
             ret = await Employee.minsert(
                 [{'unknow': 'xxxx'}]
             ).do()
-            assert False
+            assert False, "Should raise ValueError"
         except ValueError:
             pass
         try:
             ret = await Employee.minsert([]).do()
-            assert False
+            assert False, "Should raise ValueError"
         except ValueError:
             pass
 
-        # test update
-        ret = await (People.update(name='up1')
-                     .where(People.name == 'np1')
-                     .do())
+    async def for_insert_from(self):
+        select = Employee.select(Employee.name).where(Employee.id < 3)
+        ems = await select.all()
+        assert ems.count == 2
+        try:
+            User.insert_from(select, [])
+            assert False, "Should raise ValueError"
+        except ValueError:
+            pass
+        try:
+            User.insert_from(None, [User.name])
+            assert False, "Should raise ValueError"
+        except ValueError:
+            pass
+        try:
+            User.insert_from(1, [User.name])
+            assert False, "Should raise TypeError"
+        except TypeError:
+            pass
+        ret = await User.insert_from(select, [User.name]).do()
+        assert ret.last_id == 18
+        assert ret.affected == 2
+        users = await User.select().where(
+            User.id.in_([ret.last_id, ret.last_id+1])
+        ).all()
+        assert ems[0].name == users[0].name == 'at7h'
+        assert ems[1].name == users[1].name == 'mejor'
+
+        ret = await User.insert_from(select, ['name']).do()
+        assert ret.last_id == 21
+        assert ret.affected == 2
+        users = await User.select().where(
+            User.id.in_([ret.last_id, ret.last_id+1])
+        ).all()
+        assert ems[0].name == users[0].name == 'at7h'
+        assert ems[1].name == users[1].name == 'mejor'
+
+    async def for_update(self):
+        ret = await People.update(
+            name='up1'
+        ).where(
+            People.name == 'np1'
+        ).do()
         assert ret.affected == 1
         people = await People.get(2)
         assert people.name == 'up1'
         ret = await People.insert(name='up2', age=23).do()
         assert ret.affected == 1
         assert ret.last_id == 6
-        ret = await People.update(age=29).where(People.id == ret.last_id).do()
+        ret = await People.update(
+            age=29
+        ).where(
+            People.id == ret.last_id
+        ).do()
         people = await People.get(6)
         assert people.name == 'up2'
         assert people.age == 29
 
+        dt = "2019-10-10 10:10:10"
+        dtpformat = "%Y-%m-%d %H:%M:%S"
+        ret = await People.update(
+            create_at=dt
+        ).where(
+            People.id == 6
+        ).do()
+        people = await People.get(6)
+        assert people.create_at == datetime.strptime(dt, dtpformat)
+        ret = await User.update(
+            lastlogin=dt
+        ).where(
+            User.id == 1
+        ).do()
+        user = await User.get(1)
+        assert user.lastlogin == datetime.strptime(dt, dtpformat)
+
         try:
             ret = await Employee.update().do()
-            assert False
+            assert False, "Should raise ValueError"
+        except ValueError:
+            pass
+        try:
+            ret = await Employee.update(
+                email='..@..'
+            ).where(Employee.id == 1).do()
+            assert False, "Should raise ValueError"
+        except ValueError:
+            pass
+        try:
+            ret = await Employee.update(
+                url='https://abc.com'
+            ).where(Employee.id == 1).do()
+            assert False, "Should raise ValueError"
         except ValueError:
             pass
 
-        # test delete
-        ret = await People.delete().where(People.id == 6).limit(1).do()
+    async def for_delete(self):
+        ret = await People.delete().where(
+            People.id == 6
+        ).limit(1).do()
         assert ret.affected == 1
         assert ret.last_id == 0
         people = await People.get(6)
         assert people is None
         try:
             await People.delete().do()
-            assert False
+            assert False, "Should raise err.DangerousOperation"
         except err.DangerousOperation:
             pass
 
-        # test replace
-        ret = await User.replace(id=18, name='rp1', age=78).do()
-        assert ret.affected == 1
+    async def for_update_from(self):
+        user_id, user_name = 18, 'bobo'
+        await User.set(user_id, name=user_name)
+        user = await User.get(user_id)
+        assert user.name == user_name
+        employee_id, employee_name = 1, 'at7h'
+        employee = await Employee.get(employee_id)
+        assert employee.name == employee_name
+
+        try:
+            ret = await User.update(
+                name=Employee.name
+            ).from_(
+                Employee
+            ).where(
+                Employee.id == User.id
+            ).do()
+            assert ret.affected == 1
+            user = await User.get(user_id)
+            assert user.name == employee_name
+            assert False, "MySQL does not support this syntax"
+        except err.ProgrammingError:
+            pass
+
+    async def for_replace(self):
+        user_id = 18
+        user = await User.get(user_id)
+        assert user.name == 'bobo'
+        assert user.age is None
+        ret = await User.replace(id=user_id, name='rp1', age=78).do()
+        user = await User.get(user_id)
+        assert user.name == 'rp1'
+        assert user.age == 78
+        assert ret.affected == 2
         assert ret.last_id == 18
+
         user = await User.get(ret.last_id)
         assert user.name == 'rp1'
         assert user.age == 78
-        # try:
-        #     ret = await User.replace(password='pssforrep').do()
-        #     assert ret.affected == 1
-        #     assert False
-        # except ValueError:
-        #     pass
         ret = await User.replace(id=ret.last_id, name='rp1forreplace').do()
         user = await User.get(ret.last_id)
         assert user.name == 'rp1forreplace'
         try:
             ret = await Employee.replace({}).do()
-            assert False
+            assert False, "Should raise ValueError"
         except ValueError:
             pass
-        try:
-            ret = await Employee.replace(name='test').select()
-            assert False
-        except NotImplementedError:
-            pass
 
+    async def for_mreplace(self):
         people_list = [
             (0, 37),
             (1, 38),
@@ -1067,14 +1235,14 @@ class TestModel:
         ]
         try:
             ret = await People.mreplace(people_list).do()
-            assert False
+            assert False, "Should raise TypeError"
         except TypeError:
             pass
 
         try:
             ret = await People.mreplace(
                 people_list, columns=(People.gender, People.age)).do()
-            assert False
+            assert False, "Should raise ValueError"
         except ValueError:
             pass
 
@@ -1090,11 +1258,11 @@ class TestModel:
         ).do()
         assert ret.affected == 8
         assert ret.last_id == 4
-        people = await (People.select()
-                        .order_by(People.age.desc())
-                        .all())
-        assert people.count == 5
-        assert people[-1].age == 37
+        people = await People.select().order_by(
+            People.age.desc()
+        ).all()
+        assert people.count == 6
+        assert people[-1].age == 29
 
         people_list = [
             ('rnp1', 0, 57),
@@ -1116,208 +1284,252 @@ class TestModel:
                 people_list,
                 columns=[People.name, People.gender, People.age]
             )
-            assert False
+            assert False, "Should raise ValueError"
         except ValueError:
             pass
         try:
             ret = await Employee.mreplace([]).do()
-            assert False
+            assert False, "Should raise ValueError"
         except ValueError:
             pass
 
-        # Values
-        from trod.model._impl import Values
+    async def for_aiter(self):
+        allc = await User.select().count()
+        count = 0
+        async for user in User:
+            assert isinstance(user, User)
+            if user.id == 1:
+                assert user.name == 'at7h'
+            count += 1
+        assert count == allc
+
+        count = 0
+        async for user in User.select():
+            assert isinstance(user, User)
+            if user.id == 1:
+                assert user.name == 'at7h'
+            count += 1
+        assert count == allc
+
+        for i in range(20, 270):
+            await User.insert(password=i).do()
+
+        allc = await User.select().count()
+        count = 0
+        async for user in User:
+            assert isinstance(user, User)
+            if user.id == 1:
+                assert user.name == 'at7h'
+            count += 1
+        assert count == allc
+
         try:
-            Values(('1', '2', 3))
-            assert False
-        except ValueError:
+            assert User[1]
+            assert False, "Should raise NotImplementedError"
+        except NotImplementedError:
             pass
+        try:
+            assert user in User
+            assert False, "Should raise NotImplementedError"
+        except NotImplementedError:
+            pass
+
+
+def test_values():
+    from trod.model._impl import ValuesMatch
+    try:
+        ValuesMatch(('1', '2', 3))
+        assert False, "Should raise ValueError"
+    except ValueError:
+        pass
 
 
 def test_model():
-    from trod.model._impl import for_attrs, for_table
+    from trod.model._impl import get_attrs, get_table
 
-    assert isinstance(People.id, types.Auto)
-    assert str(People.name) == '`name` varchar(45) DEFAULT NULL;'
-    assert People.__tablename__ == 'people'
-    assert isinstance(People.__indexes__, list)
-    assert len(People.__indexes__) == 1
-    assert People.__indexes__[0].name == 'idx_name'
-    assert People.__db__ is None
-    assert People.__auto_increment__ == 1
-    assert People.__engine__ == 'InnoDB'
-    assert People.__charset__ == 'utf8'
-    assert People.__comment__ == ''
-    assert People.__table__.primary.auto is True
-    assert People.test() == 1
-    assert for_attrs(People) == (
-        {'age': 'age',
-            'create_at': 'create_at',
-            'gender': 'gender',
-            'id': 'id',
-            'name': 'name',
-            'update_at': 'update_at'}
+    assert isinstance(People.id, t.Auto)
+    assert _helper.parse(People.name.__def__()).sql == (
+        '`name` varchar(45) DEFAULT NULL;')
+    table = get_table(People)
+    assert table.name == 'people'
+    assert isinstance(table.indexes, list)
+    assert len(table.indexes) == 1
+    assert table.indexes[0].name == 'idx_name'
+    assert table.db is None
+    assert table.auto_increment == 1
+    assert table.engine == 'InnoDB'
+    assert table.charset == 'utf8'
+    assert table.comment == ''
+    assert table.primary.auto is True
+    assert get_attrs(People) == ({
+        'age': 'age',
+        'create_at': 'create_at',
+        'gender': 'gender',
+        'id': 'id',
+        'name': 'name',
+        'update_at': 'update_at'}
     )
+    assert isinstance(People.Meta.indexes, list)
 
-    assert Employee.__tablename__ == 'employee'
-    assert isinstance(Employee.__indexes__, list)
-    assert len(People.__indexes__) == 1
-    assert Employee.__indexes__[0].name == 'idx_age_salary'
-    assert Employee.test() == 2
-    assert for_attrs(Employee) == (
-        {'age': 'age',
-            'create_at': 'create_at',
-            'departmentid': 'departmentid',
-            'gender': 'gender',
-            'id': 'id',
-            'name': 'name',
-            'phone': 'phone',
-            'salary': 'salary',
-            'update_at': 'update_at'
-         })
+    table = get_table(Employee)
+    assert table.name == 'employee'
+    assert isinstance(table.indexes, list)
+    assert len(table.indexes) == 1
+    assert table.indexes[0].name == 'idx_age_salary'
+    assert table.comment == ''
+    assert table.primary.auto is True
+    assert get_attrs(Employee) == ({
+        'age': 'age',
+        'create_at': 'create_at',
+        'departmentid': 'departmentid',
+        'gender': 'gender',
+        'id': 'id',
+        'name': 'name',
+        'phone': 'phone',
+        'email': 'email',
+        'salary': 'salary',
+        'update_at': 'update_at'
+    })
 
-    assert isinstance(User.__indexes__, list)
-    assert len(User.__indexes__) == 2
-    assert User.__tablename__ == 'users'
-    assert User.__indexes__[0].name == 'idx_name'
-    assert User.__indexes__[1].name == 'unidx_nickname'
-    assert User.test() == 1
-    assert for_attrs(User) == (
-        {'age': 'age',
-            'create_at': 'create_at',
-            'gender': 'gender',
-            'id': 'id',
-            'll': 'lastlogin',
-            'name': 'name',
-            'nickname': 'nickname',
-            'pwd': 'password',
-            'update_at': 'update_at'
-         })
-    assert for_table(User).fields_dict == {
-        'id': types.Auto('`id` int(11) NOT NULL AUTO_INCREMENT; [PRIMARY KEY, AUTO_INCREMENT]'),
-        'name': types.VarChar('`name` varchar(45) DEFAULT NULL;'),
-        'gender': types.Tinyint('`gender` tinyint(1) unsigned DEFAULT NULL;'),
-        'age': types.Tinyint('`age` tinyint(4) unsigned DEFAULT NULL;'),
-        'create_at': types.Timestamp('`create_at` timestamp DEFAULT CURRENT_TIMESTAMP;'),
-        'update_at': types.Timestamp(
-            '`update_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;'),
-        'nickname': types.VarChar('`nickname` varchar(100) DEFAULT NULL;'),
-        'password': types.VarChar('`pwd` varchar(255) DEFAULT NULL;'),
-        'lastlogin': types.DateTime('`ll` datetime DEFAULT NULL;')
-    }
-    assert isinstance(User.nickname, types.VarChar)
-    assert isinstance(User.password, types.VarChar)
-    assert isinstance(User.lastlogin, types.DateTime)
+    table = get_table(User)
+    assert isinstance(table.indexes, tuple)
+    assert len(table.indexes) == 2
+    assert table.name == 'user_'
+    assert table.indexes[0].name == 'idx_name'
+    assert table.indexes[1].name == 'unidx_nickname'
+    assert get_attrs(User) == ({
+        'age': 'age',
+        'create_at': 'create_at',
+        'gender': 'gender',
+        'id': 'id',
+        'loginat': 'lastlogin',
+        'name': 'name',
+        'nickname': 'nickname',
+        'pwd': 'password',
+        'role': 'role',
+        'update_at': 'update_at'
+    })
+    assert len(get_table(User).fields_dict) == 10
+    assert isinstance(User.nickname, t.VarChar)
+    assert isinstance(User.password, t.VarChar)
+    assert isinstance(User.lastlogin, t.DateTime)
+    assert User.Meta.name == 'user_'
+    assert isinstance(User.Meta.indexes, tuple)
 
     try:
         People.id = 12123123
         People.name = 'at7h'
         del People.name
-        assert False, 'Should be raise NotAllowedError'
+        assert False, 'Should raise NotAllowedError'
     except err.NotAllowedError:
         pass
 
     try:
         del People.name
-        assert False, 'Should be raise NotAllowedError'
+        assert False, 'Should raise NotAllowedError'
     except err.NotAllowedError:
         pass
 
     try:
         class TM(People):
-            id_ = types.BigAuto()
-
-        assert False, "Should be raise DuplicatePKError"
+            id_ = t.BigAuto()
+        assert False, "Should raise DuplicatePKError"
     except err.DuplicatePKError:
         pass
 
     try:
         class TM1(Model):
-            tp = types.Int()
-        assert False, "Should be raise NoPKError"
+            tp = t.Int()
+        assert False, "Should raise NoPKError"
     except err.NoPKError:
         pass
     try:
         class TM2(Model):
-            __indexes__ = 'idx'
-
-            tp = types.Int()
-        assert False, "Should be raise TypeError"
+            class Meta:
+                indexes = 'idx'
+            tp = t.Int()
+        assert False, "Should raise TypeError"
     except TypeError:
         pass
     try:
         class TM3(Model):
-            __indexes__ = ['idx', 1]
+            class Meta:
+                indexes = ['idx', 1]
 
-            tp = types.Int()
-        assert False, "Should be raise TypeError"
+            tp = t.Int()
+        assert False, "Should raise TypeError"
     except TypeError:
         pass
 
     class TM4(Model):
-
-        pk = types.Auto()
-
-    assert for_table(TM4).name == 'tm4'
+        pk = t.Auto()
+    assert get_table(TM4).name == 'tm4'
 
     assert repr(User) == "Model<User>"
     assert str(User) == "User"
 
-    assert str(for_table(People)) == 'people'
-    assert repr(for_table(People)) == '<Table `people`>'
-    assert repr(for_table(User)) == '<Table `trod`.`users`>'
-    assert hash(User) == hash(User()) == hash('users')
+    assert str(get_table(People)) == 'people'
+    assert repr(get_table(People)) == '<Table `people`>'
+    assert repr(get_table(User)) == '<Table `trod`.`user_`>'
+    assert hash(User) == hash(User()) == hash('trod.user_')
     try:
-        for_table({})
-        assert False
+        get_table({})
+        assert False, "Should raise err.ProgrammingError"
     except err.ProgrammingError:
         pass
     try:
-        for_attrs(None)
-        assert False
+        get_attrs(None)
+        assert False, "Should raise err.ProgrammingError"
     except err.ProgrammingError:
         pass
 
 
 def test_model_instance():
+    userinfo = {
+        'name': '1', 'gender': 1, 'age': 50,
+        'nickname': 'n1', 'password': 1234
+    }
+    user1 = User(**userinfo)
+    user2 = User(**userinfo)
+    assert user1 == user2
+
     user = User(name='at7h', age=20)
     assert user
     assert not User()
-
     assert repr(user) == '<User object> at None'
     assert str(user) == "<User object> at None"
-
     assert user.name == 'at7h'
     assert user.age == 20
     assert user.id is None
     assert user.nickname is None
     assert user.password is None
     assert user.lastlogin is None
+
     try:
         assert user.ll is None
-        assert False, "Should be raise AttributeError"
+        assert False, "Should raise AttributeError"
     except AttributeError:
         pass
 
     try:
         user.id = 1
-        assert False, "Should be raise NotAllowedError"
+        assert False, "Should raise NotAllowedError"
     except err.NotAllowedError:
         pass
     try:
         user.pwd = 'xxx'
-        assert False, "Should be raise NotAllowedError"
+        assert False, "Should raise NotAllowedError"
     except err.NotAllowedError:
         pass
     try:
         user.age = '50s'
-        assert False, "Should be raise ValueError"
+        assert False, "Should raise ValueError"
     except ValueError:
         pass
 
     try:
         user.gender = 'f'
-        assert False, "Should be raise ValueError"
+        assert False, "Should raise ValueError"
     except ValueError:
         pass
 

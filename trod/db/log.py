@@ -1,6 +1,6 @@
 """
-    trod.db._log
-    ~~~~~~~~~~~~
+    trod.db.log
+    ~~~~~~~~~~~
 """
 import logging
 

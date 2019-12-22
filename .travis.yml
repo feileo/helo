@@ -5,11 +5,12 @@ sudo: true
 
 install: true
 
-service:
+services:
   - mysql
 
 before_install: 
-  - export TROD_DB_URL=mysql://root:flzxsqc1234567@gz-cdb-j9riel8h.sql.tencentcdb.com:60684/trod
+  - mysql -h 127.0.0.1 -u root -e 'CREATE DATABASE IF NOT EXISTS trod;' 
+  - export TROD_DB_URL=mysql://root@127.0.0.1:3306/trod
   - pip install aiomysql
   - pip install pytz
   - pip install pytest pytest-asyncio pytest-cov
@@ -18,7 +19,7 @@ before_install:
 
 script: 
   - pylint trod --jobs=4 --reports=yes
-  - pytest -svq --color=yes --cov=trod tests/
+  - ./runtests.sh
 
 after_success:
   - coveralls

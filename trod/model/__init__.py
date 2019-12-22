@@ -3,6 +3,6 @@
     ~~~~~~~~~~
 """
 
-from ._impl import Model, ROWTYPE, JOINTYPE
+from ._impl import Model, JOINTYPE
 
-__all__ = ('Model', "ROWTYPE", "JOINTYPE")
+__all__ = ('Model', "JOINTYPE")

@@ -2,18 +2,16 @@
     trod._helper
     ~~~~~~~~~~~~
 """
-
 from __future__ import annotations
 
-import datetime
-from typing import Any, Optional, List, Tuple, Union, Callable
+from typing import Any, Optional, Union, List, Tuple, Dict
 
-from .util import argschecker
+from .util import argschecker, tdict
 
 
 class Query:
 
-    __slots__ = ('_sql', '_params', '_read')
+    __slots__ = ('_sql', '_params', '_fread')
 
     _KEYS = ("SELECT", "SHOW")
 
@@ -22,11 +20,37 @@ class Query:
         self,
         sql: str,
         params: Optional[list] = None,
-        read: Optional[bool] = None
+        fread: Optional[bool] = None,
     ) -> None:
         self._sql = sql
         self._params = params or []
-        self._read = read
+        self._fread = fread
+
+    @property
+    def sql(self) -> str:
+        return self._sql.strip()
+
+    @property
+    def params(self) -> Tuple[Any, ...]:
+        if not isinstance(self._params, (tuple, list)):
+            raise TypeError("Invalid query params")
+        return tuple(self._params)
+
+    @property
+    def r(self) -> bool:
+        if self._fread is not None:
+            return self._fread
+
+        for k in self._KEYS:
+            if k in self.sql.upper():
+                return True
+        return False
+
+    @r.setter
+    def r(self, isr: Optional[bool]) -> None:
+        if isr is not None and not isinstance(isr, bool):
+            raise TypeError(f'Invalid value {isr!r} to set')
+        self._fread = isr
 
     def __repr__(self) -> str:
         return f"Query({self.sql} % {self.params})"
@@ -37,112 +61,12 @@ class Query:
     def __bool__(self) -> bool:
         return bool(self._sql)
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Query):
             raise TypeError(
                 f"Unsupported operation: 'Query' == {other}"
             )
         return self.sql == other.sql and self.params == other.params
-
-    @property
-    def sql(self) -> str:
-        return self._sql.strip()
-
-    @property
-    def params(self) -> tuple:
-        if not isinstance(self._params, (tuple, list)):
-            raise TypeError("Invalid query params")
-        return tuple(self._params)
-
-    @property
-    def r(self) -> bool:
-        if self._read is not None:
-            return self._read
-
-        for k in self._KEYS:
-            if k in self.sql.upper():
-                return True
-        return False
-
-    @r.setter
-    def r(self, _is) -> None:
-        if not isinstance(_is, bool):
-            raise TypeError('Invalid value to set')
-        self._read = _is
-
-
-class Context:
-
-    __slots__ = ('_sql', '_values', 'stack', 'state')
-    _multi_types = (tuple, list)
-    _semi = ';'
-
-    def __init__(self, **settings: Any) -> None:
-        self._sql = []      # type: List[str]
-        self._values = []   # type: List[Any]
-        self.stack = []     # type: List[dict]
-        self.state = settings
-
-    def sql(self, obj) -> Context:
-        if isinstance(obj, (Node, Context)):
-            return obj.__sql__(self)
-
-        return self.values(obj)
-
-    def __sql__(self, ctx) -> Context:
-        ctx._sql.extend(self._sql)  # pylint: disable=protected-access
-        ctx.values(self._values)
-        return ctx
-
-    @property
-    def parens(self) -> Optional[bool]:
-        return self.state.get('parens')
-
-    def literal(self, kwd: str) -> Context:
-        self._sql.append(kwd)
-        return self
-
-    def __enter__(self) -> Context:
-        if self.parens:
-            self.literal('(')
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        if self.parens:
-            self.literal(')')
-        self.state = self.stack.pop()
-
-    def __call__(self, **overrides: Any) -> Context:
-        self.stack.append(self.state)
-        self.state = overrides
-        return self
-
-    def values(self, value: Any) -> Context:
-
-        converter = self.state.get('converter')
-        if value is not None and converter:
-            if isinstance(value, self._multi_types):
-                value = tuple(map(converter, value))
-            else:
-                value = converter(value)
-
-        if self.state.get('params'):
-            self.literal('%s')
-
-        if isinstance(value, self._multi_types):
-            if not self.state.get('nesting'):
-                self._values.extend(value)
-                return self
-        self._values.append(value)
-        return self
-
-    def parse(self, node: Any) -> Context:
-        return self.sql(node)
-
-    def query(self) -> Query:
-        if self._sql[-1] != self._semi:
-            self.literal(self._semi)
-        return Query(''.join(self._sql), params=tuple(self._values))
 
 
 class Node:
@@ -235,18 +159,105 @@ class SQL(Node):
 
 class Value(Node):
 
-    __slots__ = ('_value',)
+    __slots__ = ('_v',)
 
     def __init__(self, _value: Any) -> None:
-        self._value = _value
+        self._v = _value
 
     @property
     def v(self) -> Any:
-        return self._value
+        return self._v
 
     def __sql__(self, ctx: Context) -> Context:
         ctx.literal('%s').values(self.v)
         return ctx
+
+
+class Context:
+
+    __slots__ = ('_sql', '_values', '_sources', 'stack',
+                 'aliases', 'state', 'props')
+    _multi_types = (tuple, list)
+    _semi = ';'
+
+    def __init__(self, **settings: Any) -> None:
+        self._sql = []      # type: List[str]
+        self._values = []   # type: List[Any]
+        self._sources = []  # type: List[str]
+        self.stack = []     # type: List[Dict[str, Any]]
+        self.aliases = {}   # type: Dict[str, Any]
+        self.state = settings
+        self.props = tdict()
+
+    def sql(self, obj) -> Context:
+        if isinstance(obj, (Node, Context)):
+            return obj.__sql__(self)
+
+        return self.values(obj)
+
+    def __sql__(self, ctx) -> Context:
+        ctx._sql.extend(self._sql)  # pylint: disable=protected-access
+        ctx.values(self._values)
+        return ctx
+
+    @property
+    def parens(self) -> Optional[bool]:
+        return self.state.get('parens')
+
+    def table_alias(self, source: str) -> str:
+        if source not in self._sources:
+            self._sources.append(source)
+        return "`t{}`".format(self._sources.index(source) + 1)
+
+    def literal(self, kwd: str) -> Context:
+        self._sql.append(kwd)
+        return self
+
+    def values(self, value: Any) -> Context:
+
+        converter = self.state.get('converter')
+        if value is not None and converter:
+            if isinstance(value, self._multi_types):
+                value = tuple(map(converter, value))
+            else:
+                value = converter(value)
+
+        if self.state.get('params'):
+            self.literal('%s')
+
+        if isinstance(value, self._multi_types):
+            if not self.state.get('nesting'):
+                self._values.extend(value)
+                return self
+        self._values.append(value)
+        return self
+
+    def parse(self, node: Node) -> Context:
+        return self.sql(node)
+
+    def query(self) -> Query:
+        if self._sql[-1] != self._semi:
+            self.literal(self._semi)
+        return Query(''.join(self._sql), params=tuple(self._values))
+
+    def __enter__(self) -> Context:
+        if self.parens:
+            self.literal('(')
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        if self.parens:
+            self.literal(')')
+        self.state = self.stack.pop()
+
+    def __call__(self, **overrides: Any) -> Context:
+        self.stack.append(self.state)
+        self.state = overrides
+        return self
+
+
+def parse_ctx(node: Node) -> Context:
+    return Context().parse(node)
 
 
 def parse(node: Node) -> Query:
@@ -261,34 +272,3 @@ def with_metaclass(meta, *bases):
             return meta(name, bases, attrs)
 
     return type.__new__(MetaClass, 'temporary_class', (), {})
-
-
-def format_datetime(
-        value: str,
-        formats: Union[List[str], tuple],
-        extractor: Optional[Callable] = None
-) -> Any:
-    extractor = extractor or (lambda x: x)
-    for fmt in formats:
-        try:
-            return extractor(datetime.datetime.strptime(value, fmt))
-        except ValueError:
-            pass
-    return value
-
-
-def simple_datetime(value: str) -> Union[datetime.datetime, str]:
-    try:
-        return datetime.datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
-    except (TypeError, ValueError):
-        return value
-
-
-def dt_strftime(value: Any, formats: Union[List[str], tuple]) -> str:
-    if hasattr(value, 'strftime'):
-        for fmt in formats:
-            try:
-                return value.strftime(fmt)
-            except (TypeError, ValueError):
-                pass
-    return value
