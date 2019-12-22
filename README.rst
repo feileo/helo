@@ -24,7 +24,7 @@ View `Chinese </README_CN.rst>`_
 * Requires: Python 3.7+
 * Now only supports MySQL, using aiomysql_ as the connection driver
 * Not support table relationship operations
-* See `basic example </tree/master/examples>`_
+* See `basic example </examples>`_
 
 
 Installation
@@ -146,7 +146,7 @@ Shows some basic examples:
 
     asyncio.run(base_example())
 
-👉 See `more examples </tree/master/examples>`_
+👉 See `more examples </examples>`_
 
 
 About
