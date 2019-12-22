@@ -23,8 +23,11 @@ View `Chinese </README_CN.rst>`_
   suitable for scenarios with simple business structures and a certain amount of concurrency
 * Requires: Python 3.7+
 * Now only supports MySQL, using aiomysql_ as the connection driver
-* Not support table relationship operations
-* See `basic example </tree/master/examples>`_
+* Not supports table relationship
+
+Quickstart:
+
+* See `basic example </examples>`_
 
 
 Installation
@@ -38,7 +41,7 @@ Installation
 Base Examples
 -------------
 
-Defining models is very simple:
+Defining models is simple:
 
 .. code-block:: python
 
@@ -146,7 +149,7 @@ Shows some basic examples:
 
     asyncio.run(base_example())
 
-👉 See `more examples </tree/master/examples>`_
+👉 See `more examples </examples>`_
 
 
 About

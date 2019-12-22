@@ -21,7 +21,10 @@ trod
 * 支持的 Python 版本为 3.7+
 * 目前仅支持 MySQL，使用 aiomysql_ 作为连接驱动
 * 不支持表关系操作
-* 查看一些 `基础示例 </tree/master/examples>`_
+
+快速上手:
+
+* 查看 `基础示例 </examples>`_
 
 
 安装
@@ -35,7 +38,7 @@ trod
 简单示例
 --------
 
-定义 `Model` 是非常简单的:
+定义 `Model` 很简单:
 
 .. code-block:: python
 
@@ -143,14 +146,14 @@ trod
 
     asyncio.run(base_example())
 
-👉 查看 `更多示例 </tree/master/examples>`_
+👉 查看 `更多示例 </examples>`_
 
 
 其他
 ----
 
 * 🌱 Trod 还很稚嫩，有很多不足，希望大家感兴趣的可以参与进来，我也会常常更新
-* 😊 特别感谢项目 aiomysql_ 和 peewee_, trod 直接使用了前者，并在在设计上参考了后者
+* 😊 特别感谢项目 aiomysql_ 和 peewee_, trod 使用了前者，并在设计上参考了后者
 * 👏 十分欢迎任何类型的贡献：报 bug 🐞，提 issues 或提交 PR 🙋‍♂️
 
 
