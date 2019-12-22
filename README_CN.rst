@@ -21,7 +21,10 @@ trod
 * 支持的 Python 版本为 3.7+
 * 目前仅支持 MySQL，使用 aiomysql_ 作为连接驱动
 * 不支持表关系操作
-* 查看一些 `基础示例 </tree/master/examples>`_
+
+快速入手:
+
+* 查看 `基础示例 </examples>`_
 
 
 安装
@@ -143,7 +146,7 @@ trod
 
     asyncio.run(base_example())
 
-👉 查看 `更多示例 </tree/master/examples>`_
+👉 查看 `更多示例 </examples>`_
 
 
 其他
