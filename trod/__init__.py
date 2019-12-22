@@ -10,20 +10,19 @@ from . import (
     types,
     util,
     err,
-    db as _db_impl,
+    db,
     _helper,
 )
 
-from .model import Model, ROWTYPE, JOINTYPE
+from .model import Model, JOINTYPE
 
-__version__ = '0.0.17'
+__version__ = '0.0.18'
 __all__ = (
     'types',
     'util',
     'err',
     'Model',
     'Trod',
-    'ROWTYPE',
     'JOINTYPE',
 )
 
@@ -39,30 +38,33 @@ class Trod:
             self.set_url_key(url_key)
 
     async def bind(self, url: Optional[str] = None, **kwargs: Any) -> bool:
-        """A coroutine that binding a database"""
+        """A coroutine that binding a database.
+        Kwargs: see `db.Pool`
+        """
 
-        return await _db_impl.binding(url, **kwargs)
+        return await db.binding(url, **kwargs)
 
     async def unbind(self) -> bool:
         """A coroutine that to unbind the database"""
 
-        return await _db_impl.unbinding()
+        return await db.unbinding()
 
     # By default, the database url is looked up from the environment
     # variable and automatically to binding and unbinding.
-    Binder = _db_impl.Binder
+    Binder = db.Binder
 
     def set_url_key(self, key: Optional[str]) -> None:
         """Set environment variable key name"""
 
-        return _db_impl.DefaultURL.set_key(key)
+        return db.DefaultURL.set_key(key)
 
     @property
-    def is_bound(self) -> bool:
-        """Returns a bool indicating
-        whether the database is already bound"""
+    def isbound(self) -> bool:
+        return db.isbound()
 
-        return _db_impl.is_bound()
+    @property
+    def state(self) -> Optional[util.tdict]:
+        return db.state()
 
     async def create_tables(
         self, models: List[Type[Model]], **options: Any
@@ -110,11 +112,11 @@ class Trod:
     async def raw(
         self, sql: Union[str, _helper.Query], **kwargs: Any
     ) -> Union[
-        None, _db_impl.FetchResult, util.tdict, Tuple[Any, ...], _db_impl.ExecResult
+        None, util.tdict, Tuple[Any, ...], db.FetchResult, db.ExecResult
     ]:
         """A coroutine that used to directly execute SQL query statements"""
 
         query = sql
         if not isinstance(query, _helper.Query):
             query = _helper.Query(query, kwargs.pop('params', None))
-        return await _db_impl.execute(query, **kwargs)
+        return await db.execute(query, **kwargs)

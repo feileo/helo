@@ -5,14 +5,13 @@
 
 from __future__ import annotations
 
-import calendar
 import datetime
 import decimal
-import time
 import uuid
 import warnings
-from typing import Any, Optional, Union, Callable, List, Tuple
+from typing import Any, Optional, Union, Callable, List, Tuple, Dict
 
+from . import validator, adapter
 from .. import util, err
 from .._helper import (
     SQL,
@@ -21,10 +20,8 @@ from .._helper import (
     Value,
     NodeList,
     EnclosedNodeList,
-    format_datetime,
-    simple_datetime,
-    dt_strftime,
 )
+
 
 ENCODING = util.tdict(
     utf8="utf8",
@@ -37,7 +34,6 @@ ENCODING = util.tdict(
 
 SEQUENCE = (list, tuple, set, frozenset)
 Id = Union[int, str]
-IdList = List[Id]
 NULL = 'null'
 
 
@@ -241,7 +237,15 @@ class ColumnBase(Node):
         return self
 
 
-class Ordering(Node):
+class Column(ColumnBase):
+
+    def __sql__(self, ctx: Context):
+        raise NotImplementedError
+
+
+class Ordering(Column):
+
+    __slots__ = ('node', 'key')
 
     def __init__(self, node: Node, key: str) -> None:
         self.node = node
@@ -252,7 +256,9 @@ class Ordering(Node):
         return ctx
 
 
-class Alias(Node):
+class Alias(Column):
+
+    __slots__ = ('node', 'alias')
 
     @util.argschecker(alias=str, nullable=False)
     def __init__(self, node: Node, alias: str) -> None:
@@ -260,11 +266,16 @@ class Alias(Node):
         self.alias = alias
 
     def __sql__(self, ctx: Context):
-        ctx.sql(self.node).literal(f" AS `{self.alias}` ")
+        ctx.sql(self.node).literal(f" AS `{self.alias}`")
+        if isinstance(self.node, Column):
+            realname = getattr(self.node, 'name', None) or self.alias
+            if self.alias in ctx.aliases:
+                raise err.ProgrammingError(f"Ambiguous alias: {self.alias}")
+            ctx.aliases[self.alias] = realname
         return ctx
 
 
-class Expression(ColumnBase):
+class Expression(Column):
 
     __slots__ = ('lhs', 'op', 'rhs', 'parens')
 
@@ -276,7 +287,7 @@ class Expression(ColumnBase):
         self.rhs = rhs
         self.parens = parens
 
-    def __sql__(self, ctx: Context):
+    def __sql__(self, ctx: Context) -> Context:
         overrides = {'parens': self.parens, 'params': True}
 
         if isinstance(self.lhs, FieldBase):
@@ -309,6 +320,8 @@ class Expression(ColumnBase):
 
 class StrExpression(Expression):
 
+    __slots__ = ()
+
     def __add__(self, rhs: Any) -> StrExpression:
         return self.concat(rhs)
 
@@ -316,9 +329,9 @@ class StrExpression(Expression):
         return StrExpression(lhs, self.OPERATOR.CONCAT, self)
 
 
-class DDL:
+class FieldDDL:
 
-    __slots__ = ('defi',)
+    __slots__ = ('field',)
     __types__ = util.tdict(
         sit='{type}',
         wlt='{type}({length})',
@@ -326,25 +339,28 @@ class DDL:
     )
 
     def __init__(self, field: FieldBase) -> None:
+        self.field = field
 
-        defi = NodeList([SQL(field.column), self.parse_type(field)])
+    def parse(self) -> NodeList:
+        defi = NodeList(
+            [SQL(self.field.column), self._parse_type(self.field)]
+        )
 
-        ops = self.parse_options(field)
+        ops = self._parse_options()
         if ops.unsigned:
             defi.append(SQL("unsigned"))
         if ops.encoding:
             defi.append(SQL(f"CHARACTER SET {ops.encoding}"))
         if ops.zerofill:
             defi.append(SQL("zerofill"))
-        default = self.parse_default(ops, field.db_type)
+        default = self._parse_default(ops, self.field.db_type)
         if default:
             defi.append(default)
         if ops.comment:
             defi.append(SQL(f"COMMENT '{ops.comment}'"))
+        return defi
 
-        self.defi = defi
-
-    def parse_type(self, field: FieldBase) -> SQL:
+    def _parse_type(self, field: FieldBase) -> SQL:
         type_render = {'type': field.db_type}
 
         type_tpl = self.__types__.sit
@@ -362,19 +378,19 @@ class DDL:
 
         return SQL(type_tpl.format(**type_render))
 
-    def parse_options(self, field: FieldBase) -> util.tdict:
+    def _parse_options(self) -> util.tdict:
         return util.tdict(
-            auto=getattr(field, 'auto', None),
-            unsigned=getattr(field, 'unsigned', None),
-            zerofill=getattr(field, 'zerofill', None),
-            encoding=getattr(field, 'encoding', None),
-            default=getattr(field, 'default', NULL),
-            allow_null=field.null,
-            comment=field.comment,
-            adapt=field.to_str,
+            auto=getattr(self.field, 'auto', None),
+            unsigned=getattr(self.field, 'unsigned', None),
+            zerofill=getattr(self.field, 'zerofill', None),
+            encoding=getattr(self.field, 'encoding', None),
+            default=getattr(self.field, 'default', NULL),
+            allow_null=self.field.null,
+            comment=self.field.comment,
+            adapt=self.field.to_str,
         )
 
-    def parse_default(self, ops: util.tdict, db_type) -> Optional[SQL]:
+    def _parse_default(self, ops: util.tdict, db_type) -> Optional[SQL]:
 
         def to_default_sql(default):
             if isinstance(default, SQL):
@@ -412,14 +428,12 @@ class DDL:
         return SQL(default) if default is not None else None
 
 
-class FieldBase(ColumnBase):
+class FieldBase(Column):
 
-    __slots__ = ('null', 'default', 'comment', 'name', '_seqnum')
+    __slots__ = ('null', 'default', 'comment', 'name', 'table')
 
     py_type = None  # type: Any
     db_type = None  # type: Any
-
-    _field_counter = 0
 
     @util.argschecker(null=bool, comment=str)
     def __init__(
@@ -445,26 +459,18 @@ class FieldBase(ColumnBase):
         self.comment = comment
         self.default = default
         self.name = name
+        self.table = None  # type: Optional[Table]
 
-        FieldBase._field_counter += 1
-        self._seqnum = FieldBase._field_counter
         self._custom_wain()
 
     def __def__(self) -> NodeList:
-        return DDL(self).defi
+        return FieldDDL(self).parse()
 
     def __repr__(self) -> str:
-        ddl_def = Context().parse(self.__def__()).query().sql
-        ispk = getattr(self, 'primary_key', False)
-        extra = ""
-        if ispk:
-            extra = " [PRIMARY KEY]"
-            if getattr(self, 'auto', False):
-                extra = " [PRIMARY KEY, AUTO_INCREMENT]"
-        return f"types.{self.__class__.__name__}('{ddl_def}{extra}')"
+        return f"types.{self.__class__.__name__} object '{self.name}'"
 
     def __str__(self) -> str:
-        return Context().parse(self.__def__()).query().sql
+        return self.name
 
     def __hash__(self) -> int:
         if self.name:
@@ -480,17 +486,19 @@ class FieldBase(ColumnBase):
                 )
 
     @property
-    def seqnum(self) -> int:
-        return self._seqnum
-
-    @property
     def column(self) -> str:
         if self.name:
-            return f'`{self.name}`'
+            return f"`{self.name}`"
         raise err.NoColumnNameError
 
     def adapt(self, value: Any) -> Any:
-        return value
+        try:
+            return self.py_type(value)  # pylint: disable=not-callable
+        except ValueError:
+            raise ValueError(
+                f"Iillegal value {value!r} for "
+                f"{self.__class__.__name__} Field"
+            )
 
     def to_str(self, value: Any) -> str:
         if value is None:
@@ -503,8 +511,15 @@ class FieldBase(ColumnBase):
     def db_value(self, value: Any) -> Any:
         return value if value is None else self.adapt(value)
 
-    def __sql__(self, ctx):
-        ctx.literal(self.column)
+    def __sql__(self, ctx: Context) -> Context:
+        if self.table is not None and ctx.props:
+            if ctx.props.get('select') is True:
+                tn = ctx.table_alias(self.table.name)
+            else:
+                tn = self.table.table_name
+            ctx.literal("{}.{}".format(tn, self.column))
+        else:
+            ctx.literal(self.column)
         return ctx
 
 
@@ -532,9 +547,6 @@ class Tinyint(FieldBase):
         super().__init__(
             null=null, default=default, comment=comment, name=name
         )
-
-    def adapt(self, value: Any) -> int:
-        return self.py_type(value)
 
 
 class Smallint(Tinyint):
@@ -651,9 +663,6 @@ class Bool(FieldBase):
             name=name
         )
 
-    def adapt(self, value: Any) -> bool:
-        return self.py_type(value)
-
     def to_str(self, value: Any) -> str:
         if self.py_value(value):
             return "1"
@@ -690,9 +699,6 @@ class Float(FieldBase):
             comment=comment,
             name=name
         )
-
-    def adapt(self, value: Any) -> float:
-        return self.py_type(value)
 
 
 class Double(Float):
@@ -773,15 +779,13 @@ class Text(FieldBase):
         self.null = null
         self.comment = comment
         self.name = name
+        self.table = None
 
     def __add__(self, other: Any) -> StrExpression:
         return StrExpression(self, self.OPERATOR.CONCAT, other)
 
     def __radd__(self, other: Any) -> StrExpression:
         return StrExpression(other, self.OPERATOR.CONCAT, self)
-
-    def adapt(self, value: Any) -> str:
-        return self.py_type(value)
 
 
 class Char(FieldBase):
@@ -790,17 +794,18 @@ class Char(FieldBase):
 
     py_type = str
     db_type = 'char'
+    default_length = 254
 
     def __init__(
             self,
-            length: int = 255,
+            length: Optional[int] = None,
             encoding: Optional[str] = None,
             null: bool = True,
             default: Optional[Union[str, SQL, Callable]] = None,
             comment: str = '',
             name: Optional[str] = None
     ) -> None:
-        self.length = length
+        self.length = length or self.default_length
         if encoding and encoding not in ENCODING:
             raise ValueError(f"Unsupported encoding '{encoding}'")
         self.encoding = encoding
@@ -813,9 +818,6 @@ class Char(FieldBase):
 
     def __radd__(self, other: Any) -> StrExpression:
         return StrExpression(other, self.OPERATOR.CONCAT, self)
-
-    def adapt(self, value: Any) -> str:
-        return self.py_type(value)
 
 
 class VarChar(Char):
@@ -868,12 +870,68 @@ class UUID(FieldBase):
         pass
 
 
+class IP(Bigint):
+
+    __slots__ = ()
+
+    py_type = str  # type: ignore
+
+    def db_value(self, value: Optional[str]) -> Optional[int]:
+        if value is not None:
+            return adapter.iptoint(str(value))
+        return value
+
+    def py_value(self, value: Union[str, int, None]) -> Optional[str]:
+        if value is not None:
+            if isinstance(value, int):
+                return adapter.iptostr(value)
+            if not isinstance(value, str):
+                raise TypeError(f"Invalid type({value!r}) for IP Field")
+            if not value:
+                return value
+            adapter.iptoint(value)
+        return value
+
+
+class Email(VarChar):
+
+    __slots__ = ()
+    default_length = 100
+
+    def adapt(self, value: Any) -> Optional[str]:
+        if value is not None:
+            if not isinstance(value, self.py_type):
+                value = self.py_type(value)
+            if not value:
+                return value
+            if not validator.is_email(value):
+                raise ValueError(f"Invalid value({value!r}) for Email Field")
+        return value
+
+
+class URL(VarChar):
+
+    __slots__ = ()
+
+    def adapt(self, value: Any) -> Optional[str]:
+        if value is not None:
+            if not isinstance(value, self.py_type):
+                value = self.py_type(value)
+            if not value:
+                return value
+            if not validator.is_url(value):
+                raise ValueError(f"Invalid value({value!r}) for URL Field")
+        return value
+
+
 class Date(FieldBase):
+
+    __slots__ = ('formats',)
 
     py_type = (datetime.datetime, datetime.date)  # type: Any
     db_type = 'date'
 
-    formats = (
+    FORMATS = (
         '%Y-%m-%d',
         '%Y-%m-%d %H:%M:%S',
         '%Y-%m-%d %H:%M:%S.%f',
@@ -890,7 +948,7 @@ class Date(FieldBase):
         if formats is not None:
             if isinstance(formats, str):
                 formats = [formats]
-            self.formats = formats  # type: ignore
+        self.formats = formats or self.__class__.FORMATS
         super().__init__(
             null=null, default=default, comment=comment, name=name
         )
@@ -900,13 +958,13 @@ class Date(FieldBase):
 
     def adapt(self, value: Any) -> Optional[datetime.date]:
         if value and isinstance(value, str):
-            value = format_datetime(value, self.formats, lambda x: x.date())
+            value = adapter.format_datetime(value, self.formats, lambda x: x.date())
         elif value and isinstance(value, datetime.datetime):
             value = value.date()
         return value
 
     def to_str(self, value: Any) -> str:
-        return dt_strftime(self.db_value(value), self.formats)
+        return adapter.dt_strftime(self.db_value(value), self.formats)
 
 
 class Time(Date):
@@ -916,7 +974,7 @@ class Time(Date):
     py_type = (datetime.datetime, datetime.time)
     db_type = 'time'
 
-    formats = (  # type: ignore
+    FORMATS = (  # type: ignore
         '%H:%M:%S.%f',
         '%H:%M:%S',
         '%H:%M',
@@ -930,7 +988,7 @@ class Time(Date):
     def adapt(self, value: Any) -> Optional[datetime.time]:  # type:ignore
         if value:
             if isinstance(value, str):
-                value = format_datetime(value, self.formats, lambda x: x.time())  # type: ignore
+                value = adapter.format_datetime(value, self.formats, lambda x: x.time())  # type: ignore
             elif isinstance(value, datetime.datetime):
                 value = value.time()
         if value is not None and isinstance(value, datetime.timedelta):
@@ -945,7 +1003,7 @@ class DateTime(Date):
     py_type = datetime.datetime
     db_type = 'datetime'
 
-    formats = (
+    FORMATS = (
         '%Y-%m-%d %H:%M:%S.%f',
         '%Y-%m-%d %H:%M:%S',
         '%Y-%m-%d',
@@ -956,7 +1014,7 @@ class DateTime(Date):
 
     def adapt(self, value: Any) -> Optional[datetime.datetime]:  # type: ignore
         if value and isinstance(value, str):
-            return format_datetime(value, self.formats)
+            return adapter.format_datetime(value, self.formats)
         return value
 
 
@@ -967,6 +1025,11 @@ class Timestamp(FieldBase):
     py_type = datetime.datetime
     db_type = 'timestamp'
 
+    FORMATS = (
+        '%Y-%m-%d %H:%M:%S',
+        '%Y-%m-%d %H:%M:%S.%f',
+    )
+
     def __init__(
             self,
             utc: bool = False,
@@ -976,8 +1039,6 @@ class Timestamp(FieldBase):
             name: Optional[str] = None
     ) -> None:
         self.utc = utc
-        # if not default:
-        #     default = datetime.datetime.utcnow if self.utc else datetime.datetime.now
         super().__init__(
             null=null, default=default, comment=comment, name=name
         )
@@ -985,21 +1046,23 @@ class Timestamp(FieldBase):
     def _custom_wain(self) -> None:
         pass
 
-    def db_value(self, value: Union[datetime.datetime, int]) -> Optional[int]:
+    def db_value(
+        self, value: Union[datetime.datetime, int, str]
+    ) -> Optional[datetime.datetime]:
         if value is None:
             return value
         if not isinstance(value, datetime.datetime):
             if isinstance(value, datetime.date):
                 value = datetime.datetime(value.year, value.month, value.day)
+            elif isinstance(value, str):
+                value = adapter.simple_datetime(value)
             else:
-                return int(round(value))
-
-        if self.utc:
-            timestamp = calendar.timegm(value.utctimetuple())  # type: ignore
-        else:
-            timestamp = time.mktime(value.timetuple())  # type: ignore
-
-        return int(round(timestamp))
+                value = int(round(value))
+                if self.utc:
+                    value = datetime.datetime.utcfromtimestamp(value)
+                else:
+                    value = datetime.datetime.fromtimestamp(value)
+        return value  # type: ignore
 
     def py_value(self, value: Any) -> Optional[datetime.datetime]:
         if value is not None:
@@ -1009,28 +1072,23 @@ class Timestamp(FieldBase):
                 else:
                     value = datetime.datetime.fromtimestamp(value)
             else:
-                value = simple_datetime(value)
+                value = adapter.simple_datetime(value)
         return value
+
+    def to_str(self, value: Any) -> str:
+        return adapter.dt_strftime(self.db_value(value), self.FORMATS)
 
 
 class Func(Node):
 
     __slots__ = ('_func', '_node')
-    _supported = (
-        "sum",
-        "avg",
-        "max",
-        "min",
-        "count",
-    )
 
     def __init__(self, func: str, node: ColumnBase) -> None:
-        self._func = func
+        self._func = func.upper()
         self._node = node
 
+    @util.argschecker(func=str, nullable=False)
     def __getattr__(self, func: str):
-        if func.lower() not in self._supported:
-            raise RuntimeError(f"Not supported func: {func}")
 
         def decorator(*args, **kwargs):
             return Func(func, *args, **kwargs)
@@ -1054,10 +1112,8 @@ ON_UPDATE = SQL("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
 
 class IndexBase(Node):
 
-    __slots__ = ('fields', 'comment', 'name', '_seqnum')
+    __slots__ = ('fields', 'comment', 'name')
     __type__ = None  # type: SQL
-
-    _field_counter = 0
 
     def __init__(
             self,
@@ -1082,14 +1138,6 @@ class IndexBase(Node):
                 self.fields.append(f.column)
             else:
                 raise TypeError(f"Invalid field type: {f}")
-
-        IndexBase._field_counter += 1
-        # TODO: Abandon it
-        self._seqnum = IndexBase._field_counter
-
-    @property
-    def seqnum(self) -> int:
-        return self._seqnum
 
     def __def__(self) -> NodeList:
         nl = NodeList([
@@ -1126,3 +1174,71 @@ class UKey(IndexBase):
 
     __slots__ = ()
     __type__ = SQL("UNIQUE KEY")
+
+
+class Table(Node):
+
+    __slots__ = (
+        "db", "name", "fields_dict", "primary", "indexes",
+        "auto_increment", "engine", "charset", "comment",
+    )
+
+    AIPK = 'id'
+    _DFT_META = util.tdict(
+        auto_increment=1,
+        engine='InnoDB',
+        charset=ENCODING.utf8,
+        comment='',
+    )
+
+    def __init__(
+        self,
+        database: Optional[str],
+        name: str,
+        fields_dict: Dict[str, FieldBase],
+        primary: util.tdict,
+        indexes: Optional[Union[Tuple[IndexBase, ...], List[IndexBase]]] = None,
+        engine: Optional[str] = None,
+        charset: Optional[str] = None,
+        comment: Optional[str] = None
+    ) -> None:
+        self.db = database
+        self.name = name
+        self.fields_dict = fields_dict
+        self.primary = primary
+        self.indexes = indexes
+        self.auto_increment = primary.begin or self._DFT_META.auto_increment
+        self.engine = engine or self._DFT_META.engine
+        self.charset = charset or self._DFT_META.charset
+        self.comment = comment or self._DFT_META.comment
+
+        for f in self.fields_dict:
+            self.fields_dict[f].table = self
+
+        if not self.primary.field:
+            raise err.NoPKError(
+                f"Primary key not found for table {self.table_name}"
+            )
+
+    @property
+    def table_name(self) -> str:
+        if self.db:
+            return f"`{self.db}`.`{self.name}`"
+        return f"`{self.name}`"
+
+    def __hash__(self) -> int:
+        return hash(f"{self.db}.{self.name}" if self.db else self.name)
+
+    def __repr__(self) -> str:
+        return f"<Table {self.table_name}>"
+
+    def __str__(self) -> str:
+        return self.name
+
+    def __sql__(self, ctx: Context) -> Context:
+        if ctx.props.get('select') is True:
+            ctx.literal("{} AS {}".format(
+                self.table_name, ctx.table_alias(self.name)))
+        else:
+            ctx.literal(self.table_name)
+        return ctx

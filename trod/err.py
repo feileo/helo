@@ -52,6 +52,10 @@ class DangerousOperation(NotAllowedError):
     """Dangerous operation due to wrong programming"""
 
 
+class InvalidValueError(Error):
+    """Exceptions of illegal value"""
+
+
 class ProgrammingWarning(RuntimeWarning):
     """Some warnings about not being appreciated"""
 

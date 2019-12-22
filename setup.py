@@ -15,13 +15,14 @@ setup(
     author_email='g@at7h.com',
     url='https://github.com/at7h/trod',
     description=(
-        'Trod is a simple asynchronous Python ORM using the asyncio(PEP-3156/tulip) framework.'
+        'Trod is a low-level simple asynchronous ORM using Python asyncio'
     ),
     long_description=TROD_README,
-    packages=find_packages(exclude=['tests']),
+    packages=find_packages(),
+    py_modules=['trod'],
     include_package_data=True,
     python_requires='>=3.7',
-    keywords='orm asyncio mysql aiomysql pymysql python3',
+    keywords='orm asyncio mysql aiomysql pymysql python3 async/await',
     zip_safe=False,
     install_requires=[
         'aiomysql>=0.0.19',
@@ -30,7 +31,6 @@ setup(
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
-        "License :: OSI Approved :: MIT License",
         'Intended Audience :: Developers',
-    ]
+    ],
 )

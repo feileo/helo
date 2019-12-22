@@ -21,7 +21,7 @@ import pymysql
 
 from .. import util, err
 from .._helper import Query
-from ._log import logger
+from .log import logger
 
 
 SUPPORTED_SCHEMES = ('mysql',)
@@ -63,7 +63,7 @@ def __ensure__(bound: bool, errfor: bool = True) -> Callable:
 @__ensure__(False)
 async def binding(
     url: Optional[str] = None, **kwargs: Any
-) -> bool:
+) -> None:
     """A coroutine that binding a database(create a connection pool).
 
     The pool is a singleton, repeated create will cause errors.
@@ -72,20 +72,18 @@ async def binding(
     more parameters, see ``Pool` and ``Pool.from_url``
     """
 
-    if url:
+    if url is not None:
         pool = await Pool.from_url(url, **kwargs)
     else:
         pool = await Pool(**kwargs)  # type: ignore
 
     Executer.activate(pool)
 
-    return True
-
 
 @__ensure__(True)
 async def execute(
     query: Query, **kwargs: Any
-) -> Union[None, FetchResult, util.tdict, Tuple[Any, ...], ExecResult]:
+) -> Union[None, util.tdict, Tuple[Any, ...], FetchResult, ExecResult]:
     """A coroutine that execute sql and return the results of its
     execution
     """
@@ -118,7 +116,7 @@ async def unbinding() -> bool:
 
 
 @__ensure__(True, False)
-def is_bound() -> bool:
+def isbound() -> bool:
     """Returns a bool indicating
     whether the database is already bound"""
 
@@ -156,7 +154,7 @@ class Binder:
     def __init__(self, url: Optional[str] = None, **bindings: Any) -> None:
         self.url = url or DefaultURL.get()
         if not self.url:
-            raise ValueError(f"Invalid database url: {url}")
+            raise ValueError(f"Empty DB url: {self.url}")
         self.initcmd = bindings.pop('init', None)
         self.clearcmd = bindings.pop('clear', None)
         self.bindings = bindings
@@ -173,11 +171,11 @@ class Binder:
             if callable(self.clearcmd) and iscoroutinefunction(self.clearcmd):
                 await self.clearcmd()
 
-        if is_bound():
+        if isbound():
             await unbinding()
 
 
-def get_state() -> Optional[util.tdict]:
+def state() -> Optional[util.tdict]:
     """Return the current state of the connection pool"""
 
     return Executer.poolstate()
@@ -416,7 +414,7 @@ class Executer:
     @classmethod
     async def do(
         cls, query: Query, **kwargs: Any
-    ) -> Union[None, FetchResult, util.tdict, tuple, ExecResult]:
+    ) -> Union[None, util.tdict, Tuple[Any, ...], FetchResult, ExecResult]:
         if query.r:
             return await cls._fetch(
                 query.sql, params=query.params, **kwargs,
@@ -442,17 +440,15 @@ class Executer:
             params: Optional[Union[tuple, list]] = None,
             rows: Optional[int] = None,
             db: Optional[str] = None,
-            tdict: bool = True
-    ) -> Union[None, FetchResult, util.tdict, tuple]:
+            tdicts: bool = True
+    ) -> Union[None, util.tdict, Tuple[Any, ...], FetchResult]:
 
         async with cls.pool.acquire() as connection:  # type: ignore
-
             if db:
                 await connection.select_db(db)
 
-            cursorclasses = [TdictCursor] if tdict is True else []
+            cursorclasses = [TdictCursor] if tdicts is True else []
             async with connection.cursor(*cursorclasses) as cur:
-
                 try:
                     await cur.execute(sql, params or ())
                     if not rows:
@@ -537,7 +533,7 @@ class UrlParser:
         """ do parse database url """
 
         if not self._is_illegal_url():
-            raise ValueError(f'Invalid db url {self.url}')
+            raise err.InvalidValueError(f'Invalid db url {self.url}')
 
         self._register()
         url = urlparse.urlparse(self.url)

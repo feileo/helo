@@ -1,5 +1,5 @@
 """
-tests for types module
+tests for types module and outside the ``trod.Model``
 """
 
 from datetime import datetime, date, time, timedelta
@@ -8,18 +8,18 @@ import pytest
 
 from trod import db, err, _helper as helper, types as t
 
-from .models import TypesModel as TM
+from trod import Model
 
 
-def test_expr():
-
+def test_exprs():
     age = t.Int(name='age')
     name = t.Char(name='name')
-    phone = t.VarChar(name='phone')
+    password = t.VarChar(name='password')
+    lastlogin = t.DateTime(name='lastlogin', default=datetime.now)
 
-    e = (age > 10) & True
+    e = (age > 20) & True
     assert helper.parse(e) == helper.Query(
-        '((`age` > %s) AND %s);', (10, True)
+        '((`age` > %s) AND %s);', (20, True)
     )
     e = True & (age > 10)
     assert helper.parse(e) == helper.Query(
@@ -36,6 +36,15 @@ def test_expr():
     e = (name == 'test') | (age > 10)
     assert helper.parse(e) == helper.Query(
         '((`name` = %s) OR (`age` > %s));', ('test', 10)
+    )
+    theday = datetime(year=2019, month=10, day=10)
+    e = (name == 'test') | (lastlogin < theday)
+    assert helper.parse(e) == helper.Query(
+        '((`name` = %s) OR (`lastlogin` < %s));', ('test', theday)
+    )
+    e = lastlogin <= "2019-10-10"
+    assert helper.parse(e) == helper.Query(
+        '(`lastlogin` <= %s);', (theday,)
     )
     e = age + 1
     assert helper.parse(e) == helper.Query(
@@ -149,7 +158,7 @@ def test_expr():
     try:
         e = age[slice(20)]
         helper.parse(e)
-        assert False
+        assert False, "Should raise ValueError"
     except ValueError:
         pass
 
@@ -176,7 +185,7 @@ def test_expr():
     e = name.in_(10)
     try:
         helper.parse(e)
-        assert False
+        assert False, "Should raise TypeError"
     except TypeError:
         pass
     e = name.nin_(['at7h', 'mejor'])
@@ -207,21 +216,21 @@ def test_expr():
     assert helper.parse(e) == helper.Query(
         '(`name` REGEXP BINARY %s);', ('at.*',)
     )
-    e = phone.like(177)
+    e = password.like(177)
     assert helper.parse(e) == helper.Query(
-        '(`phone` LIKE %s);', ('177',)
+        '(`password` LIKE %s);', ('177',)
     )
-    e = phone.like(177, i=False)
+    e = password.like(177, i=False)
     assert helper.parse(e) == helper.Query(
-        '(`phone` LIKE BINARY %s);', ('177',)
+        '(`password` LIKE BINARY %s);', ('177',)
     )
-    e = phone.contains(7867)
+    e = password.contains(7867)
     assert helper.parse(e) == helper.Query(
-        '(`phone` LIKE %s);', ('%7867%',)
+        '(`password` LIKE %s);', ('%7867%',)
     )
-    e = phone.contains(7867, i=False)
+    e = password.contains(7867, i=False)
     assert helper.parse(e) == helper.Query(
-        '(`phone` LIKE BINARY %s);', ('%7867%',)
+        '(`password` LIKE BINARY %s);', ('%7867%',)
     )
     e = name.endswith('7h')
     assert helper.parse(e) == helper.Query(
@@ -257,7 +266,7 @@ def test_expr():
     )
     e = age.as_('a')
     assert helper.parse(e) == helper.Query(
-        '`age` AS `a` ;', ()
+        '`age` AS `a`;', ()
     )
     e = age.as_('')
     assert helper.parse(e) == helper.Query(
@@ -271,9 +280,9 @@ def test_expr():
     assert helper.parse(e) == helper.Query(
         '((`name` = %s) AND (`age` > %s));', ('test', 10)
     )
-    e = (age >= '20') & name.in_(['at7h', 'mejor']) | phone.startswith('153')
+    e = (age >= '20') & name.in_(['at7h', 'mejor']) | password.startswith('153')
     assert helper.parse(e) == helper.Query(
-        '(((`age` >= %s) AND (`name` IN %s)) OR (`phone` LIKE %s));',
+        '(((`age` >= %s) AND (`name` IN %s)) OR (`password` LIKE %s));',
         (20, ('at7h', 'mejor'), '153%')
     )
 
@@ -281,20 +290,21 @@ def test_expr():
     sql = helper.SQL("SELECT")
     assert repr(sql) == str(sql) == 'SQL(SELECT)'
     sql = helper.SQL("SELECT * FROM `user` WHERE `id` IN %s", (1, 2, 3))
-    assert repr(sql) == str(sql) == 'SQL(SELECT * FROM `user` WHERE `id` IN %s) % (1, 2, 3)'
+    assert repr(sql) == str(sql) == (
+        'SQL(SELECT * FROM `user` WHERE `id` IN %s) % (1, 2, 3)')
     assert helper.parse(sql) == helper.Query(
         "SELECT * FROM `user` WHERE `id` IN %s;", (1, 2, 3)
     )
     q = helper.Query("SELECT")
-    assert repr(q) == 'Query({})'.format(str(q))
+    assert repr(q) == "Query({})".format(str(q))
     try:
         q.r = 1
-        assert False, 'Should be raise TypeError'
+        assert False, "Should raise TypeError"
     except TypeError:
         pass
     try:
         assert helper.parse((age > 10) | (name == 'test')) == sql
-        assert False, 'Should be raise TypeError'
+        assert False, "Should raise TypeError"
     except TypeError:
         pass
     assert q.r is True
@@ -308,7 +318,7 @@ def test_expr():
     assert q.r is False
     try:
         assert helper.Query("SELECT", {1: 1}).params
-        assert False, 'Should be raise TypeError'
+        assert False, 'Should raise TypeError'
     except TypeError:
         pass
     ctx = helper.Context()
@@ -323,7 +333,6 @@ def test_fieldbase():
         assert False
     except err.NoColumnNameError:
         pass
-    assert isinstance(nickname.seqnum, int)
     assert nickname.to_str({}) == '{}'
     try:
         nickname.to_str(None)
@@ -334,33 +343,45 @@ def test_fieldbase():
     assert nickname.db_value(1) == '1'
 
 
+def parsef(field):
+    return helper.parse(field.__def__()).sql
+
+
 def test_tinyint():
     tinyint = t.Tinyint()
     try:
         assert tinyint.column
+        assert False, "Should raise NoColumnNameError"
+    except err.NoColumnNameError:
+        pass
+    try:
         assert tinyint.__def__()
-        assert False, "Should be raise NoColumnNameError"
+        assert False, "Should raise NoColumnNameError"
     except err.NoColumnNameError:
         pass
     tinyint = t.Tinyint(name="ty")
     assert tinyint.column == "`ty`"
-    assert str(tinyint) == "`ty` tinyint(4) DEFAULT NULL;"
+    assert repr(tinyint) == "types.Tinyint object 'ty'"
+    assert str(tinyint) == "ty"
+    assert parsef(tinyint) == "`ty` tinyint(4) DEFAULT NULL;"
 
     tinyint = t.Tinyint(name='ty', length=3, null=False, default=1, comment="ty")
-    assert str(tinyint) == "`ty` tinyint(3) NOT NULL DEFAULT '1' COMMENT 'ty';"
+    assert parsef(tinyint) == "`ty` tinyint(3) NOT NULL DEFAULT '1' COMMENT 'ty';"
 
     tinyint = t.Tinyint(name='ty', unsigned=True, default=1, comment="ty")
-    assert str(tinyint) == "`ty` tinyint(4) unsigned DEFAULT '1' COMMENT 'ty';"
+    assert parsef(tinyint) == "`ty` tinyint(4) unsigned DEFAULT '1' COMMENT 'ty';"
 
     tinyint = t.Tinyint(name='ty', zerofill=True)
-    assert str(tinyint) == f"`ty` tinyint(4) zerofill DEFAULT NULL;"
+    assert parsef(tinyint) == f"`ty` tinyint(4) zerofill DEFAULT NULL;"
 
     assert tinyint.py_value('1') == 1
     assert tinyint.db_value('11') == 11
 
+    assert tinyint.db_value('1') == 1
+    assert tinyint.py_value(True) == 1
     try:
-        assert isinstance(tinyint.db_value('1x'), int)
-        assert False, "Should be raise ValueError"
+        tinyint.db_value('1x')
+        assert False, "Should raise ValueError"
     except ValueError:
         pass
 
@@ -369,62 +390,72 @@ def test_smllint():
     smallint = t.Smallint(name='sl', comment="sl")
     assert smallint.py_value('1') == 1
     assert smallint.db_value('2') == 2
-    assert str(smallint) == "`sl` smallint(6) DEFAULT NULL COMMENT 'sl';"
+    assert repr(smallint) == "types.Smallint object 'sl'"
+    assert str(smallint) == "sl"
+    assert parsef(smallint) == "`sl` smallint(6) DEFAULT NULL COMMENT 'sl';"
     smallint = t.Smallint(
-        name='sl', length=4, unsigned=True, zerofill=True, null=False, default=1, comment="sl"
+        name='sl', length=4, unsigned=True, zerofill=True,
+        null=False, default=1, comment="sl"
     )
-    assert str(smallint) == "`sl` smallint(4) unsigned zerofill NOT NULL DEFAULT '1' COMMENT 'sl';"
+    assert parsef(smallint) == (
+        "`sl` smallint(4) unsigned zerofill NOT NULL DEFAULT '1' COMMENT 'sl';")
+    assert smallint.py_value(True) == 1
+    try:
+        smallint.db_value('1x')
+        assert False, "Should raise ValueError"
+    except ValueError:
+        pass
 
 
 def test_int():
     int_ = t.Int(name='int', comment="int")
-    assert str(int_) == "`int` int(11) DEFAULT NULL COMMENT 'int';"
+    assert parsef(int_) == "`int` int(11) DEFAULT NULL COMMENT 'int';"
     try:
         int_ = t.Int(name='int', default='xxx')
-        assert str(int_)
-        assert False, "Should be raise TypeError"
+        assert parsef(int_)
+        assert False, "Should raise TypeError"
     except TypeError:
         pass
     try:
         int_ = t.Int(name='int', primary_key=True, default=1)
-        assert False, "Should be raise ProgrammingError"
+        assert False, "Should raise ProgrammingError"
     except err.ProgrammingError:
         pass
     try:
         int_ = t.Int(name='int', auto=True)
-        assert False, "Should be raise ProgrammingError"
+        assert False, "Should raise ProgrammingError"
     except err.ProgrammingError:
         pass
 
 
 def test_bigint():
     bigint = t.Bigint(name='bigint')
-    assert str(bigint) == "`bigint` bigint(20) DEFAULT NULL;"
+    assert parsef(bigint) == "`bigint` bigint(20) DEFAULT NULL;"
     bigint = t.Bigint(name='bigint', length=18, null=False, default=1)
-    assert str(bigint) == "`bigint` bigint(18) NOT NULL DEFAULT '1';"
+    assert parsef(bigint) == "`bigint` bigint(18) NOT NULL DEFAULT '1';"
     try:
         bigint = t.Bigint(name='bigint', primary_key=True, default=1)
         bigint = t.Bigint(name='bigint', auto=True)
-        assert False, "Should be raise ProgrammingError"
+        assert False, "Should raise ProgrammingError"
     except err.ProgrammingError:
         pass
     bigint = t.Bigint(name='bigint', primary_key=True, auto=True)
-    assert str(bigint) == "`bigint` bigint(20) NOT NULL AUTO_INCREMENT;"
+    assert parsef(bigint) == "`bigint` bigint(20) NOT NULL AUTO_INCREMENT;"
 
 
 def test_auto():
     auto = t.Auto(name='auto')
-    assert str(auto) == "`auto` int(11) NOT NULL AUTO_INCREMENT;"
+    assert parsef(auto) == "`auto` int(11) NOT NULL AUTO_INCREMENT;"
 
 
 def test_bigauto():
     bigauto = t.BigAuto(name='bigauto')
-    assert str(bigauto) == "`bigauto` bigint(20) NOT NULL AUTO_INCREMENT;"
+    assert parsef(bigauto) == "`bigauto` bigint(20) NOT NULL AUTO_INCREMENT;"
 
 
 def test_bool():
     bool_ = t.Bool(name='bool', null=False, default=True)
-    assert str(bool_) == "`bool` bool NOT NULL DEFAULT '1';"
+    assert parsef(bool_) == "`bool` bool NOT NULL DEFAULT '1';"
     assert bool_.db_value(0) is False
     assert bool_.py_value(1) is True
     assert bool_.to_str(True) == '1'
@@ -433,28 +464,28 @@ def test_bool():
 
 def test_float():
     float_ = t.Float(name='float', null=False, default=43.54, length=7)
-    assert str(float_) == "`float` float(7) NOT NULL DEFAULT '43.54';"
+    assert parsef(float_) == "`float` float(7) NOT NULL DEFAULT '43.54';"
     float_ = t.Float(name='float', length=(4, 3), default=100.0, unsigned=True)
-    assert str(float_) == "`float` float(4,3) unsigned DEFAULT '100.0';"
+    assert parsef(float_) == "`float` float(4,3) unsigned DEFAULT '100.0';"
     try:
         float_ = t.Float(name='float', length=(4, 3, 5))
         float_ = t.Float(name='float', length='7')
-        assert False, 'Should be raise TypeError'
+        assert False, 'Should raise TypeError'
     except TypeError:
         pass
 
 
 def test_double():
     double = t.Double(name='double', null=False, length=7, default=43.54)
-    assert str(double) == "`double` double(7) NOT NULL DEFAULT '43.54';"
+    assert parsef(double) == "`double` double(7) NOT NULL DEFAULT '43.54';"
     double = t.Double(name='double', length=(4, 3), unsigned=True)
-    assert str(double) == "`double` double(4,3) unsigned DEFAULT NULL;"
+    assert parsef(double) == "`double` double(4,3) unsigned DEFAULT NULL;"
     assert double.py_value(None) is None
     assert double.py_value(0) == 0.0
     try:
         double = t.Double(name='double', length=(4, 3, 5))
         double = t.Double(name='double', length='7')
-        assert False, 'Should be raise TypeError'
+        assert False, 'Should raise TypeError'
     except TypeError:
         pass
 
@@ -462,16 +493,16 @@ def test_double():
 def test_decimal():
     import decimal as d
     decimal = t.Decimal(name='decimal')
-    assert str(decimal) == "`decimal` decimal(10,5) DEFAULT NULL;"
+    assert parsef(decimal) == "`decimal` decimal(10,5) DEFAULT NULL;"
     decimal = t.Decimal(name='decimal', length=(6, 3), default=d.Decimal(str(43.54)))
-    assert str(decimal) == "`decimal` decimal(6,3) DEFAULT '43.54';"
+    assert parsef(decimal) == "`decimal` decimal(6,3) DEFAULT '43.54';"
     assert decimal.py_value(None) is None
     assert decimal.py_value(0) == d.Decimal(0)
     assert str(decimal.py_value('100.12')) == '100.12'
     assert isinstance(decimal.db_value(10), d.Decimal)
     try:
         decimal = t.Decimal(name='decimal', length=10)
-        assert False, 'Should be raise TypeError'
+        assert False, 'Should raise TypeError'
     except TypeError:
         pass
     decimal = t.Decimal(name='decimal', auto_round=True)
@@ -481,7 +512,7 @@ def test_decimal():
 
 def test_text():
     text = t.Text(name='text', encoding=t.ENCODING.utf8mb4)
-    assert str(text) == "`text` text CHARACTER SET utf8mb4 NULL;"
+    assert parsef(text) == "`text` text CHARACTER SET utf8mb4 NULL;"
     assert hasattr(text, 'default') is False
     try:
         text = t.Text(name='text', encoding='utf7')
@@ -498,7 +529,7 @@ def test_text():
 
 def test_char():
     char = t.Char(name='char', length=100)
-    assert str(char) == "`char` char(100) DEFAULT NULL;"
+    assert parsef(char) == "`char` char(100) DEFAULT NULL;"
     try:
         char = t.Char(name='char', encoding='utf7')
         assert False
@@ -508,10 +539,10 @@ def test_char():
 
 def test_varchar():
     varchar = t.VarChar(name='varchar', default='c')
-    assert str(varchar) == "`varchar` varchar(255) DEFAULT 'c';"
+    assert parsef(varchar) == "`varchar` varchar(254) DEFAULT 'c';"
     try:
         varchar = t.VarChar(name='varchar', default=7)
-        assert False, 'Should be raise TypeError'
+        assert False, 'Should raise TypeError'
     except TypeError:
         pass
 
@@ -519,7 +550,7 @@ def test_varchar():
 def test_uuid():
     import uuid as uu
     uuid = t.UUID(name='uuid')
-    assert str(uuid) == "`uuid` varchar(40) NOT NULL;"
+    assert parsef(uuid) == "`uuid` varchar(40) NOT NULL;"
     id_ = str(uu.uuid1())
     assert isinstance(uuid.py_value(id_), uu.UUID)
     assert isinstance(uuid.db_value(uu.uuid1()), str)
@@ -537,14 +568,122 @@ def test_uuid():
     assert uuid.py_value(None) is None
 
 
+def test_ip():
+    ip = t.IP(name='ip')
+    assert parsef(ip) == "`ip` bigint(20) DEFAULT NULL;"
+    ip = t.IP(name='ip', default=0)
+    assert parsef(ip) == "`ip` bigint(20) DEFAULT '0';"
+    ip = t.IP(name='ip', default='127.0.0.1')
+    assert parsef(ip) == "`ip` bigint(20) DEFAULT '2130706433';"
+
+    assert ip.db_value(None) is None
+    assert ip.py_value(None) is None
+
+    # 0 <= number <= 4294967295
+    assert ip.db_value('0.0.0.0') == 0
+    assert ip.db_value('1.1.1.1') == 16843009
+    assert ip.db_value('192.168.1.100') == 3232235876
+    assert ip.db_value('255.255.255.255') == 4294967295
+    try:
+        ip.db_value('')
+        assert False, "Should raise ValueError"
+    except ValueError:
+        pass
+    try:
+        ip.db_value('255.255.255.256')
+        assert False, "Should raise ValueError"
+    except ValueError:
+        pass
+
+    assert ip.py_value('0.0.0.0') == '0.0.0.0'
+    assert ip.py_value('1.1.1.1') == '1.1.1.1'
+    assert ip.py_value('192.168.1.100') == '192.168.1.100'
+    assert ip.py_value(0) == '0.0.0.0'
+    assert ip.py_value(16843009) == '1.1.1.1'
+    assert ip.py_value(3232235876) == '192.168.1.100'
+    assert ip.py_value(4294967295) == '255.255.255.255'
+    try:
+        ip.py_value(4294967296)
+        assert False, "Should raise ValueError"
+    except ValueError:
+        pass
+    try:
+        ip.py_value(-1)
+        assert False, "Should raise ValueError"
+    except ValueError:
+        pass
+
+
+def test_email():
+    email = t.Email(name='email', length=100, default='')
+    assert parsef(email) == "`email` varchar(100) DEFAULT '';"
+
+    emails = ["", "g@at7h.com", "c.c@c.com", "127121@1127121.cc", "y@a.c"]
+
+    for e in emails:
+        assert email.py_value(e) == email.db_value(e)
+
+    assert email.db_value(None) is None
+    assert email.py_value(None) is None
+    try:
+        email.py_value(0)
+        assert False, "Should raise ValueError"
+    except ValueError:
+        pass
+    try:
+        email.py_value("y@a.")
+        assert False, "Should raise ValueError"
+    except ValueError:
+        pass
+    try:
+        email.py_value("g.@at7h.com")
+        assert False, "Should raise ValueError"
+    except ValueError:
+        pass
+
+
+def test_url():
+    url = t.URL(name='url', default='')
+    assert parsef(url) == "`url` varchar(254) DEFAULT '';"
+
+    urls = [
+        "",
+        "http://at7h.com",
+        "https://127.0.0.1:8000/files/1.txt",
+        "ftp://ds.cc/1232",
+        "http://www.ccc?query=1"
+    ]
+
+    for u in urls:
+        assert url.py_value(u) == url.db_value(u)
+
+    assert url.db_value(None) is None
+    assert url.py_value(None) is None
+    try:
+        url.py_value(0)
+        assert False, "Should raise ValueError"
+    except ValueError:
+        pass
+    try:
+        url.py_value("ftp://cc.ccc.c")
+        assert False, "Should raise ValueError"
+    except ValueError:
+        pass
+    try:
+        url.py_value("127.0.0.1:8800")
+        assert False, "Should raise ValueError"
+    except ValueError:
+        pass
+
+
 def test_date():
     date_ = t.Date(name='date')
-    assert str(date_) == "`date` date DEFAULT NULL;"
+    assert parsef(date_) == "`date` date DEFAULT NULL;"
     date_ = t.Date(name='date', default=datetime.date)
-    assert str(date_) == "`date` date DEFAULT NULL;"
+    assert parsef(date_) == "`date` date DEFAULT NULL;"
     td = date(2019, 10, 1)
     date_ = t.Date(name='date', default=td)
-    assert str(date_) == "`date` date DEFAULT '2019-10-01';"
+    assert parsef(date_) == "`date` date DEFAULT '2019-10-01';"
     assert isinstance(date_.py_value(datetime.now()), date)
     assert isinstance(date_.py_value("2019-10-01"), date)
     assert date_.to_str(td) == "2019-10-01"
@@ -553,12 +692,12 @@ def test_date():
 
 def test_time():
     time_ = t.Time(name='time')
-    assert str(time_) == "`time` time DEFAULT NULL;"
+    assert parsef(time_) == "`time` time DEFAULT NULL;"
     time_ = t.Time(name='time', default=datetime.time)
-    assert str(time_) == "`time` time DEFAULT NULL;"
+    assert parsef(time_) == "`time` time DEFAULT NULL;"
     td = time(22, 19, 34)
     time_ = t.Time(name='time', default=td)
-    assert str(time_) == "`time` time DEFAULT '22:19:34.000000';"
+    assert parsef(time_) == "`time` time DEFAULT '22:19:34.000000';"
     assert isinstance(time_.py_value(datetime.now()), time)
     assert isinstance(time_.py_value("10:23:23"), time)
     assert time_.to_str(td) == "22:19:34.000000"
@@ -566,55 +705,56 @@ def test_time():
     t.Time.formats = ['%H:%M:%S']
     td = time(22, 19, 34)
     time_ = t.Time(name='time', default=td)
-    assert str(time_) == "`time` time DEFAULT '22:19:34';"
-    assert time_.to_str(td) == "22:19:34"
+    assert parsef(time_) == "`time` time DEFAULT '22:19:34.000000';"
+    assert time_.to_str(td) == "22:19:34.000000"
     assert isinstance(time_(), time)
     assert isinstance(time_.db_value(timedelta(weeks=7)), time)
 
 
 def test_datetime():
     datetime_ = t.DateTime(name='dt', formats=['%Y-%m-%d %H:%M:%S'])
-    assert str(datetime_) == "`dt` datetime DEFAULT NULL;"
+    assert parsef(datetime_) == "`dt` datetime DEFAULT NULL;"
     assert isinstance(datetime_.py_value("2019-10-10 10:23:23"), datetime)
     assert datetime_.to_str(datetime(2019, 10, 10, 10, 23, 23)) == "2019-10-10 10:23:23"
     datetime_ = t.DateTime(name='dt', default=datetime.now)
-    assert str(datetime_) == "`dt` datetime DEFAULT NULL;"
+    assert parsef(datetime_) == "`dt` datetime DEFAULT NULL;"
     assert datetime_.to_str(datetime(2019, 10, 10, 10, 23, 23)) == "2019-10-10 10:23:23.000000"
     assert isinstance(datetime_(), datetime)
 
 
 def test_timestamp():
     timestamp = t.Timestamp(name='ts')
-    assert str(timestamp) == "`ts` timestamp NULL DEFAULT NULL;"
+    assert parsef(timestamp) == "`ts` timestamp NULL DEFAULT NULL;"
     assert isinstance(timestamp.py_value("2019-10-10 10:23:23"), datetime)
-    assert isinstance(timestamp.to_str(datetime(2019, 10, 10, 10, 23, 23)), str)
-    assert isinstance(timestamp.db_value(datetime(2019, 10, 10, 10, 23, 23)), int)
+    strdt = "2019-10-10 10:23:23"
+    dt = datetime(2019, 10, 10, 10, 23, 23)
+    assert timestamp.to_str(dt) == strdt
+    assert timestamp.db_value(strdt) == dt
     timestamp = t.Timestamp(name='ts', default=datetime.now)
-    assert str(timestamp) == "`ts` timestamp NULL DEFAULT NULL;"
+    assert parsef(timestamp) == "`ts` timestamp NULL DEFAULT NULL;"
     assert timestamp.db_value(None) is None
-    assert isinstance(timestamp.db_value(date(2019, 10, 10)), int)
-    assert isinstance(timestamp.db_value(1573984070), int)
+    assert isinstance(timestamp.db_value(date(2019, 10, 10)), datetime)
+    assert isinstance(timestamp.db_value(1573984070), datetime)
     assert isinstance(timestamp.py_value(1573984070), datetime)
     timestamp = t.Timestamp(name='ts', utc=True)
-    assert isinstance(timestamp.db_value(1573984070), int)
+    assert isinstance(timestamp.db_value(1573984070), datetime)
     assert isinstance(timestamp.py_value(1573984070), datetime)
 
 
 def test_key():
     age = t.Int(name='age')
     name = t.Char(name='name')
-    phone = t.VarChar(name='phone')
+    password = t.VarChar(name='password')
     key = t.K('idx_name', name)
     assert str(key) == 'KEY `idx_name` (`name`);'
     key = t.K('idx_name_age', (name, age))
     assert str(key) == 'KEY `idx_name_age` (`name`, `age`);'
     key = t.K('idx_name_age', ('name', 'age'))
     assert str(key) == 'KEY `idx_name_age` (`name`, `age`);'
-    key = t.UK('uk_phone', phone, comment='phone')
-    assert str(key) == "UNIQUE KEY `uk_phone` (`phone`) COMMENT 'phone';"
-    assert repr(key) == "types.UKey(UNIQUE KEY `uk_phone` (`phone`) COMMENT 'phone';)"
-    assert key.seqnum == 11
-    assert hash(key) == hash('uk_phone')
+    key = t.UK('uk_password', password, comment='password')
+    assert str(key) == "UNIQUE KEY `uk_password` (`password`) COMMENT 'password';"
+    assert repr(key) == "types.UKey(UNIQUE KEY `uk_password` (`password`) COMMENT 'password';)"
+    assert hash(key) == hash('uk_password')
     try:
         t.K('idx_name', [1, 2, 4])
         assert False
@@ -625,25 +765,54 @@ def test_key():
 def test_funs():
     age = t.Int(name='age')
     s = t.F.SUM(age).as_('age_sum')
-    assert helper.parse(s).sql == 'SUM(`age`) AS `age_sum` ;'
+    assert helper.parse(s).sql == 'SUM(`age`) AS `age_sum`;'
 
     m_ = t.F.MAX(age).as_('age_max')
-    assert helper.parse(m_).sql == 'MAX(`age`) AS `age_max` ;'
-    try:
-        t.F.STR(age).as_('age_str')
-        assert False, 'Should be raise RuntimeError'
-    except RuntimeError:
-        pass
+    assert helper.parse(m_).sql == 'MAX(`age`) AS `age_max`;'
+
+
+class TypesModel(Model):
+
+    id = t.Auto(comment='primary_key')
+    tinyint = t.Tinyint(1, unsigned=True, zerofill=True, comment='tinyint')
+    smallint = t.Smallint(null=False, default=0, comment='smallint')
+    int_ = t.Int(unsigned=True, null=False, default=0, comment='int')
+    bigint = t.Bigint(45, null=False, default=0, comment='bigint')
+    text = t.Text(encoding=t.ENCODING.utf8mb4, null=False, comment='text')
+    char = t.Char(45, null=False, default='', comment='char')
+    varchar = t.VarChar(45, null=False, default='', comment='varchar')
+    uuid = t.UUID(comment='uuid test')
+    float_ = t.Float((3, 3), default=0, comment='float')
+    double_ = t.Double((4, 4), unsigned=True, default=0, comment='double')
+    decimal = t.Decimal((10, 2), unsigned=True, default=0, comment='decimal')
+    ip = t.IP(default=0)
+    email = t.Email(length=100, default='')
+    url = t.URL(default='')
+    time_ = t.Time(default=datetime.now, comment='time')
+    date_ = t.Date(default=datetime.now, comment='date')
+    datetime_ = t.DateTime(default=datetime.now, comment='datetime')
+    now_ts = t.Timestamp(default=datetime.now, comment='now ts')
+    created_at = t.Timestamp(default=t.ON_CREATE, comment='created_at')
+    updated_at = t.Timestamp(default=t.ON_UPDATE, comment='updated_at')
+
+    class Meta:
+        name = 'test_types_table'
+        comment = 'type case table'
+        auto_increment = 7
+        indexes = (
+            t.K('key', ['tinyint', 'datetime_'], comment='key test'),
+            t.UK('ukey', 'varchar', comment='unique key test'),
+        )
 
 
 @pytest.mark.asyncio
 async def test_types():
 
     async with db.Binder():
-        await TM.create()
-        assert await TM.show().create_syntax() == (
+        await TypesModel.create()
+        assert await TypesModel.show().create_syntax() == (
             "CREATE TABLE `test_types_table` (\n"
-            "  `id` int(11) NOT NULL AUTO_INCREMENT COMMENT 'permary_key',\n"
+            "  `id` int(11) NOT NULL AUTO_INCREMENT COMMENT 'primary_key',\n"
             "  `tinyint` tinyint(1) unsigned zerofill DEFAULT NULL COMMENT 'tinyint',\n"
             "  `smallint` smallint(6) NOT NULL DEFAULT '0' COMMENT 'smallint',\n"
             "  `int_` int(11) unsigned NOT NULL DEFAULT '0' COMMENT 'int',\n"
@@ -655,6 +824,9 @@ async def test_types():
             "  `float_` float(3,3) DEFAULT '0.000' COMMENT 'float',\n"
             "  `double_` double(4,4) unsigned DEFAULT '0.0000' COMMENT 'double',\n"
             "  `decimal` decimal(10,2) unsigned DEFAULT '0.00' COMMENT 'decimal',\n"
+            "  `ip` bigint(20) DEFAULT '0',\n"
+            "  `email` varchar(100) DEFAULT '',\n"
+            "  `url` varchar(254) DEFAULT '',\n"
             "  `time_` time DEFAULT NULL COMMENT 'time',\n"
             "  `date_` date DEFAULT NULL COMMENT 'date',\n"
             "  `datetime_` datetime DEFAULT NULL COMMENT 'datetime',\n"
@@ -667,4 +839,4 @@ async def test_types():
             "  KEY `key` (`tinyint`,`datetime_`) COMMENT 'key test'\n"
             ") ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='type case table'"
         )
-        await TM.drop()
+        await TypesModel.drop()

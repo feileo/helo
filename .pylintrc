@@ -67,6 +67,7 @@ disable-msg=I0011
 # http://pylint-messages.wikidot.com/all-codes
 
 disable=C0111,
+        C0103,
         E1120,
         R0201,
         R0903,
@@ -332,7 +333,7 @@ max-returns=6
 max-statements=90
 
 # Maximum number of parents for a class (see R0901).
-max-parents=7
+max-parents=8
 
 # Maximum number of attributes for a class (see R0902).
 max-attributes=20
@@ -379,7 +380,7 @@ int-import-graph=
 max-line-length=120
 
 # Maximum number of lines in a module
-max-module-lines=1500
+max-module-lines=2000
 
 # Regexp for a line that is allowed to be longer than the limit.
 ignore-long-lines=^\s*(# )?<?https?://\S+>?$
