@@ -1338,7 +1338,7 @@ class Delete(WriteQuery):
         return self
 
     def __sql__(self, ctx: Context) -> Context:
-        ctx.literal(f"DELETE FROM ").sql(self._table)
+        ctx.literal("DELETE FROM ").sql(self._table)
         if self._where:
             ctx.literal(
                 " WHERE "
