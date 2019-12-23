@@ -25,7 +25,6 @@ trod
 **Trod** 是一个使用 Python asyncio_ 开发的低级别的简单的异步 ORM。
 
 * 用它能轻松的构建出富有表达力的常用 SQL，适于业务结构较简单有一定并发量的场景
-* 支持的 Python 版本为 3.7+
 * 目前仅支持 MySQL，使用 aiomysql_ 作为连接驱动
 * 不支持表关系操作
 
@@ -33,6 +32,11 @@ trod
 
 * 查看 `基础示例 </examples>`_
 
+支持的 Python 版本:
+
+.. image:: https://img.shields.io/pypi/pyversions/trod 
+        :target: https://img.shields.io/pypi/pyversions/trod
+        :alt: PyPI - Python Version
 
 安装
 ----

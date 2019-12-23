@@ -14,13 +14,7 @@ trod
 .. image:: https://api.codacy.com/project/badge/Grade/24451621f9554f7a8d857c5b3dd6e522    
         :target: https://www.codacy.com/manual/at7h/trod?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=at7h/trod&amp;utm_campaign=Badge_Grade
 
-.. image:: https://img.shields.io/pypi/pyversions/trod
-        :target: https://img.shields.io/pypi/pyversions/trod
-        :alt: PyPI - Python Version
 
-.. image:: https://img.shields.io/github/license/at7h/trod?color=9cf   
-        :target: https://img.shields.io/github/license/at7h/trod?color=9cf
-        :alt: GitHub
 
 **Trod** is a low-level simple asynchronous ORM using Python asyncio_.
 
@@ -28,13 +22,18 @@ View `Chinese </README_CN.rst>`_
 
 * Using it to easily build expressive and commonly used SQL, 
   suitable for scenarios with simple business structures and a certain amount of concurrency
-* Requires: Python 3.7+
 * Now only supports MySQL, using aiomysql_ as the connection driver
 * Not supports table relationship
 
 Quickstart:
 
 * See `basic example </examples>`_
+
+Requires:
+
+.. image:: https://img.shields.io/pypi/pyversions/trod 
+        :target: https://img.shields.io/pypi/pyversions/trod
+        :alt: PyPI - Python Version
 
 
 Installation
