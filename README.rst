@@ -19,7 +19,7 @@ trod
 
 View `Chinese </README_CN.rst>`_
 
-* Use it to easily build expressive and commonly used SQL, 
+* Using it to easily build expressive and commonly used SQL, 
   suitable for scenarios with simple business structures and a certain amount of concurrency
 * Requires: Python 3.7+
 * Now only supports MySQL, using aiomysql_ as the connection driver
@@ -152,20 +152,25 @@ Shows some basic examples:
 👉 See `more examples </examples>`_
 
 
-About
------
+Contributing 👏
+---------------
 
-* 🌱 Trod is immature and has many shortcomings. I hope everyone who is interested can 
-  participate in it and I will update it often
-* 😊 Special thanks to projects aiomysql_ and peewee_, trod uses aiomysql_, 
-  and referenced peewee_ in program design
-* 👏 Any kind of contribution is expected: report a bug 🐞, give a advice or create a pull request 🙋‍♂️.
+* I hope those who are interested can join in and work together.
+  Any kind of contribution is expected: 
+  report a bug 🐞, give a advice or create a pull request 🙋‍♂️.
 
 
-Todo
-----
+Thanks 🤝
+---------
 
-* ✍️  Documents
+* Special thanks to projects aiomysql_ and peewee_, trod uses aiomysql_, 
+  and referenced peewee_ in program design.
+* Please feel free to ⭐️ this repository if this project helped you 😉! 
+
+TODO 📝
+-------
+
+* Documents ✍️
 
 
 .. _asyncio: https://docs.python.org/3.7/library/asyncio.html
