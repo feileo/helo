@@ -6,12 +6,19 @@ trod
         :target: https://pypi.python.org/pypi/trod
 
 .. image:: https://travis-ci.org/at7h/trod.svg?branch=master
-    :target: https://travis-ci.org/at7h/trod
+        :target: https://travis-ci.org/at7h/trod
 
 .. image:: https://coveralls.io/repos/github/at7h/trod/badge.svg?branch=master
         :target: https://coveralls.io/github/at7h/trod?branch=master
 
-.. image:: https://img.shields.io/github/license/at7h/trod?color=9cf
+.. image:: https://api.codacy.com/project/badge/Grade/24451621f9554f7a8d857c5b3dd6e522    
+        :target: https://www.codacy.com/manual/at7h/trod?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=at7h/trod&amp;utm_campaign=Badge_Grade
+
+.. image:: https://img.shields.io/pypi/pyversions/trod
+        :target: https://img.shields.io/pypi/pyversions/trod
+        :alt: PyPI - Python Version
+
+.. image:: https://img.shields.io/github/license/at7h/trod?color=9cf   
         :target: https://img.shields.io/github/license/at7h/trod?color=9cf
         :alt: GitHub
 
