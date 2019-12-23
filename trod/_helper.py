@@ -73,7 +73,7 @@ class Node:
 
     __slots__ = ()
 
-    def __sql__(self, ctx: Context):
+    def __sql__(self, ctx: Context) -> Context:
         raise NotImplementedError
 
 
