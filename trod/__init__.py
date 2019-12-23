@@ -39,7 +39,7 @@ class Trod:
 
     async def bind(self, url: Optional[str] = None, **kwargs: Any) -> bool:
         """A coroutine that binding a database.
-        Kwargs: see `db.Pool`
+        Kwargs: see ``db.Pool``
         """
 
         return await db.binding(url, **kwargs)
@@ -73,7 +73,6 @@ class Trod:
 
         for m in models:
             await m.create(**options)
-
         return True
 
     async def create_all(self, module: ModuleType, **options: Any) -> bool:
@@ -94,7 +93,6 @@ class Trod:
 
         for m in models:
             await m.drop()
-
         return True
 
     async def drop_all(self, module: ModuleType) -> bool:
