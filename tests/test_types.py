@@ -569,6 +569,7 @@ def test_uuid():
 
 
 def test_ip():
+    """ipv4"""
     ip = t.IP(name='ip')
     assert parsef(ip) == "`ip` bigint(20) DEFAULT NULL;"
     ip = t.IP(name='ip', default=0)
@@ -618,7 +619,14 @@ def test_email():
     email = t.Email(name='email', length=100, default='')
     assert parsef(email) == "`email` varchar(100) DEFAULT '';"
 
-    emails = ["", "g@at7h.com", "c.c@c.com", "127121@1127121.cc", "y@a.c"]
+    emails = [
+        "",
+        "g@at7h.com",
+        "c.c@c.com",
+        "127121@1127121.cc",
+        "y@a.cc",
+        "cy.Gg.w12@s.com.cc",
+    ]
 
     for e in emails:
         assert email.py_value(e) == email.db_value(e)
@@ -631,7 +639,7 @@ def test_email():
     except ValueError:
         pass
     try:
-        email.py_value("y@a.")
+        email.py_value("y@a.c")
         assert False, "Should raise ValueError"
     except ValueError:
         pass
@@ -651,7 +659,8 @@ def test_url():
         "http://at7h.com",
         "https://127.0.0.1:8000/files/1.txt",
         "ftp://ds.cc/1232",
-        "http://www.ccc?query=1"
+        "http://www.ccc?query=1",
+        "http://z12.ZZ",
     ]
 
     for u in urls:
@@ -665,7 +674,7 @@ def test_url():
     except ValueError:
         pass
     try:
-        url.py_value("ftp://cc.ccc.c")
+        url.py_value("ftp://cc.c")
         assert False, "Should raise ValueError"
     except ValueError:
         pass

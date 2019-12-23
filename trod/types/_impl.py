@@ -435,6 +435,8 @@ class FieldBase(Column):
     py_type = None  # type: Any
     db_type = None  # type: Any
 
+    VALUEERR_MSG = "Invalid value({}) for {} Field!"
+
     @util.argschecker(null=bool, comment=str)
     def __init__(
         self,
@@ -871,13 +873,19 @@ class UUID(FieldBase):
 
 
 class IP(Bigint):
+    """IPV4"""
 
     __slots__ = ()
 
     py_type = str  # type: ignore
+    MIN, MAX = 0, 4294967295
 
     def db_value(self, value: Optional[str]) -> Optional[int]:
         if value is not None:
+            if isinstance(value, int) and (IP.MIN <= value <= IP.MAX):
+                return value
+            if not validator.is_ipv4(value):
+                raise ValueError(IP.VALUEERR_MSG.format(value, "IP"))
             return adapter.iptoint(str(value))
         return value
 
@@ -887,15 +895,15 @@ class IP(Bigint):
                 return adapter.iptostr(value)
             if not isinstance(value, str):
                 raise TypeError(f"Invalid type({value!r}) for IP Field")
-            if not value:
-                return value
-            adapter.iptoint(value)
+            if not validator.is_ipv4(value):
+                raise ValueError(IP.VALUEERR_MSG.format(value, "IP"))
         return value
 
 
 class Email(VarChar):
 
     __slots__ = ()
+
     default_length = 100
 
     def adapt(self, value: Any) -> Optional[str]:
@@ -905,7 +913,7 @@ class Email(VarChar):
             if not value:
                 return value
             if not validator.is_email(value):
-                raise ValueError(f"Invalid value({value!r}) for Email Field")
+                raise ValueError(Email.VALUEERR_MSG.format(value, "Email"))
         return value
 
 
@@ -920,7 +928,7 @@ class URL(VarChar):
             if not value:
                 return value
             if not validator.is_url(value):
-                raise ValueError(f"Invalid value({value!r}) for URL Field")
+                raise ValueError(URL.VALUEERR_MSG.format(value, "URL"))
         return value
 
 
