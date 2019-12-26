@@ -159,9 +159,10 @@ Shows some basic examples:
 Contributing 👏
 ---------------
 
-* I hope those who are interested can join in and work together.
-  Any kind of contribution is expected:
-  report a bug 🐞, give a advice or create a pull request 🙋‍♂️.
+I hope those who are interested can join in and work together.
+
+Any kind of contribution is expected:
+report a bug 🐞, give a advice or create a pull request 🙋‍♂️.
 
 
 Thanks 🤝
