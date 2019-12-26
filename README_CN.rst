@@ -11,30 +11,24 @@ trod
 .. image:: https://coveralls.io/repos/github/at7h/trod/badge.svg?branch=master
         :target: https://coveralls.io/github/at7h/trod?branch=master
 
-.. image:: https://api.codacy.com/project/badge/Grade/24451621f9554f7a8d857c5b3dd6e522    
+.. image:: https://api.codacy.com/project/badge/Grade/24451621f9554f7a8d857c5b3dd6e522
         :target: https://www.codacy.com/manual/at7h/trod?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=at7h/trod&amp;utm_campaign=Badge_Grade
 
-.. image:: https://img.shields.io/pypi/pyversions/trod
-        :target: https://img.shields.io/pypi/pyversions/trod
-        :alt: PyPI - Python Version
-
-.. image:: https://img.shields.io/github/license/at7h/trod?color=9cf   
-        :target: https://img.shields.io/github/license/at7h/trod?color=9cf
-        :alt: GitHub
 
 **Trod** 是一个使用 Python asyncio_ 开发的低级别的简单的异步 ORM。
 
-* 用它能轻松的构建出富有表达力的常用 SQL，适于业务结构较简单有一定并发量的场景
+* 使用 trod 能轻松的构建出富有表达力的常用 SQL，适于业务结构较简单有一定并发量的场景
 * 目前仅支持 MySQL，使用 aiomysql_ 作为连接驱动
 * 不支持表关系操作
 
 快速上手:
 
 * 查看 `基础示例 </examples>`_
+* 文档 (TODO 📝)
 
 支持的 Python 版本:
 
-.. image:: https://img.shields.io/pypi/pyversions/trod 
+.. image:: https://img.shields.io/pypi/pyversions/trod
         :target: https://img.shields.io/pypi/pyversions/trod
         :alt: PyPI - Python Version
 
@@ -124,7 +118,7 @@ trod
         ).first()
         print(user) # [<User object> at 1]
 
-        # using `trod.util.tdict`
+        # Using `trod.util.tdict`
         users = await User.select(
             User.id, User.name
         ).where(
@@ -170,14 +164,8 @@ trod
 感谢 🤝
 -------
 
-* 特别感谢项目 aiomysql_ 和 peewee_, trod 使用了前者，并在设计上参考了后者
-* 如果项目对你有帮助请猛戳 ⭐️，哈哈 😉 
-
-
-TODO 📝
--------
-
-* 编写文档 ✍️
+* 特别感谢项目 aiomysql_ 和 peewee_, trod 使用了前者，并在设计上参考了后者。
+* 如果项目对你有帮助请朝 ⭐️ 猛戳 😉 !
 
 
 .. _asyncio: https://docs.python.org/3.7/library/asyncio.html

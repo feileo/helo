@@ -11,30 +11,29 @@ trod
 .. image:: https://coveralls.io/repos/github/at7h/trod/badge.svg?branch=master
         :target: https://coveralls.io/github/at7h/trod?branch=master
 
-.. image:: https://api.codacy.com/project/badge/Grade/24451621f9554f7a8d857c5b3dd6e522    
+.. image:: https://api.codacy.com/project/badge/Grade/24451621f9554f7a8d857c5b3dd6e522
         :target: https://www.codacy.com/manual/at7h/trod?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=at7h/trod&amp;utm_campaign=Badge_Grade
 
 
+**Trod** is a low-level simple asynchronous ORM using Python asyncio_.  
 
-**Trod** is a low-level simple asynchronous ORM using Python asyncio_.
-
-View `Chinese </README_CN.rst>`_
-
-* Using it to easily build expressive and commonly used SQL, 
+* Using it to easily build expressive and commonly used SQL,
   suitable for scenarios with simple business structures and a certain amount of concurrency
 * Now only supports MySQL, using aiomysql_ as the connection driver
 * Not supports table relationship
 
+[`简体中文 </README_CN.rst>`_]
+
 Quickstart:
 
-* See `basic example </examples>`_
+* `basic example </examples>`_
+* Documentation (TODO 📝)
 
 Requires:
 
-.. image:: https://img.shields.io/pypi/pyversions/trod 
+.. image:: https://img.shields.io/pypi/pyversions/trod
         :target: https://img.shields.io/pypi/pyversions/trod
         :alt: PyPI - Python Version
-
 
 Installation
 ------------
@@ -122,7 +121,7 @@ Shows some basic examples:
         ).first()
         print(user) # [<User object> at 1]
 
-        # using `trod.util.tdict`
+        # Using `trod.util.tdict`
         users = await User.select(
             User.id, User.name
         ).where(
@@ -130,7 +129,7 @@ Shows some basic examples:
         ).all(wrap=False)
         print(user)  # [{'id': 1, 'name': 'at7h'}]
 
-        # Paginate get users who wrote Python posts this year 
+        # Paginate get users who wrote Python posts this year
         users = await User.select().where(
             User.id.in_(
                 Post.select(Post.author).where(
@@ -152,7 +151,6 @@ Shows some basic examples:
             User.name
         ).rows(100)
 
-
     asyncio.run(base_example())
 
 👉 See `more examples </examples>`_
@@ -162,23 +160,18 @@ Contributing 👏
 ---------------
 
 * I hope those who are interested can join in and work together.
-  Any kind of contribution is expected: 
+  Any kind of contribution is expected:
   report a bug 🐞, give a advice or create a pull request 🙋‍♂️.
 
 
 Thanks 🤝
 ---------
 
-* Special thanks to projects aiomysql_ and peewee_, trod uses aiomysql_, 
+* Special thanks to projects aiomysql_ and peewee_, trod uses aiomysql_,
   and referenced peewee_ in program design.
-* Please feel free to ⭐️ this repository if this project helped you 😉! 
+* Please feel free to ⭐️ this repository if this project helped you 😉!
 
-TODO 📝
--------
-
-* Documents ✍️
-
-
+.. _Documentation: .
 .. _asyncio: https://docs.python.org/3.7/library/asyncio.html
 .. _aiomysql: https://github.com/aio-libs/aiomysql
 .. _peewee: https://github.com/coleifer/peewee
