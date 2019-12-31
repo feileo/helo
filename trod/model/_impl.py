@@ -694,7 +694,7 @@ class ApiProxy:
 
     @classmethod
     async def save(cls, mo: Model) -> Id:
-        """ save model object """
+        """ Save model object to db """
 
         has_id = False
         pk_attr = get_table(mo).primary.attr
@@ -712,7 +712,6 @@ class ApiProxy:
 
     @classmethod
     async def remove(cls, mo: Model) -> int:
-        """ delete model object"""
 
         table = get_table(mo)
         primary_value = getattr(mo, table.primary.attr, None)
@@ -1135,7 +1134,7 @@ class Select(BaseQuery):
         return row[0] if row and not as_tuple else row  # type: ignore
 
     async def count(self) -> int:
-        self._columns = [FS.COUNT(SQL('1'))]
+        self._columns = [FS.COUNT(SQL('1'))]  # type: ignore
         return await self.scalar()  # type: ignore
 
     async def exist(self) -> bool:

@@ -14,23 +14,25 @@ trod
 .. image:: https://api.codacy.com/project/badge/Grade/24451621f9554f7a8d857c5b3dd6e522
         :target: https://www.codacy.com/manual/at7h/trod?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=at7h/trod&amp;utm_campaign=Badge_Grade
 
-
-**Trod** 是一个使用 Python asyncio_ 开发的低级别的简单的异步 ORM。
-
-* 使用 trod 能轻松的构建出富有表达力的常用 SQL，适于业务结构较简单有一定并发量的场景
-* 目前仅支持 MySQL，使用 aiomysql_ 作为连接驱动
-* 不支持表关系操作
-
-快速上手:
-
-* 查看 `基础示例 </examples>`_
-* 文档 (TODO 📝)
-
-支持的 Python 版本:
-
 .. image:: https://img.shields.io/pypi/pyversions/trod
         :target: https://img.shields.io/pypi/pyversions/trod
         :alt: PyPI - Python Version
+
+🌟 **Trod** 是一个的低级别的简单异步(asyncio_) Python ORM。
+
+Trod 可以在你的异步应用中帮助你轻松的构建出富有表达力的常用 SQL 语句，你只需以友好的对象化 API 来操作数据，
+而不用关心 SQL 语句编写、数据处理等细节。适合于业务逻辑结构较简单有一定并发量的场景。
+
+* 支持的版本: Python 3.7+
+* 目前仅支持 MySQL
+* 不支持表关系操作
+
+
+快速上手
+--------
+
+更多信息和上手文档请查看 trod wiki_ 页面。
+
 
 安装
 ----
@@ -39,17 +41,28 @@ trod
 
     pip install trod
 
+更多安装选项请查看 installation_ 页面。
+
 
 简单示例
 --------
 
-定义 `Model` 很简单:
+首先，你需要引入 ``Trod`` 类并实例化一个全局变量，假设(通常)其称为 ``db``:
 
 .. code-block:: python
 
-    from trod import Model, types
+    from trod import Trod
 
-    class User(Model):
+    db = Trod()
+
+
+接下来，声明你的 models:
+
+.. code-block:: python
+
+    from trod import types
+
+    class User(db.Model):
         id = types.BigAuto()
         name = types.VarChar(length=45, null=False)
         email = types.Email(default='')
@@ -57,7 +70,7 @@ trod
         create_at = types.Timestamp(default=types.ON_CREATE)
 
 
-    class Post(Model):
+    class Post(db.Model):
         id = types.Auto()
         title = types.VarChar(length=100)
         author = types.Int(default=0)
@@ -66,20 +79,17 @@ trod
         update_at = types.Timestamp(default=types.ON_UPDATE)
 
 
-下面的脚本展示一些基本的示例:
+下面的脚本展示一些基本的操作示例:
 
 .. code-block:: python
 
     import asyncio
     from datetime import datetime
 
-    from trod import Trod, JOINTYPE, types
+    from trod import JOINTYPE, types
 
 
-    db = Trod()
-
-
-    async def base_example():
+    async def show_case():
 
         # Binding the database(creating a connection pool)
         # and create the table:
@@ -149,7 +159,7 @@ trod
         ).rows(100)
 
 
-    asyncio.run(base_example())
+    asyncio.run(show_case())
 
 👉 查看 `更多示例 </examples>`_
 
@@ -166,10 +176,13 @@ trod
 感谢 🤝
 -------
 
-* 特别感谢项目 aiomysql_ 和 peewee_, trod 使用了前者，并在设计上参考了后者。
+* 特别感谢项目 aiomysql_ 和 peewee_, trod 使用了前者(作为 MySQL 连接驱动)，并在设计上参考了后者。
 * 如果项目对你有帮助请朝 ⭐️ 猛戳 😉 !
 
 
+.. _wiki: https://github.com/at7h/trod/wiki
+.. _quickstart: https://github.com/at7h/trod/wiki#quickstart
+.. _installation: https://github.com/at7h/trod/wiki#installation
 .. _asyncio: https://docs.python.org/3.7/library/asyncio.html
 .. _aiomysql: https://github.com/aio-libs/aiomysql
 .. _peewee: https://github.com/coleifer/peewee

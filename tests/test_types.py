@@ -6,9 +6,11 @@ from datetime import datetime, date, time, timedelta
 
 import pytest
 
-from trod import db, err, _helper as helper, types as t
+from trod import err, _helper as helper, types as t
 
-from trod import Model
+from trod import Trod
+
+db = Trod()
 
 
 def test_exprs():
@@ -613,6 +615,8 @@ def test_ip():
         assert False, "Should raise ValueError"
     except ValueError:
         pass
+    for item in [None, '', {}, ]:
+        assert t.validator.is_ipv4(item) is False
 
 
 def test_email():
@@ -648,6 +652,8 @@ def test_email():
         assert False, "Should raise ValueError"
     except ValueError:
         pass
+    for item in [None, '', {}, ]:
+        assert t.validator.is_email(item) is False
 
 
 def test_url():
@@ -683,6 +689,8 @@ def test_url():
         assert False, "Should raise ValueError"
     except ValueError:
         pass
+    for item in [None, '', {}, ]:
+        assert t.validator.is_url(item) is False
 
 
 def test_date():
@@ -780,7 +788,7 @@ def test_funs():
     assert helper.parse(m_).sql == 'MAX(`age`) AS `age_max`;'
 
 
-class TypesModel(Model):
+class TypesModel(db.Model):
 
     id = t.Auto(comment='primary_key')
     tinyint = t.Tinyint(1, unsigned=True, zerofill=True, comment='tinyint')

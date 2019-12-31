@@ -8,8 +8,9 @@ from datetime import datetime
 
 import pytest
 
-from trod import db, types as t, err, util, Model, JOINTYPE
+from trod import db, types as t, err, util, JOINTYPE
 from trod import _helper
+from trod.model import Model
 
 logging.getLogger().setLevel(logging.INFO)
 

@@ -6,7 +6,8 @@ from datetime import datetime
 
 import pytest
 
-from trod import Trod, Model, err, util, _helper as h, JOINTYPE
+from trod import Trod
+from trod import err, util, _helper as h, JOINTYPE
 from trod.db import DefaultURL
 from trod.types import (
     Auto, Int, Char, VarChar, DateTime, Tinyint,
@@ -15,8 +16,10 @@ from trod.types import (
 
 from . import test_model as models
 
+db = Trod()
 
-class User(Model):
+
+class User(db.Model):
 
     id = Auto()
     name = VarChar(length=45, comment='username')
@@ -25,14 +28,14 @@ class User(Model):
     update_at = Timestamp(default=ON_UPDATE)
 
 
-class Column(Model):
+class Column(db.Model):
 
     id = Auto()
     name = Char(length=100)
     create_at = Timestamp(default=ON_CREATE)
 
 
-class Post(Model):
+class Post(db.Model):
 
     id = Int(primary_key=True, auto=True)
     name = VarChar(length=100)
@@ -252,8 +255,6 @@ class TestImportantQueries:
 @pytest.mark.asyncio
 async def test_trod():
 
-    db = Trod()
-
     assert db.state is None
 
     async with db.Binder():
@@ -292,14 +293,6 @@ async def test_trod():
         assert False, "Should raise err.UnboundError"
     except err.UnboundError:
         pass
-
-    db = Trod('TEST_KEY')
-    try:
-        async with db.Binder():
-            pass
-        assert False, "Should raise ValueError"
-    except ValueError:
-        pass
     try:
         await db.bind(password='1234')
         assert False, "Should raise err.OperationalError"
@@ -311,6 +304,18 @@ async def test_trod():
     assert db.isbound is True
     await db.unbind()
     assert db.isbound is False
+
+    db.test = True
+    testkey = 'TEST_KEY'
+    db1 = Trod(testkey)
+    assert db1.test is True
+    db1.set_url_key(testkey)
+    try:
+        async with db1.Binder():
+            pass
+        assert False, "Should raise ValueError"
+    except ValueError:
+        pass
 
 
 @pytest.mark.asyncio

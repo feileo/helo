@@ -14,8 +14,8 @@ from typing import Any, Dict
 __all__ = (
     'tdict',
     'tdictformatter',
-    'singleton',
     'asyncinit',
+    'singleton',
     'singleton_asyncinit',
     'argschecker',
     'and_',
@@ -82,20 +82,6 @@ def tdictformatter(func):
     return convert
 
 
-def singleton(cls):
-    """A singleton decorator of class"""
-
-    instances = {}
-
-    @wraps(cls)
-    def getinstance(*args, **kwargs):
-        if cls not in instances:
-            instances[cls] = cls(*args, **kwargs)
-        return instances[cls]
-
-    return getinstance
-
-
 def asyncinit(obj):
     """A class decorator that add async `__init__` functionality."""
 
@@ -131,6 +117,20 @@ def asyncinit(obj):
     obj.__new__ = new
 
     return obj
+
+
+def singleton(cls):
+    """A singleton decorator of class"""
+
+    instances = {}
+
+    @wraps(cls)
+    def getinstance(*args, **kwargs):
+        if cls not in instances:
+            instances[cls] = cls(*args, **kwargs)
+        return instances[cls]
+
+    return getinstance
 
 
 def singleton_asyncinit(cls):
