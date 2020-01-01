@@ -18,7 +18,7 @@ before_install:
   - pip install pylint
 
 script: 
-  - pylint trod --jobs=4 --reports=yes
+  - pylint trod --jobs=5 --reports=yes
   - ./runtests.sh
 
 after_success:

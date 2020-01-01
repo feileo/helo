@@ -2,6 +2,8 @@
 trod
 ====
 
+🌎 [`English </README.rst>`_] ∙ [`简体中文 </README.cn.rst>`_]
+
 .. image:: https://img.shields.io/pypi/v/trod.svg
         :target: https://pypi.python.org/pypi/trod
 
@@ -14,45 +16,55 @@ trod
 .. image:: https://api.codacy.com/project/badge/Grade/24451621f9554f7a8d857c5b3dd6e522
         :target: https://www.codacy.com/manual/at7h/trod?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=at7h/trod&amp;utm_campaign=Badge_Grade
 
-
-**Trod** is a low-level simple asynchronous ORM using Python asyncio_.  
-
-* Using it to easily build expressive and commonly used SQL,
-  suitable for scenarios with simple business structures and a certain amount of concurrency
-* Now only supports MySQL, using aiomysql_ as the connection driver
-* Not supports table relationship
-
-[`简体中文 </README_CN.rst>`_]
-
-Quickstart:
-
-* `basic example </examples>`_
-* Documentation (TODO 📝)
-
-Requires:
-
 .. image:: https://img.shields.io/pypi/pyversions/trod
         :target: https://img.shields.io/pypi/pyversions/trod
         :alt: PyPI - Python Version
+
+🌟 **Trod** is a low-level simple asynchronous ORM using Python asyncio_.
+
+Trod can help you easily build expressive common SQL statements in your asynchronous applications.
+You only need to use friendly object-oriented APIs to manipulate data without caring about the details of SQL statement writing and data processing. 
+Suitable for scenarios where the business logic structure is relatively simple and has a certain amount of concurrency.
+
+* Requires: Python 3.7+
+* Now only supports MySQL
+* Not supports table relationship
+
+Quickstart
+----------
+
+See the wiki_ page for more information and quickstart_ documentation.
+
 
 Installation
 ------------
 
 .. code-block:: console
 
-    pip install trod
+    $ pip install trod
+
+See the installation_ wiki page for more options.
 
 
-Base Examples
--------------
+Basic Examples
+--------------
+
+First, you should to import the ``Trod`` and instantiate a global variable:
+
+.. code-block:: python
+
+    from trod import Trod
+
+    db = Trod()
+
 
 Defining models is simple:
 
 .. code-block:: python
 
-    from trod import Model, types
+    from trod import types
 
-    class User(Model):
+    class User(db.Model):
         id = types.BigAuto()
         name = types.VarChar(length=45, null=False)
         email = types.Email(default='')
@@ -60,7 +72,7 @@ Defining models is simple:
         create_at = types.Timestamp(default=types.ON_CREATE)
 
 
-    class Post(Model):
+    class Post(db.Model):
         id = types.Auto()
         title = types.VarChar(length=100)
         author = types.Int(default=0)
@@ -69,20 +81,17 @@ Defining models is simple:
         update_at = types.Timestamp(default=types.ON_UPDATE)
 
 
-Shows some basic examples:
+Show some basic examples:
 
 .. code-block:: python
 
     import asyncio
     from datetime import datetime
 
-    from trod import Trod, JOINTYPE, types
+    from trod import JOINTYPE, types
 
 
-    db = Trod()
-
-
-    async def base_example():
+    async def show_case():
 
         # Binding the database(creating a connection pool)
         # and create the table:
@@ -151,7 +160,7 @@ Shows some basic examples:
             User.name
         ).rows(100)
 
-    asyncio.run(base_example())
+    asyncio.run(show_case())
 
 👉 See `more examples </examples>`_
 
@@ -159,19 +168,22 @@ Shows some basic examples:
 Contributing 👏
 ---------------
 
-* I hope those who are interested can join in and work together.
-  Any kind of contribution is expected:
-  report a bug 🐞, give a advice or create a pull request 🙋‍♂️.
+I hope those who are interested can join in and work together.
+
+Any kind of contribution is expected:
+report a bug 🐞, give a advice or create a pull request 🙋‍♂️.
 
 
 Thanks 🤝
 ---------
 
-* Special thanks to projects aiomysql_ and peewee_, trod uses aiomysql_,
+* Special thanks to projects aiomysql_ and peewee_, trod uses aiomysql_ (as the MySQL connection driver),
   and referenced peewee_ in program design.
 * Please feel free to ⭐️ this repository if this project helped you 😉!
 
-.. _Documentation: .
+.. _wiki: https://github.com/at7h/trod/wiki
+.. _quickstart: https://github.com/at7h/trod/wiki#quickstart
+.. _installation: https://github.com/at7h/trod/wiki#installation
 .. _asyncio: https://docs.python.org/3.7/library/asyncio.html
 .. _aiomysql: https://github.com/aio-libs/aiomysql
 .. _peewee: https://github.com/coleifer/peewee

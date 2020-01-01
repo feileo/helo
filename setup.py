@@ -1,8 +1,16 @@
 #!/usr/bin/env python3
 
+import sys
+
 from setuptools import find_packages, setup
 
-import trod
+
+if sys.version_info.major >= 3 and sys.version_info.minor >= 7:
+    import trod
+else:
+    raise RuntimeError(
+        "Unsupported Python version, please upgrade to 3.7 and above")
+
 
 with open('README.rst', 'r', encoding='utf-8') as readme_file:
     TROD_README = readme_file.read().strip()

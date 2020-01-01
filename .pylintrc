@@ -154,7 +154,7 @@ bad-names=foo,
           baz,
           toto,
           tutu,
-          tata
+          tata,
 
 # Naming style matching correct class names.
 class-naming-style=PascalCase

@@ -7,35 +7,54 @@ from types import ModuleType
 from typing import Any, Optional, Type, Union, List, Tuple
 
 from . import (
+    db,
+    model,
     types,
     util,
     err,
-    db,
     _helper,
 )
 
-from .model import Model, JOINTYPE
 
-__version__ = '0.0.3'
+__version__ = '0.0.4'
 __all__ = (
     'types',
     'util',
     'err',
-    'Model',
     'Trod',
     'JOINTYPE',
 )
 
+JOINTYPE = model.JOINTYPE
+_ModelType = Type[model.Model]
 
+
+@util.singleton
 class Trod:
     """You can specify the default environment variable
     key name. But it can only work in the ``Trod.Binder``.
     """
 
-    def __init__(self, url_key=None) -> None:
+    def __init__(
+        self, url_key=None, model_class: Optional[_ModelType] = None,
+    ) -> None:
 
+        self._model = model_class or model.Model  # type: _ModelType
+        self._bind = None
         if url_key is not None:
             self.set_url_key(url_key)
+
+    @property
+    def Model(self) -> _ModelType:  # pylint: disable=invalid-name
+        return self._model
+
+    @property
+    def isbound(self) -> bool:
+        return db.isbound()
+
+    @property
+    def state(self) -> Optional[util.tdict]:
+        return db.state()
 
     async def bind(self, url: Optional[str] = None, **kwargs: Any) -> bool:
         """A coroutine that binding a database.
@@ -58,16 +77,8 @@ class Trod:
 
         return db.DefaultURL.set_key(key)
 
-    @property
-    def isbound(self) -> bool:
-        return db.isbound()
-
-    @property
-    def state(self) -> Optional[util.tdict]:
-        return db.state()
-
     async def create_tables(
-        self, models: List[Type[Model]], **options: Any
+        self, models: List[_ModelType], **options: Any
     ) -> bool:
         """Create table from Model list"""
 
@@ -83,12 +94,12 @@ class Trod:
 
         return await self.create_tables(
             [m for _, m in vars(module).items()
-             if isinstance(m, type) and issubclass(m, Model) and m is not Model
+             if isinstance(m, type) and issubclass(m, self.Model) and m is not self.Model
              ],
             **options
         )
 
-    async def drop_tables(self, models: List[Type[Model]]) -> bool:
+    async def drop_tables(self, models: List[_ModelType]) -> bool:
         """Drop table from Model list"""
 
         for m in models:
@@ -103,7 +114,7 @@ class Trod:
 
         return await self.drop_tables(
             [m for _, m in vars(module).items()
-             if isinstance(m, type) and issubclass(m, Model) and m is not Model
+             if isinstance(m, type) and issubclass(m, self.Model) and m is not self.Model
              ]
         )
 

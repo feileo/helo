@@ -1,13 +1,80 @@
 import asyncio
 from datetime import datetime
 
-from trod import Trod, JOINTYPE
-from trod import types
-
-from models import Employee, User, Post
+from trod import JOINTYPE, types, Trod
 
 
 db = Trod()
+
+
+class Person(db.Model):  # type: ignore
+    id = types.BigAuto()
+    name = types.VarChar(length=45, null=False)
+
+
+class Employee(Person):
+    department = types.Smallint()
+    salary = types.Float(default=0)
+
+
+class User(Person):
+    email = types.Email(default='')
+    password = types.VarChar(length=100, null=False)
+    create_at = types.Timestamp(default=types.ON_CREATE)
+
+    class Meta:
+        indexes = [types.K('idx_ep', ['email', 'password'])]
+
+
+class Post(db.Model):  # type: ignore
+    id = types.Auto(comment='auto increment pk')
+    title = types.VarChar(length=100)
+    content = types.Text(encoding=types.ENCODING.utf8mb4)
+    author = types.Int(default=0)
+    create_at = types.Timestamp(default=types.ON_CREATE)
+    update_at = types.Timestamp(default=types.ON_UPDATE)
+
+    class Meta:
+        indexes = [
+            types.K('idx_title', 'title'),
+            types.K('idx_author', 'author'),
+        ]
+
+
+async def basic_example1():
+    # Creating a connection pool, see `trod.db.Pool`
+    await db.bind('mysql://user:pwd@127.0.0.1:3306/db')
+    print(db.state)
+    # {'minsize': 1, 'maxsize': 15, 'size': 1, 'freesize': 1}
+    await db.create_tables([User, Employee, Post])
+
+    # CRUD
+    await ex_for_short()
+    await ex_for_dml()
+    await ex_for_dql()
+    await ex_for_instance()
+
+    await db.unbind()
+
+
+async def basic_example2():
+    async with db.Binder():
+        async for post in Post:
+            print(post)
+        # <Post object> at 1
+        # <Post object> at 2
+        # <Post object> at 3
+        # <Post object> at 4
+
+        users = User.select().where(User.id < 5).order_by(User.id.desc())
+        async for user in users:
+            print(user)
+        # <User object> at 4
+        # <User object> at 3
+        # <User object> at 2
+        # <User object> at 1
+
+        await db.drop_tables([User, Employee, Post])
 
 
 async def ex_for_short():
@@ -45,12 +112,15 @@ async def ex_for_short():
     assert users.count == 3
     print(users)
     # [<User object> at 1, <User object> at 2, <User object> at 3]
-    users = await User.mget((User.id < 2) | (User.name == 'mingz'))
-    print(users)
-    # [<User object> at 1, <User object> at 3]
+
     # Specify columns
     users = await User.mget(uid_list, columns=[User.id, User.name])
     assert users[0].password is None
+
+    # Or by query
+    users = await User.mget((User.id < 2) | (User.name == 'mingz'))
+    print(users)
+    # [<User object> at 1, <User object> at 3]
 
     # Setting the value of a row with the primary key
     email = 'z@hello.com'
@@ -218,41 +288,6 @@ async def ex_for_instance():
     await user.remove()
     user = await User.get(user_id)
     assert user is None
-
-
-async def basic_example1():
-    # Creating a connection pool, see `trod.db.Pool`
-    await db.bind('mysql://user:pwd@127.0.0.1:3306/db')
-    print(db.state)
-    # {'minsize': 1, 'maxsize': 15, 'size': 1, 'freesize': 1}
-    await db.create_tables([User, Employee, Post])
-
-    await ex_for_short()
-    await ex_for_dml()
-    await ex_for_dql()
-    await ex_for_instance()
-
-    await db.unbind()
-
-
-async def basic_example2():
-    async with db.Binder():
-        async for post in Post:
-            print(post)
-        # <Post object> at 1
-        # <Post object> at 2
-        # <Post object> at 3
-        # <Post object> at 4
-
-        users = User.select().where(User.id < 5)
-        async for user in users:
-            print(user)
-        # <User object> at 1
-        # <User object> at 2
-        # <User object> at 3
-        # <User object> at 4
-
-        await db.drop_tables([User, Employee, Post])
 
 
 if __name__ == '__main__':
