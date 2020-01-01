@@ -18,7 +18,7 @@ trod
         :target: https://img.shields.io/pypi/pyversions/trod
         :alt: PyPI - Python Version
 
-🌟 **Trod** 是一个的低级别的简单异步(asyncio_) Python ORM。
+🌟 **Trod** 是一个简单的低级别异步(asyncio_) Python ORM。它非常的直观且容易使用。
 
 Trod 可以在你的异步应用中帮助你轻松的构建出富有表达力的常用 SQL 语句，你只需以友好的对象化 API 来操作数据，
 而不用关心 SQL 语句编写、数据处理等细节。适合于业务逻辑结构较简单有一定并发量的场景。

@@ -20,7 +20,8 @@ trod
         :target: https://img.shields.io/pypi/pyversions/trod
         :alt: PyPI - Python Version
 
-🌟 **Trod** is a low-level simple asynchronous ORM using Python asyncio_.
+🌟 **Trod** is a simple low-level asynchronous ORM using Python asyncio_.
+It is very intuitive and easy to use.
 
 Trod can help you easily build expressive common SQL statements in your asynchronous applications.
 You only need to use friendly object-oriented APIs to manipulate data without caring about the details of SQL statement writing and data processing. 
