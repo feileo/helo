@@ -1,6 +1,6 @@
 """
-    trod.types._impl
-    ~~~~~~~~~~~~~~~~
+    helo.types
+    ~~~~~~~~~~
 """
 
 from __future__ import annotations
@@ -11,19 +11,44 @@ import uuid
 import warnings
 from typing import Any, Optional, Union, Callable, List, Tuple, Dict
 
-from . import validator, adapter
-from .. import util, err
-from .._helper import (
-    SQL,
-    Node,
-    Context,
-    Value,
-    NodeList,
-    EnclosedNodeList,
+from . import util, err, _helper, _builder
+
+__all__ = (
+    "Tinyint",
+    "Smallint",
+    "Int",
+    "Bigint",
+    "Bool",
+    "Auto",
+    "BigAuto",
+    "UUID",
+    "Float",
+    "Double",
+    "Decimal",
+    "Text",
+    "Char",
+    "VarChar",
+    "IP",
+    "Email",
+    "URL",
+    "Date",
+    "Time",
+    "DateTime",
+    "Timestamp",
+    "K",
+    "UK",
+    "F",
+    "ENCODING",
+    "ENGINE",
+    "ON_CREATE",
+    "ON_UPDATE",
 )
 
-
-ENCODING = util.tdict(
+ENGINE = util.adict(
+    innodb="InnoDB",
+    myisam="MyISAM",
+)
+ENCODING = util.adict(
     utf8="utf8",
     utf16="utf16",
     utf32="utf32",
@@ -31,17 +56,19 @@ ENCODING = util.tdict(
     gbk="gbk",
     gb2312="gb2312",
 )
-
 SEQUENCE = (list, tuple, set, frozenset)
-Id = Union[int, str]
+ID = Union[int, str]
 NULL = 'null'
+SQL = _builder.SQL
+ON_CREATE = SQL("CURRENT_TIMESTAMP")
+ON_UPDATE = SQL("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
 
 
-class ColumnBase(Node):
+class _ColumnBase(_builder.Node):
 
     __slots__ = ()
 
-    OPERATOR = util.tdict(
+    OPERATOR = util.adict(
         AND='AND',
         OR='OR',
         ADD='+',
@@ -74,7 +101,7 @@ class ColumnBase(Node):
         CONCAT='||',
     )
 
-    def __sql__(self, ctx: Context):
+    def __sql__(self, ctx: _builder.Context):
         raise NotImplementedError
 
     def __and__(self, rhs: Any) -> Expression:
@@ -216,56 +243,60 @@ class ColumnBase(Node):
     def between(self, low: Any, hig: Any) -> Expression:
         return Expression(
             self, self.OPERATOR.BETWEEN,
-            NodeList([Value(low), self.OPERATOR.AND, Value(hig)])
+            _builder.NodeList(
+                [_builder.Value(low), self.OPERATOR.AND, _builder.Value(hig)]
+            )
         )
 
     def nbetween(self, low: Any, hig: Any) -> Expression:
         return Expression(
             self, self.OPERATOR.NBETWEEN,
-            NodeList([Value(low), self.OPERATOR.AND, Value(hig)])
+            _builder.NodeList(
+                [_builder.Value(low), self.OPERATOR.AND, _builder.Value(hig)]
+            )
         )
 
-    def asc(self) -> Ordering:
-        return Ordering(self, "ASC")
+    def asc(self) -> _Ordering:
+        return _Ordering(self, "ASC")
 
-    def desc(self) -> Ordering:
-        return Ordering(self, "DESC")
+    def desc(self) -> _Ordering:
+        return _Ordering(self, "DESC")
 
-    def as_(self, alias: str) -> Node:
+    def as_(self, alias: str) -> _builder.Node:
         if alias:
-            return Alias(self, alias)
+            return _Alias(self, alias)
         return self
 
 
-class Column(ColumnBase):
+class Column(_ColumnBase):
 
-    def __sql__(self, ctx: Context):
+    def __sql__(self, ctx: _builder.Context):
         raise NotImplementedError
 
 
-class Ordering(Column):
+class _Ordering(Column):
 
     __slots__ = ('node', 'key')
 
-    def __init__(self, node: Node, key: str) -> None:
+    def __init__(self, node: _builder.Node, key: str) -> None:
         self.node = node
         self.key = key
 
-    def __sql__(self, ctx: Context):
+    def __sql__(self, ctx: _builder.Context) -> _builder.Context:
         ctx.sql(self.node).literal(f" {self.key} ")
         return ctx
 
 
-class Alias(Column):
+class _Alias(Column):
 
     __slots__ = ('node', 'alias')
 
     @util.argschecker(alias=str, nullable=False)
-    def __init__(self, node: Node, alias: str) -> None:
+    def __init__(self, node: _builder.Node, alias: str) -> None:
         self.node = node
         self.alias = alias
 
-    def __sql__(self, ctx: Context):
+    def __sql__(self, ctx: _builder.Context):
         ctx.sql(self.node).literal(f" AS `{self.alias}`")
         if isinstance(self.node, Column):
             realname = getattr(self.node, 'name', None) or self.alias
@@ -287,7 +318,7 @@ class Expression(Column):
         self.rhs = rhs
         self.parens = parens
 
-    def __sql__(self, ctx: Context) -> Context:
+    def __sql__(self, ctx: _builder.Context) -> _builder.Context:
         overrides = {'parens': self.parens, 'params': True}
 
         if isinstance(self.lhs, FieldBase):
@@ -299,11 +330,11 @@ class Expression(Column):
                        self.OPERATOR.NOT_IN,
                        self.OPERATOR.EXISTS,
                        self.OPERATOR.NEXISTS):
-            if not isinstance(self.rhs, (SEQUENCE, Node)):
+            if not isinstance(self.rhs, (SEQUENCE, _builder.Node)):
                 raise TypeError(
                     f"Invalid values {self.rhs} for operator '{self.op}'")
-            if isinstance(self.rhs, Node):
-                self.rhs = EnclosedNodeList([self.rhs])
+            if isinstance(self.rhs, _builder.Node):
+                self.rhs = _builder.EnclosedNodeList([self.rhs])
             else:
                 self.rhs = tuple(self.rhs)
             overrides['nesting'] = True
@@ -329,10 +360,10 @@ class StrExpression(Expression):
         return StrExpression(lhs, self.OPERATOR.CONCAT, self)
 
 
-class FieldDDL:
+class _FieldDef:
 
     __slots__ = ('field',)
-    __types__ = util.tdict(
+    __types__ = util.adict(
         sit='{type}',
         wlt='{type}({length})',
         wdt='{type}({length},{float_length})',
@@ -341,8 +372,8 @@ class FieldDDL:
     def __init__(self, field: FieldBase) -> None:
         self.field = field
 
-    def parse(self) -> NodeList:
-        defi = NodeList(
+    def parse(self) -> _builder.NodeList:
+        defi = _builder.NodeList(
             [SQL(self.field.column), self._parse_type(self.field)]
         )
 
@@ -378,8 +409,8 @@ class FieldDDL:
 
         return SQL(type_tpl.format(**type_render))
 
-    def _parse_options(self) -> util.tdict:
-        return util.tdict(
+    def _parse_options(self) -> util.adict:
+        return util.adict(
             auto=getattr(self.field, 'auto', None),
             unsigned=getattr(self.field, 'unsigned', None),
             zerofill=getattr(self.field, 'zerofill', None),
@@ -390,7 +421,7 @@ class FieldDDL:
             adapt=self.field.to_str,
         )
 
-    def _parse_default(self, ops: util.tdict, db_type) -> Optional[SQL]:
+    def _parse_default(self, ops: util.adict, db_type) -> Optional[SQL]:
 
         def to_default_sql(default):
             if isinstance(default, SQL):
@@ -465,8 +496,8 @@ class FieldBase(Column):
 
         self._custom_wain()
 
-    def __def__(self) -> NodeList:
-        return FieldDDL(self).parse()
+    def __def__(self) -> _builder.NodeList:
+        return _FieldDef(self).parse()
 
     def __repr__(self) -> str:
         return f"types.{self.__class__.__name__} object '{self.name}'"
@@ -513,7 +544,7 @@ class FieldBase(Column):
     def db_value(self, value: Any) -> Any:
         return value if value is None else self.adapt(value)
 
-    def __sql__(self, ctx: Context) -> Context:
+    def __sql__(self, ctx: _builder.Context) -> _builder.Context:
         if self.table is not None and ctx.props:
             if ctx.props.get('select') is True:
                 tn = ctx.table_alias(self.table.name)
@@ -884,18 +915,18 @@ class IP(Bigint):
         if value is not None:
             if isinstance(value, int) and (IP.MIN <= value <= IP.MAX):
                 return value
-            if not validator.is_ipv4(value):
+            if not _helper.is_ipv4(value):
                 raise ValueError(IP.VALUEERR_MSG.format(value, "IP"))
-            return adapter.iptoint(str(value))
+            return _helper.iptoint(str(value))
         return value
 
     def py_value(self, value: Union[str, int, None]) -> Optional[str]:
         if value is not None:
             if isinstance(value, int):
-                return adapter.iptostr(value)
+                return _helper.iptostr(value)
             if not isinstance(value, str):
                 raise TypeError(f"Invalid type({value!r}) for IP Field")
-            if not validator.is_ipv4(value):
+            if not _helper.is_ipv4(value):
                 raise ValueError(IP.VALUEERR_MSG.format(value, "IP"))
         return value
 
@@ -912,7 +943,7 @@ class Email(VarChar):
                 value = self.py_type(value)
             if not value:
                 return value
-            if not validator.is_email(value):
+            if not _helper.is_email(value):
                 raise ValueError(Email.VALUEERR_MSG.format(value, "Email"))
         return value
 
@@ -927,7 +958,7 @@ class URL(VarChar):
                 value = self.py_type(value)
             if not value:
                 return value
-            if not validator.is_url(value):
+            if not _helper.is_url(value):
                 raise ValueError(URL.VALUEERR_MSG.format(value, "URL"))
         return value
 
@@ -966,13 +997,13 @@ class Date(FieldBase):
 
     def adapt(self, value: Any) -> Optional[datetime.date]:
         if value and isinstance(value, str):
-            value = adapter.format_datetime(value, self.formats, lambda x: x.date())
+            value = _helper.format_datetime(value, self.formats, lambda x: x.date())
         elif value and isinstance(value, datetime.datetime):
             value = value.date()
         return value
 
     def to_str(self, value: Any) -> str:
-        return adapter.dt_strftime(self.db_value(value), self.formats)
+        return _helper.dt_strftime(self.db_value(value), self.formats)
 
 
 class Time(Date):
@@ -996,7 +1027,7 @@ class Time(Date):
     def adapt(self, value: Any) -> Optional[datetime.time]:  # type:ignore
         if value:
             if isinstance(value, str):
-                value = adapter.format_datetime(value, self.formats, lambda x: x.time())  # type: ignore
+                value = _helper.format_datetime(value, self.formats, lambda x: x.time())  # type: ignore
             elif isinstance(value, datetime.datetime):
                 value = value.time()
         if value is not None and isinstance(value, datetime.timedelta):
@@ -1022,7 +1053,7 @@ class DateTime(Date):
 
     def adapt(self, value: Any) -> Optional[datetime.datetime]:  # type: ignore
         if value and isinstance(value, str):
-            return adapter.format_datetime(value, self.formats)
+            return _helper.format_datetime(value, self.formats)
         return value
 
 
@@ -1063,7 +1094,7 @@ class Timestamp(FieldBase):
             if isinstance(value, datetime.date):
                 value = datetime.datetime(value.year, value.month, value.day)
             elif isinstance(value, str):
-                value = adapter.simple_datetime(value)
+                value = _helper.simple_datetime(value)
             else:
                 value = int(round(value))
                 if self.utc:
@@ -1080,23 +1111,23 @@ class Timestamp(FieldBase):
                 else:
                     value = datetime.datetime.fromtimestamp(value)
             else:
-                value = adapter.simple_datetime(value)
+                value = _helper.simple_datetime(value)
         return value
 
     def to_str(self, value: Any) -> str:
-        return adapter.dt_strftime(self.db_value(value), self.FORMATS)
+        return _helper.dt_strftime(self.db_value(value), self.FORMATS)
 
 
-class Func(Node):
+class Func(_builder.Node):
 
     __slots__ = ('_func', '_node')
 
-    def __init__(self, func: str, node: ColumnBase) -> None:
+    def __init__(self, func: str, node: _ColumnBase) -> None:
         self._func = func.upper()
         self._node = node
 
     @util.argschecker(func=str, nullable=False)
-    def __getattr__(self, func: str):
+    def __getattr__(self, func: str) -> Any:
 
         def decorator(*args, **kwargs):
             return Func(func, *args, **kwargs)
@@ -1104,21 +1135,19 @@ class Func(Node):
         return decorator
 
     def as_(self, alias: str) -> str:
-        return Alias(self, alias)
+        return _Alias(self, alias)
 
-    def __sql__(self, ctx: Context):
+    def __sql__(self, ctx: _builder.Context) -> _builder.Context:
         ctx.literal(self._func.upper())
         with ctx(parens=True):
             ctx.sql(self._node)
         return ctx
 
 
-FS = Func("", None)  # type: ignore
-ON_CREATE = SQL("CURRENT_TIMESTAMP")
-ON_UPDATE = SQL("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
+F = Func("", None)  # type: ignore
 
 
-class IndexBase(Node):
+class IndexBase(_builder.Node):
 
     __slots__ = ('fields', 'comment', 'name')
     __type__ = None  # type: SQL
@@ -1147,11 +1176,11 @@ class IndexBase(Node):
             else:
                 raise TypeError(f"Invalid field type: {f}")
 
-    def __def__(self) -> NodeList:
-        nl = NodeList([
+    def __def__(self) -> _builder.NodeList:
+        nl = _builder.NodeList([
             self.__type__,
             self,
-            EnclosedNodeList(self.fields),  # type: ignore
+            _builder.EnclosedNodeList(self.fields),  # type: ignore
         ])
         if self.comment:
             nl.append(SQL(f"COMMENT '{self.comment}'"))
@@ -1161,30 +1190,30 @@ class IndexBase(Node):
         return hash(self.name)
 
     def __repr__(self) -> str:
-        ddl_def = Context().parse(self.__def__()).query().sql
+        ddl_def = _builder.parse(self.__def__()).sql
         return f"types.{self.__class__.__name__}({ddl_def})"
 
     def __str__(self) -> str:
-        return Context().parse(self.__def__()).query().sql
+        return _builder.parse(self.__def__()).sql
 
-    def __sql__(self, ctx: Context):
+    def __sql__(self, ctx: _builder.Context) -> _builder.Context:
         ctx.literal(f'`{self.name}`')
         return ctx
 
 
-class Key(IndexBase):
+class K(IndexBase):
 
     __slots__ = ()
     __type__ = SQL("KEY")
 
 
-class UKey(IndexBase):
+class UK(IndexBase):
 
     __slots__ = ()
     __type__ = SQL("UNIQUE KEY")
 
 
-class Table(Node):
+class Table(_builder.Node):
 
     __slots__ = (
         "db", "name", "fields_dict", "primary", "indexes",
@@ -1192,9 +1221,9 @@ class Table(Node):
     )
 
     AIPK = 'id'
-    _DFT_META = util.tdict(
+    _DFT_META = util.adict(
         auto_increment=1,
-        engine='InnoDB',
+        engine=ENGINE.innodb,
         charset=ENCODING.utf8,
         comment='',
     )
@@ -1204,7 +1233,7 @@ class Table(Node):
         database: Optional[str],
         name: str,
         fields_dict: Dict[str, FieldBase],
-        primary: util.tdict,
+        primary: util.adict,
         indexes: Optional[Union[Tuple[IndexBase, ...], List[IndexBase]]] = None,
         engine: Optional[str] = None,
         charset: Optional[str] = None,
@@ -1243,7 +1272,7 @@ class Table(Node):
     def __str__(self) -> str:
         return self.name
 
-    def __sql__(self, ctx: Context) -> Context:
+    def __sql__(self, ctx: _builder.Context) -> _builder.Context:
         if ctx.props.get('select') is True:
             ctx.literal("{} AS {}".format(
                 self.table_name, ctx.table_alias(self.name)))

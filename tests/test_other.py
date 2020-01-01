@@ -1,22 +1,20 @@
 """
-Supplementary tests
+Supplementary tests, g etc.
 """
 import asyncio
 from datetime import datetime
 
 import pytest
 
-from trod import Trod
-from trod import err, util, _helper as h, JOINTYPE
-from trod.db import DefaultURL
-from trod.types import (
+from helo import (
     Auto, Int, Char, VarChar, DateTime, Tinyint,
     Timestamp, ON_CREATE, ON_UPDATE, F, SQL,
+    EnvKey, err, util, _builder, JOINTYPE, G
 )
 
 from . import test_model as models
 
-db = Trod()
+db = G()
 
 
 class User(db.Model):
@@ -64,7 +62,7 @@ class TestImportantQueries:
         ).order_by(
             User.id.desc()
         ).limit(100).offset(1)
-        assert self.as_query(query) == h.Query(
+        assert self.as_query(query) == _builder.Query(
             'SELECT `t1`.`id`, `t1`.`name`, COUNT(`t2`.`id`) AS `pct` '
             'FROM `user` AS `t1` '
             'INNER JOIN `post` AS `t2` ON (`t1`.`id` = `t2`.`author`) '
@@ -85,7 +83,7 @@ class TestImportantQueries:
         ).having(
             User.id.nin_([1, 2, 3])
         )
-        assert self.as_query(query) == h.Query(
+        assert self.as_query(query) == _builder.Query(
             'SELECT `t1`.`id`, `t1`.`name` AS `username`, `t1`.`password`,'
             ' COUNT(`t2`.`id`) AS `pct` '
             'FROM `user` AS `t1` '
@@ -99,7 +97,7 @@ class TestImportantQueries:
             Post.created > datetime(2019, 10, 10),
             Post.is_deleted == 0
         ).limit(1)
-        assert self.as_query(query) == h.Query(
+        assert self.as_query(query) == _builder.Query(
             'SELECT COUNT(1) FROM `post` AS `t1` WHERE ((`t1`.`created` > %s)'
             ' AND (`t1`.`is_deleted` = %s)) LIMIT 1;',
             params=[datetime(2019, 10, 10, 0, 0), 0]
@@ -114,7 +112,7 @@ class TestImportantQueries:
         ).order_by(
             User.id.desc()
         ).limit(100)
-        assert self.as_query(query) == h.Query(
+        assert self.as_query(query) == _builder.Query(
             'SELECT * FROM `user` AS `t1` WHERE (`t1`.`id` '
             'IN (SELECT `t2`.`author` FROM `post` AS `t2` WHERE '
             '(`t2`.`id` BETWEEN %s AND %s))) ORDER BY '
@@ -124,19 +122,19 @@ class TestImportantQueries:
 
     def test_insert(self):
         query = Column.insert(name='c1')
-        assert self.as_query(query) == h.Query(
+        assert self.as_query(query) == _builder.Query(
             'INSERT INTO `column` (`name`) VALUES (%s);',
             params=['c1']
         )
         query = Post.insert(name='p1')
-        assert self.as_query(query) == h.Query(
+        assert self.as_query(query) == _builder.Query(
             'INSERT INTO `post` (`name`, `author`, `column`, `is_deleted`, `created`)'
             ' VALUES (%s, %s, %s, %s, %s);',
             params=['p1', 0, 0, 0, datetime(2019, 10, 10)]
         )
         q1 = User.insert(name='u1', password='xxxx')
         q2 = User.insert({'name': 'u1', 'password': 'xxxx'})
-        assert self.as_query(q1) == self.as_query(q2) == h.Query(
+        assert self.as_query(q1) == self.as_query(q2) == _builder.Query(
             'INSERT INTO `user` (`name`, `password`) VALUES (%s, %s);',
             params=['u1', 'xxxx']
         )
@@ -155,7 +153,7 @@ class TestImportantQueries:
                 ('n4', 'p4')],
             columns=[User.name, User.password]
         )
-        assert self.as_query(q1) == self.as_query(q2) == h.Query(
+        assert self.as_query(q1) == self.as_query(q2) == _builder.Query(
             'INSERT INTO `user` (`name`, `password`) VALUES (%s, %s);',
             params=[('n1', 'p1'), ('n2', 'p2'), ('n3', 'p3'), ('n4', 'p4')]
         )
@@ -166,7 +164,7 @@ class TestImportantQueries:
         ).where(models.Employee.id > 10)
         q1 = User.insert_from(select, [User.id, User.name])
         q2 = User.insert_from(select, ['id', 'name'])
-        assert self.as_query(q1) == self.as_query(q2) == h.Query(
+        assert self.as_query(q1) == self.as_query(q2) == _builder.Query(
             'INSERT INTO `user` (`id`, `name`) SELECT `t1`.`id`, '
             '`t1`.`name` FROM `employee` AS `t1` WHERE (`t1`.`id` > %s);',
             params=[10]
@@ -175,7 +173,7 @@ class TestImportantQueries:
     def test_replace(self):
         q1 = User.replace(name='at7h', password='7777')
         q2 = User.replace({'name': 'at7h', 'password': '7777'})
-        assert self.as_query(q1) == self.as_query(q2) == h.Query(
+        assert self.as_query(q1) == self.as_query(q2) == _builder.Query(
             'REPLACE INTO `user` (`id`, `name`, `password`) '
             'VALUES (%s, %s, %s);',
             params=[None, 'at7h', '7777']
@@ -195,7 +193,7 @@ class TestImportantQueries:
                 ('n4', 'p4')],
             columns=[User.name, User.password]
         )
-        assert self.as_query(q1) == self.as_query(q2) == h.Query(
+        assert self.as_query(q1) == self.as_query(q2) == _builder.Query(
             'REPLACE INTO `user` (`id`, `name`, `password`) '
             'VALUES (%s, %s, %s);',
             params=[
@@ -211,7 +209,7 @@ class TestImportantQueries:
                 Column.select(Column.id).where(Column.id >= 100)
             ))
         )
-        assert self.as_query(query) == h.Query(
+        assert self.as_query(query) == _builder.Query(
             'UPDATE `post` SET `author` = %s, `name` = %s WHERE '
             '((`author` IN (SELECT `t1`.`id` FROM `user` AS `t1` WHERE '
             '(`t1`.`name` LIKE %s))) OR (`t2`.`column` NOT IN '
@@ -228,7 +226,7 @@ class TestImportantQueries:
         ).where(
             (User.id == Post.author) | (Post.name == 'xxxx')
         )
-        assert self.as_query(query) == h.Query(
+        assert self.as_query(query) == _builder.Query(
             'UPDATE `user` SET `name` = `post`.`name`, '
             '`create_at` = `post`.`created` FROM `post` '
             'WHERE ((`user`.`id` = `post`.`author`) OR '
@@ -244,7 +242,7 @@ class TestImportantQueries:
                 )
             )
         )
-        assert self.as_query(query) == h.Query(
+        assert self.as_query(query) == _builder.Query(
             'DELETE FROM `post` WHERE (`author` IN '
             '(SELECT `t1`.`id` FROM `user` AS `t1` '
             'WHERE (`t1`.`name` LIKE %s)));',
@@ -253,7 +251,7 @@ class TestImportantQueries:
 
 
 @pytest.mark.asyncio
-async def test_trod():
+async def test_helo():
 
     assert db.state is None
 
@@ -299,34 +297,34 @@ async def test_trod():
     except err.OperationalError:
         pass
 
-    db.set_url_key(None)
-    await db.bind(DefaultURL.get())
+    db.set_env_key(None)
+    await db.bind(EnvKey.get())
     assert db.isbound is True
     await db.unbind()
     assert db.isbound is False
 
     db.test = True
     testkey = 'TEST_KEY'
-    db1 = Trod(testkey)
+    db1 = G(testkey)
     assert db1.test is True
-    db1.set_url_key(testkey)
+    db1.set_env_key(testkey)
     try:
         async with db1.Binder():
             pass
         assert False, "Should raise ValueError"
     except ValueError:
         pass
-    db1.set_url_key(None)
+    db1.set_env_key("")
 
 
 @pytest.mark.asyncio
 async def test_util():
     d = {'k1': 'v1', 'k2': 'v2', 'k3': 'v3'}
-    td = util.tdict(
+    td = util.adict(
         __keys__=('k1', 'k2', 'k3'), __values__=('v1', 'v2', 'v3')
     )
     assert td == d
-    td = util.tdict(
+    td = util.adict(
         __keys__=('k1', 'k2'), __values__=('v1', 'v2', 'v3')
     )
     assert td == {'k1': 'v1', 'k2': 'v2'}
@@ -334,16 +332,16 @@ async def test_util():
     assert td == d
 
     d = td + {'ak1': 'av1'}
-    assert isinstance(td, util.tdict)
-    assert d == util.tdict(ak1='av1', k1='v1', k2='v2', k3='v3')
-    d = util.tdict(k1='v1')
+    assert isinstance(td, util.adict)
+    assert d == util.adict(ak1='av1', k1='v1', k2='v2', k3='v3')
+    d = util.adict(k1='v1')
     d += {'ak1': 'av1'}
-    assert isinstance(d, util.tdict)
-    assert d == util.tdict(ak1='av1', k1='v1')
+    assert isinstance(d, util.adict)
+    assert d == util.adict(ak1='av1', k1='v1')
 
     dd = d.copy()
     dd.k4 = 'v4'
-    isinstance(dd, util.tdict)
+    isinstance(dd, util.adict)
     try:
         d = d.v4
         assert False, "Should raise AttributeError"
@@ -443,42 +441,42 @@ async def test_util():
     assert tsa.t == 7
     assert tsa1.t == 7
 
-    @util.tdictformatter
+    @util.adictformatter
     def c1():
         return {'k1': 'v1', 'k2': 'v2'}
 
-    @util.tdictformatter
+    @util.adictformatter
     def c2():
         return [
             {'k1': 'v1', 'k2': 'v2'},
             {'k1': 'v1', 'k2': 'v2'},
         ]
 
-    @util.tdictformatter
+    @util.adictformatter
     def c3():
         return [
             ('k1', 'v1', 'k2', 'v2'),
             ('k1', 'v1', 'k2', 'v2'),
         ]
 
-    @util.tdictformatter
+    @util.adictformatter
     async def c4():
         await asyncio.sleep(0.1)
         return 1
 
-    @util.tdictformatter
+    @util.adictformatter
     async def c5():
         await asyncio.sleep(0.1)
         return None
 
     cv1 = c1()
-    assert isinstance(cv1, util.tdict)
-    assert cv1 == util.tdict(**cv1)
+    assert isinstance(cv1, util.adict)
+    assert cv1 == util.adict(**cv1)
     cv2 = c2()
     assert isinstance(cv2, list)
     assert len(cv2) == 2
-    assert cv2[0] == util.tdict(**cv1)
-    assert cv2[1] == util.tdict(**cv1)
+    assert cv2[0] == util.adict(**cv1)
+    assert cv2[1] == util.adict(**cv1)
     try:
         c3()
         assert False, "Should raise TypeError"

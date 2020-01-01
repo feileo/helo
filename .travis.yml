@@ -9,16 +9,17 @@ services:
   - mysql
 
 before_install: 
-  - mysql -h 127.0.0.1 -u root -e 'CREATE DATABASE IF NOT EXISTS trod;' 
-  - export TROD_DB_URL=mysql://root@127.0.0.1:3306/trod
+  - mysql -h 127.0.0.1 -u root -e 'CREATE DATABASE IF NOT EXISTS helo;' 
+  - export HELO_DB_URL=mysql://root@127.0.0.1:3306/helo
   - pip install aiomysql
-  - pip install pytz
-  - pip install pytest pytest-asyncio pytest-cov
-  - pip install coveralls coverage
   - pip install pylint
+  - pip install pytz
+  - pip install pytest==5.1.3
+  - pip install pytest-asyncio pytest-cov
+  - pip install coveralls coverage
 
 script: 
-  - pylint trod --jobs=5 --reports=yes
+  - pylint helo --jobs=5 --reports=yes
   - ./runtests.sh
 
 after_success:

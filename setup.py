@@ -6,32 +6,33 @@ from setuptools import find_packages, setup
 
 
 if sys.version_info.major >= 3 and sys.version_info.minor >= 7:
-    import trod
+    import helo
 else:
     raise RuntimeError(
         "Unsupported Python version, please upgrade to 3.7 and above")
 
 
 with open('README.rst', 'r', encoding='utf-8') as readme_file:
-    TROD_README = readme_file.read().strip()
+    HELO_README = readme_file.read().strip()
 
 setup(
-    name=trod.__name__,
-    version=trod.__version__,
-    license='MIT license',
+    name=helo.__name__,
+    version=helo.__version__,
+    license=helo.__license__,
     author='at7h',
     author_email='g@at7h.com',
-    url='https://github.com/at7h/trod',
+    url='https://github.com/at7h/helo',
     description=(
-        'Trod is a low-level simple asynchronous ORM using Python asyncio'
+        'Helo is a simple and small low-level asynchronous ORM using Python asyncio.'
     ),
-    long_description=TROD_README,
+    long_description=HELO_README,
     packages=find_packages(),
-    py_modules=['trod'],
+    py_modules=['helo'],
     include_package_data=True,
     python_requires='>=3.7',
-    keywords='orm asyncio mysql aiomysql pymysql python3 async/await',
+    keywords='orm asyncio mysql aiomysql pymysql python python3 async/await web',
     zip_safe=False,
+    platforms='any',
     install_requires=[
         'aiomysql>=0.0.19',
     ],
