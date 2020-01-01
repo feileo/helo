@@ -18,7 +18,7 @@ with open('README.rst', 'r', encoding='utf-8') as readme_file:
 setup(
     name=trod.__name__,
     version=trod.__version__,
-    license='MIT license',
+    license='MIT',
     author='at7h',
     author_email='g@at7h.com',
     url='https://github.com/at7h/trod',
@@ -30,8 +30,9 @@ setup(
     py_modules=['trod'],
     include_package_data=True,
     python_requires='>=3.7',
-    keywords='orm asyncio mysql aiomysql pymysql python3 async/await',
+    keywords='orm asyncio mysql aiomysql pymysql python python3 async/await',
     zip_safe=False,
+    platforms='any',
     install_requires=[
         'aiomysql>=0.0.19',
     ],
