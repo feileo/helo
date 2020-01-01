@@ -316,6 +316,7 @@ async def test_trod():
         assert False, "Should raise ValueError"
     except ValueError:
         pass
+    db1.set_url_key(None)
 
 
 @pytest.mark.asyncio
