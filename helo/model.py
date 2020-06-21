@@ -1,10 +1,9 @@
 """
-    trod.model._impl
-    ~~~~~~~~~~~~~~~~
+    helo.model
+    ~~~~~~~~~~
 
     Implements the model.
 """
-
 from __future__ import annotations
 
 import warnings
@@ -12,34 +11,20 @@ import re
 from copy import deepcopy
 from typing import Any, Dict, Optional, List, Union, Tuple, Type
 
-from .. import db, util, err
-from .._helper import (
-    Query,
-    SQL,
-    Node,
-    Context,
-    parse_ctx,
-    CommaNodeList,
-    EnclosedNodeList,
-    with_metaclass,
-)
-from ..types._impl import (
-    SEQUENCE,
-    Id,
-    Table,
-    Column,
-    FieldBase,
-    IndexBase,
-    Expression,
-    FS,
+from . import db, util, err, types, _builder, _helper
+
+__all__ = (
+    'Model',
+    "JOINTYPE",
+    "ROWTYPE",
 )
 
 
-ROWTYPE = util.tdict(
+ROWTYPE = util.adict(
     MODEL=1,
-    TDICT=2,
+    ADICT=2,
 )
-JOINTYPE = util.tdict(
+JOINTYPE = util.adict(
     INNER='INNER',
     LEFT='LEFT',
     RIGHT='RIGHT',
@@ -57,7 +42,7 @@ class ModelType(type):
             model_fields, model_attrs = {}, {}
             for attr in attrs.copy():
                 field = attrs[attr]
-                if isinstance(field, FieldBase):
+                if isinstance(field, types.FieldBase):
                     field.name = field.name or attr
                     model_fields[attr] = field
                     model_attrs[field.name] = attr
@@ -82,10 +67,10 @@ class ModelType(type):
             if indexes and not isinstance(indexes, (tuple, list)):
                 raise TypeError("Table.indexes type must be `tuple` or `list`")
             for index in indexes:
-                if not isinstance(index, IndexBase):
+                if not isinstance(index, types.IndexBase):
                     raise TypeError(f"Invalid index type {index!r}")
 
-            primary = util.tdict(auto=False, field=None, attr=None, begin=None)
+            primary = util.adict(auto=False, field=None, attr=None, begin=None)
             for attr_name, field in model_fields.items():
                 if getattr(field, 'primary_key', None):
                     if primary.field is not None:
@@ -98,7 +83,7 @@ class ModelType(type):
                     if getattr(field, "auto", False):
                         primary.auto = True
                         primary.begin = int(field.auto)
-                        if field.name != Table.AIPK:
+                        if field.name != types.Table.AIPK:
                             warnings.warn(
                                 "The field name of AUTO_INCREMENT "
                                 "primary key is suggested to use "
@@ -106,7 +91,7 @@ class ModelType(type):
                                 err.ProgrammingWarning)
 
             attrs["__attrs__"] = model_attrs
-            attrs["__table__"] = Table(
+            attrs["__table__"] = types.Table(
                 database=getattr(metaclass, "db", None),
                 name=getattr(metaclass, 'name',
                              re.sub(_TABLENAME_REGEX, r'\1_\2', name).lower()),
@@ -157,14 +142,14 @@ class ModelType(type):
     def __aiter__(cls) -> Select:
         return ApiProxy.select(cls)  # type: ignore
 
-    def __getitem__(cls, _id: Id) -> Model:
+    def __getitem__(cls, _id: types.ID) -> Model:
         raise NotImplementedError
 
-    def __contains__(cls, _id: Id) -> bool:
+    def __contains__(cls, _id: types.ID) -> bool:
         raise NotImplementedError
 
 
-def get_table(m: Union[Type[Model], Model]) -> Table:
+def get_table(m: Union[Type[Model], Model]) -> types.Table:
     try:
         return m.__table__
     except AttributeError:
@@ -236,15 +221,15 @@ class ModelBase:
         return deepcopy(self.__dict__)
 
 
-class Model(with_metaclass(ModelType, ModelBase)):  # type: ignore
+class Model(_helper.with_metaclass(ModelType, ModelBase)):  # type: ignore
     """From Model defining your model is easy
 
-    >>> from trod import types
+    >>> import helo
     >>>
     >>> class User(Model):
-    ...     id = types.Auto()
-    ...     nickname = types.VarChar(length=45)
-    ...     password = types.VarChar(length=100)
+    ...     id = helo.Auto()
+    ...     nickname = helo.VarChar(length=45)
+    ...     password = helo.VarChar(length=100)
     """
 
     @classmethod
@@ -271,7 +256,7 @@ class Model(with_metaclass(ModelType, ModelBase)):  # type: ignore
     @classmethod
     async def get(
         cls,
-        by: Union[Id, Expression]
+        by: Union[types.ID, types.Expression]
     ) -> Union[None, Model]:
         """Getting a row by the primary key
         or simple query expression
@@ -290,8 +275,8 @@ class Model(with_metaclass(ModelType, ModelBase)):  # type: ignore
     @classmethod
     async def mget(
         cls,
-        by: Union[List[Id], Expression],
-        columns: Optional[List[Column]] = None,
+        by: Union[List[types.ID], types.Expression],
+        columns: Optional[List[types.Column]] = None,
     ) -> db.FetchResult:
         """Getting rows by the primary key list
         or simple query expression
@@ -309,7 +294,7 @@ class Model(with_metaclass(ModelType, ModelBase)):  # type: ignore
         cls,
         __row: Optional[Dict[str, Any]] = None,
         **values: Any
-    ) -> Id:
+    ) -> types.ID:
         """Adding a row, simple and shortcut of ``insert``
 
         # Using keyword arguments:
@@ -351,7 +336,7 @@ class Model(with_metaclass(ModelType, ModelBase)):  # type: ignore
         return await ApiProxy.add_many(cls, rows)
 
     @classmethod
-    async def set(cls, _id: Id, **values: Any) -> int:
+    async def set(cls, _id: types.ID, **values: Any) -> int:
         """Setting the value of a row with the primary key
 
         >>> user = await User.get(1)
@@ -371,7 +356,7 @@ class Model(with_metaclass(ModelType, ModelBase)):  # type: ignore
     # API that translates directly from SQL statements(DQL, DML).
     # You have to explicitly execute them via methods like `do()`.
     @classmethod
-    def select(cls, *columns: Column) -> Select:
+    def select(cls, *columns: types.Column) -> Select:
         """Select Query, see ``Select``"""
 
         return ApiProxy.select(cls, *columns)
@@ -403,7 +388,7 @@ class Model(with_metaclass(ModelType, ModelBase)):  # type: ignore
     def minsert(
         cls,
         rows: List[Union[Dict[str, Any], Tuple[Any, ...]]],
-        columns: Optional[List[FieldBase]] = None
+        columns: Optional[List[types.FieldBase]] = None
     ) -> Insert:
         """Inserting multiple
 
@@ -432,7 +417,7 @@ class Model(with_metaclass(ModelType, ModelBase)):  # type: ignore
 
     @classmethod
     def insert_from(
-        cls, from_: Select, columns: List[Column]
+        cls, from_: Select, columns: List[types.Column]
     ) -> Insert:
         """Inserting from select clause
 
@@ -484,7 +469,7 @@ class Model(with_metaclass(ModelType, ModelBase)):  # type: ignore
     def mreplace(
         cls,
         rows: List[Union[Dict[str, Any], Tuple[Any, ...]]],
-        columns: Optional[List[FieldBase]] = None
+        columns: Optional[List[types.FieldBase]] = None
     ) -> Replace:
         """MySQL REPLACE, similar to ``minsert``"""
 
@@ -494,7 +479,7 @@ class Model(with_metaclass(ModelType, ModelBase)):  # type: ignore
 
     # instance
 
-    async def save(self) -> Id:
+    async def save(self) -> types.ID:
         """Write objects in memory to database
 
         >>> user = User(nickname='at7h',password='777')
@@ -548,30 +533,30 @@ class ApiProxy:
     async def get(
         cls,
         m: Type[Model],
-        by: Union[Id, Expression],
+        by: Union[types.ID, types.Expression],
     ) -> Union[None, Model]:
 
         where = by
-        if not isinstance(where, Expression):
+        if not isinstance(where, types.Expression):
             where = get_table(m).primary.field == where
-        return (await Select([SQL("*")], [m])  # type: ignore
+        return (await Select([_builder.SQL("*")], [m])  # type: ignore
                 .where(where)
                 .get())
 
     @classmethod
-    @util.argschecker(by=(SEQUENCE, Expression))
+    @util.argschecker(by=(types.SEQUENCE, types.Expression))
     async def get_many(
         cls,
         m: Type[Model],
-        by: Union[List[Id], Expression],
-        columns: Optional[List[Column]] = None,
+        by: Union[List[types.ID], types.Expression],
+        columns: Optional[List[types.Column]] = None,
     ) -> db.FetchResult:
 
         where = by
-        if isinstance(where, SEQUENCE):
+        if isinstance(where, types.SEQUENCE):
             where = get_table(m).primary.field.in_(by)
         return await (
-            Select(columns or [SQL("*")], [m]).where(  # type: ignore
+            Select(columns or [_builder.SQL("*")], [m]).where(  # type: ignore
                 where
             ).all()
         )
@@ -582,7 +567,7 @@ class ApiProxy:
         cls,
         m: Type[Model],
         row: Dict[str, Any]
-    ) -> Id:
+    ) -> types.ID:
 
         addrow = cls._gen_insert_row(m, row)
         return (
@@ -615,7 +600,7 @@ class ApiProxy:
     async def set(
         cls,
         m: Type[Model],
-        _id: Id,
+        _id: types.ID,
         values: Any
     ) -> int:
 
@@ -630,16 +615,16 @@ class ApiProxy:
 
     @classmethod
     def select(
-        cls, m: Type[Model], *columns: Column
+        cls, m: Type[Model], *columns: types.Column
     ) -> Select:
 
-        return Select(list(columns) or [SQL("*")], [m])  # type: ignore
+        return Select(list(columns) or [_builder.SQL("*")], [m])  # type: ignore
 
     @classmethod
     def insert(
         cls,
         m: Type[Model],
-        row: Union[Dict[str, Any], List[Column]],
+        row: Union[Dict[str, Any], List[types.Column]],
         from_select: Optional[Select] = None
     ) -> Insert:
 
@@ -651,12 +636,12 @@ class ApiProxy:
         return Insert(get_table(m), row).from_(from_select)
 
     @classmethod
-    @util.argschecker(rows=SEQUENCE)
+    @util.argschecker(rows=types.SEQUENCE)
     def insert_many(
         cls,
         m: Type[Model],
         rows: List[Union[Dict[str, Any], Tuple[Any, ...]]],
-        columns: Optional[List[FieldBase]] = None
+        columns: Optional[List[types.FieldBase]] = None
     ) -> Insert:
 
         normalize_rows = cls._normalize_insert_rows(m, rows, columns)
@@ -686,14 +671,14 @@ class ApiProxy:
         cls,
         m: Type[Model],
         rows: List[Union[Dict[str, Any], Tuple[Any, ...]]],
-        columns: Optional[List[FieldBase]] = None
+        columns: Optional[List[types.FieldBase]] = None
     ) -> Replace:
 
         normalize_rows = cls._normalize_insert_rows(m, rows, columns, for_replace=True)
         return Replace(get_table(m), ValuesMatch(normalize_rows), many=True)
 
     @classmethod
-    async def save(cls, mo: Model) -> Id:
+    async def save(cls, mo: Model) -> types.ID:
         """ Save model object to db """
 
         has_id = False
@@ -745,7 +730,7 @@ class ApiProxy:
             if value is None:
                 if hasattr(field, 'default'):
                     default = field.default() if callable(field.default) else field.default
-                    if isinstance(default, SQL):
+                    if isinstance(default, _builder.SQL):
                         continue
                     value = default
             if value is None and not field.null:
@@ -772,7 +757,7 @@ class ApiProxy:
         cls,
         m: Type[Model],
         rows: List[Union[Dict[str, Any], Tuple[Any, ...]]],
-        columns: Optional[List[FieldBase]] = None,
+        columns: Optional[List[types.FieldBase]] = None,
         for_replace: bool = False,
     ) -> List[Dict[str, Any]]:
 
@@ -783,7 +768,7 @@ class ApiProxy:
                 raise ValueError("Specify columns must be list")
             mattrs = get_attrs(m)
             for c in columns:
-                if not isinstance(c, FieldBase):
+                if not isinstance(c, types.FieldBase):
                     raise TypeError(f"Invalid type of columns element {c}")
 
                 if c.name not in mattrs:
@@ -791,7 +776,7 @@ class ApiProxy:
                 c = mattrs[c.name]
 
             for row in rows:
-                if not isinstance(row, SEQUENCE):
+                if not isinstance(row, types.SEQUENCE):
                     raise ValueError(f"Invalid data {row!r} for specify columns")
                 row = dict(zip(columns, row))  # type: ignore
                 if len(row) != len(columns):
@@ -813,13 +798,13 @@ class ApiProxy:
             if f is None:
                 raise ValueError(f"'{m!r}' has no attribute {attr}")
             v = values[attr]
-            if not isinstance(v, Node):
+            if not isinstance(v, _builder.Node):
                 v = f.db_value(v)
             normalized_values[f.name] = v
         return normalized_values
 
 
-class ValuesMatch(Node):
+class ValuesMatch(_builder.Node):
 
     __slots__ = ("_columns", "_params", "_values")
 
@@ -836,42 +821,42 @@ class ValuesMatch(Node):
         else:
             raise ValueError("Invalid data unpack to values")
 
-        self._columns, self._params = [], []  # type: List[Node], List[Node]
+        self._columns, self._params = [], []  # type: List[_builder.Node], List[_builder.Node]
         for col in columns:
-            self._columns.append(SQL(col.join("``")))
-            self._params.append(SQL("%s"))
+            self._columns.append(_builder.SQL(col.join("``")))
+            self._params.append(_builder.SQL("%s"))
 
-    def __sql__(self, ctx: Context) -> Context:
-        ctx.literal(' ').sql(EnclosedNodeList(self._columns))
+    def __sql__(self, ctx: _builder.Context) -> _builder.Context:
+        ctx.literal(' ').sql(_builder.EnclosedNodeList(self._columns))
         ctx.literal(
             " VALUES "
         ).sql(
-            EnclosedNodeList(self._params)
+            _builder.EnclosedNodeList(self._params)
         ).values(self._values)
         return ctx
 
 
-class Join(Node):
+class Join(_builder.Node):
 
     __slots__ = ('lt', 'rt', 'join_type', '_on')
 
     def __init__(
         self,
-        lt: Table,
-        rt: Table,
+        lt: types.Table,
+        rt: types.Table,
         join_type: str = JOINTYPE.INNER,
-        on: Optional[Expression] = None
+        on: Optional[types.Expression] = None
     ):
         self.lt = lt
         self.rt = rt
         self.join_type = join_type
         self._on = on
 
-    def on(self, expr: Expression):
+    def on(self, expr: types.Expression):
         self._on = expr
         return self
 
-    def __sql__(self, ctx: Context) -> Context:
+    def __sql__(self, ctx: _builder.Context) -> _builder.Context:
         with ctx(params=True):
             ctx.sql(
                 self.lt
@@ -885,7 +870,7 @@ class Join(Node):
         return ctx
 
 
-class AssignmentList(Node):
+class AssignmentList(_builder.Node):
 
     __slots__ = ('_data_dict',)
 
@@ -894,11 +879,11 @@ class AssignmentList(Node):
     def __init__(self, data: Dict[str, Any]) -> None:
         self._data_dict = data
 
-    def __sql__(self, ctx: Context) -> Context:
+    def __sql__(self, ctx: _builder.Context) -> _builder.Context:
         values, params = [], []
         for col, value in self._data_dict.items():
-            if isinstance(value, FieldBase):
-                values.append(SQL(
+            if isinstance(value, types.FieldBase):
+                values.append(_builder.SQL(
                     self._VSM.format(
                         col=col,
                         val="{}.{}".format(
@@ -906,9 +891,9 @@ class AssignmentList(Node):
                             value.column)
                     )
                 ))
-            elif isinstance(value, Expression):
-                query = parse_ctx(value).query()
-                values.append(SQL(
+            elif isinstance(value, types.Expression):
+                query = _builder.parse(value)
+                values.append(_builder.SQL(
                     self._VSM.format(
                         col=col,
                         val=query.sql[0:-1]
@@ -916,13 +901,13 @@ class AssignmentList(Node):
                 ))
                 params.append(query.params)
             else:
-                values.append(SQL(
+                values.append(_builder.SQL(
                     self._VSM.format(col=col, val='%s')
                 ))
                 params.append(value)
 
         ctx.sql(
-            CommaNodeList(values)  # type: ignore
+            _builder.CommaNodeList(values)  # type: ignore
         )
         if params:
             ctx.values(params)
@@ -930,13 +915,13 @@ class AssignmentList(Node):
         return ctx
 
 
-class BaseQuery(Node):
+class BaseQuery(_builder.Node):
 
     __slots__ = ('_props', '_aliases')
     __fread__ = True
 
     def __init__(self) -> None:
-        self._props = util.tdict()
+        self._props = util.adict()
         self._aliases = {}  # type: Dict[str,Any]
 
     def __repr__(self) -> str:
@@ -945,13 +930,13 @@ class BaseQuery(Node):
     def __str__(self) -> str:
         return str(self.query)
 
-    def __query__(self) -> Query:
-        ctx = parse_ctx(self)
+    def __query__(self) -> _builder.Query:
+        ctx = _builder.Context.from_node(self)
         self._aliases = ctx.aliases
-        return ctx.query()
+        return ctx.query_of()
 
     @property
-    def query(self) -> Query:
+    def query(self) -> _builder.Query:
         return self.__query__()
 
     async def __do__(self, **props) -> Any:
@@ -961,7 +946,7 @@ class BaseQuery(Node):
             self._props.update(props)
         return await db.execute(query, **self._props)
 
-    def __sql__(self, ctx: Context) -> Context:
+    def __sql__(self, ctx: _builder.Context) -> _builder.Context:
         raise NotImplementedError
 
 
@@ -973,7 +958,7 @@ class WriteQuery(BaseQuery):
     async def do(self) -> db.ExecResult:
         return await self.__do__()
 
-    def __sql__(self, ctx: Context) -> Context:
+    def __sql__(self, ctx: _builder.Context) -> _builder.Context:
         raise NotImplementedError
 
 
@@ -989,13 +974,13 @@ class Select(BaseQuery):
 
     def __init__(
         self,
-        columns: Union[List[Column], List[SQL]],
+        columns: Union[List[types.Column], List[_builder.SQL]],
         models: List[Type[Model]]
     ) -> None:
         super().__init__()
         self._columns = columns
         self._models = models
-        self._froms = [get_table(model) for model in models]  # type:List[Node]
+        self._froms = [get_table(model) for model in models]  # type:List[_builder.Node]
         self._where = None
         self._group_by = None
         self._having = None
@@ -1010,40 +995,40 @@ class Select(BaseQuery):
         self,
         target: Type[Model],
         join_type: str = JOINTYPE.INNER,
-        on: Optional[Expression] = None
+        on: Optional[types.Expression] = None
     ) -> Select:
         lt = self._froms.pop()
         rt = get_table(target)
         self._froms.append(Join(lt, rt, join_type, on))  # type:ignore
         return self
 
-    def where(self, *filters: Node) -> Select:
+    def where(self, *filters: _builder.Node) -> Select:
         self._where = util.and_(*filters) or None
         return self
 
-    def group_by(self, *columns: Column) -> Select:
+    def group_by(self, *columns: types.Column) -> Select:
         if not columns:
             raise ValueError("Group by clause cannot be empty")
         for f in columns:
-            if not isinstance(f, Column):
+            if not isinstance(f, types.Column):
                 raise TypeError(
-                    f"Invalid value for group_by field"
+                    f"Invalid value '{f}' for group_by field"
                 )
 
         self._group_by = columns  # type: ignore
         return self
 
-    def having(self, *filters: Node) -> Select:
+    def having(self, *filters: _builder.Node) -> Select:
         self._having = util.and_(*filters) or None
         return self
 
-    def order_by(self, *columns: Column):
+    def order_by(self, *columns: types.Column):
         if not columns:
             raise ValueError("Order by clause cannot be empty")
         for f in columns:
-            if not isinstance(f, Column):
+            if not isinstance(f, types.Column):
                 raise TypeError(
-                    f"Invalid value for order_by field")
+                    f"Invalid value '{f}' for order_by field")
 
         self._order_by = columns  # type: ignore
         return self
@@ -1063,19 +1048,19 @@ class Select(BaseQuery):
     #
     async def get(
         self, wrap: bool = True
-    ) -> Union[None, util.tdict, Model]:
+    ) -> Union[None, util.adict, Model]:
         """If "wrap" is False, the returned row type is not
         wrapped as the ``Model`` object, and the original
-        ``trod.util.tdict`` is used
+        ``helo.util.adict`` is used
         """
         return await self.__do__(rows=self._SINGLE, wrap=wrap)
 
     async def first(
         self, wrap: bool = True
-    ) -> Union[None, util.tdict, Model]:
+    ) -> Union[None, util.adict, Model]:
         """If "wrap" is False, the returned row type is not
         wrapped as the ``Model`` object, and the original
-        ``trod.util.tdict`` is used
+        ``helo.util.adict`` is used
         """
         self.limit(self._SINGLE)
         return await self.__do__(rows=self._SINGLE, wrap=wrap)
@@ -1091,7 +1076,7 @@ class Select(BaseQuery):
     ) -> db.FetchResult:
         """If "wrap" is False, the returned row type is not
         wrapped as the ``Model`` object, and the original
-        ``trod.util.tdict`` is used
+        ``helo.util.adict`` is used
         """
         self.limit(rows).offset(start)
         if rows <= 0:
@@ -1106,7 +1091,7 @@ class Select(BaseQuery):
     ) -> db.FetchResult:
         """If "wrap" is False, the returned row type is not
         wrapped as the ``Model`` object, and the original
-        ``trod.util.tdict`` is used
+        ``helo.util.adict`` is used
         """
         if page < 0 or size <= 0:
             raise ValueError("Invalid page or size")
@@ -1119,7 +1104,7 @@ class Select(BaseQuery):
     async def all(self, wrap: bool = True) -> db.FetchResult:
         """If "wrap" is False, the returned row type is not
         wrapped as the ``Model`` object, and the original
-        ``trod.util.tdict`` is used
+        ``helo.util.adict`` is used
         """
         return await self.__do__(wrap=wrap)
 
@@ -1129,12 +1114,12 @@ class Select(BaseQuery):
     async def scalar(
         self, as_tuple=False
     ) -> Union[None, int, Tuple[Any, ...]]:
-        self._props.tdicts = False
+        self._props.adicts = False
         row = await self.first()
         return row[0] if row and not as_tuple else row  # type: ignore
 
     async def count(self) -> int:
-        self._columns = [FS.COUNT(SQL('1'))]  # type: ignore
+        self._columns = [types.F.COUNT(_builder.SQL('1'))]  # type: ignore
         return await self.scalar()  # type: ignore
 
     async def exist(self) -> bool:
@@ -1143,7 +1128,7 @@ class Select(BaseQuery):
     async def __do__(self, **props) -> Any:
         wrap = props.pop('wrap', False) is True
         if wrap is True or len(self._models) != self._SINGLE:
-            self._rowtype = ROWTYPE.TDICT
+            self._rowtype = ROWTYPE.ADICT
         return Loader(
             await super().__do__(**props),
             self._models[0], self._aliases, wrap=wrap
@@ -1175,15 +1160,15 @@ class Select(BaseQuery):
         self._gotidx += self._SINGLE
         return row
 
-    def __sql__(self, ctx: Context) -> Context:
+    def __sql__(self, ctx: _builder.Context) -> _builder.Context:
         ctx.props.select = True
         ctx.literal(
             "SELECT "
         ).sql(
-            CommaNodeList(self._columns)  # type: ignore
+            _builder.CommaNodeList(self._columns)  # type: ignore
         ).literal(
             " FROM "
-        ).sql(CommaNodeList(self._froms))
+        ).sql(_builder.CommaNodeList(self._froms))
 
         if self._where:
             ctx.literal(" WHERE ").sql(self._where)
@@ -1191,15 +1176,15 @@ class Select(BaseQuery):
         if self._group_by:
             ctx.literal(
                 " GROUP BY "
-            ).sql(CommaNodeList(self._group_by))
+            ).sql(_builder.CommaNodeList(self._group_by))
 
         if self._having:
-            ctx.literal(f" HAVING ").sql(self._having)
+            ctx.literal(" HAVING ").sql(self._having)
 
         if self._order_by:
             ctx.literal(
                 " ORDER BY "
-            ).sql(CommaNodeList(self._order_by))
+            ).sql(_builder.CommaNodeList(self._order_by))
 
         if self._limit is not None:
             ctx.literal(f" LIMIT {self._limit}")
@@ -1215,8 +1200,8 @@ class Insert(WriteQuery):
 
     def __init__(
         self,
-        table: Table,
-        values: Union[ValuesMatch, List[Column]],
+        table: types.Table,
+        values: Union[ValuesMatch, List[types.Column]],
         many: bool = False
     ) -> None:
         super().__init__()
@@ -1233,7 +1218,7 @@ class Insert(WriteQuery):
         self._from = select
         return self
 
-    def __sql__(self, ctx: Context) -> Context:
+    def __sql__(self, ctx: _builder.Context) -> _builder.Context:
         ctx.literal(
             "INSERT INTO "
         ).sql(self._table)
@@ -1243,8 +1228,8 @@ class Insert(WriteQuery):
         elif isinstance(self._values, list):
             for i, f in enumerate(self._values):
                 if isinstance(f, str):
-                    self._values[i] = SQL(f.join('``'))
-            ctx.literal(' ').sql(EnclosedNodeList(self._values))  # type: ignore
+                    self._values[i] = _builder.SQL(f.join('``'))
+            ctx.literal(' ').sql(_builder.EnclosedNodeList(self._values))  # type: ignore
         if self._from:
             ctx.literal(' ').sql(self._from)
 
@@ -1257,7 +1242,7 @@ class Replace(WriteQuery):
 
     def __init__(
         self,
-        table: Table,
+        table: types.Table,
         values: Union[ValuesMatch],
         many: bool = False
     ) -> None:
@@ -1267,7 +1252,7 @@ class Replace(WriteQuery):
         if many:
             self._props.many = True
 
-    def __sql__(self, ctx: Context) -> Context:
+    def __sql__(self, ctx: _builder.Context) -> _builder.Context:
         ctx.literal(
             "REPLACE INTO "
         ).sql(self._table)
@@ -1281,23 +1266,23 @@ class Update(WriteQuery):
     __slots__ = ('_table', '_values', '_from', '_where')
 
     def __init__(
-        self, table: Table, values: AssignmentList
+        self, table: types.Table, values: AssignmentList
     ) -> None:
         super().__init__()
         self._table = table
         self._values = values
-        self._from = None  # type: Optional[Table]
+        self._from = None  # type: Optional[types.Table]
         self._where = None
 
     def from_(self, source: Type[Model]) -> Update:
         self._from = get_table(source)
         return self
 
-    def where(self, *filters: Column) -> Update:
+    def where(self, *filters: types.Column) -> Update:
         self._where = util.and_(*filters) or None
         return self
 
-    def __sql__(self, ctx: Context) -> Context:
+    def __sql__(self, ctx: _builder.Context) -> _builder.Context:
         ctx.literal(
             "UPDATE "
         ).sql(
@@ -1321,14 +1306,14 @@ class Delete(WriteQuery):
 
     __slots__ = ('_table', '_where', '_limit', '_force')
 
-    def __init__(self, table: Table, force: bool = False) -> None:
+    def __init__(self, table: types.Table, force: bool = False) -> None:
         self._table = table
         self._where = None
         self._limit = None  # type: Optional[int]
         self._force = force
         super().__init__()
 
-    def where(self, *filters: Column) -> Delete:
+    def where(self, *filters: types.Column) -> Delete:
         self._where = util.and_(*filters) or None
         return self
 
@@ -1336,7 +1321,7 @@ class Delete(WriteQuery):
         self._limit = row_count
         return self
 
-    def __sql__(self, ctx: Context) -> Context:
+    def __sql__(self, ctx: _builder.Context) -> _builder.Context:
         ctx.literal("DELETE FROM ").sql(self._table)
         if self._where:
             ctx.literal(
@@ -1362,7 +1347,7 @@ class Show(BaseQuery):
         "indexes": "SHOW INDEX FROM ",
     }
 
-    def __init__(self, table: Table) -> None:
+    def __init__(self, table: types.Table) -> None:
         super().__init__()
         self._table = table
         self._key = None  # type: Optional[str]
@@ -1372,7 +1357,7 @@ class Show(BaseQuery):
 
     __str__ = __repr__
 
-    async def create_syntax(self) -> Optional[util.tdict]:
+    async def create_syntax(self) -> Optional[util.adict]:
         self._key = "create"
         return (await self.__do__(rows=1)).get("Create Table")
 
@@ -1384,7 +1369,7 @@ class Show(BaseQuery):
         self._key = "indexes"
         return await self.__do__()
 
-    def __sql__(self, ctx: Context) -> Context:
+    def __sql__(self, ctx: _builder.Context) -> _builder.Context:
         if self._key is not None:
             ctx.literal(
                 self._options[self._key]
@@ -1396,12 +1381,12 @@ class Create(WriteQuery):
 
     __slots__ = ('_table', '_options')
 
-    def __init__(self, table: Table, **options: Any) -> None:
+    def __init__(self, table: types.Table, **options: Any) -> None:
         self._table = table
         self._options = options
         super().__init__()
 
-    def __sql__(self, ctx: Context) -> Context:
+    def __sql__(self, ctx: _builder.Context) -> _builder.Context:
         ctx.literal('CREATE ')
         if self._options.get('temporary'):
             ctx.literal('TEMPORARY ')
@@ -1410,13 +1395,13 @@ class Create(WriteQuery):
             ctx.literal('IF NOT EXISTS ')
         ctx.sql(self._table)
 
-        defs = [f.__def__() for f in self._table.fields_dict.values()]  # type: List[Node]
-        defs.append(SQL(f"PRIMARY KEY ({self._table.primary.field.column})"))
+        defs = [f.__def__() for f in self._table.fields_dict.values()]  # type: List[_builder.Node]
+        defs.append(_builder.SQL(f"PRIMARY KEY ({self._table.primary.field.column})"))
         if self._table.indexes:
             defs.extend([i.__def__() for i in self._table.indexes])
 
         ctx.sql(
-            EnclosedNodeList(defs)
+            _builder.EnclosedNodeList(defs)
         ).literal(
             f"ENGINE={self._table.engine} "
             f"AUTO_INCREMENT={self._table.auto_increment} "
@@ -1430,7 +1415,7 @@ class Drop(Create):
 
     __slots__ = ()
 
-    def __sql__(self, ctx: Context) -> Context:
+    def __sql__(self, ctx: _builder.Context) -> _builder.Context:
         ctx.literal('DROP TABLE ').sql(self._table)
         return ctx
 
@@ -1442,7 +1427,7 @@ class Loader:
 
     def __init__(
         self,
-        data: Union[None, util.tdict, db.FetchResult],
+        data: Union[None, util.adict, db.FetchResult],
         model: Type[Model],
         aliases: Dict[str, Any],
         wrap: bool = True
@@ -1475,8 +1460,8 @@ class Loader:
         return self._data
 
     def _convert_type(
-        self, row: util.tdict
-    ) -> util.tdict:
+        self, row: util.adict
+    ) -> util.adict:
         if isinstance(row, dict):
             for name in row.copy():
                 if name not in self._mattrs.values():
@@ -1492,7 +1477,7 @@ class Loader:
             pass
         return row
 
-    def _convert_to_model(self, row: util.tdict) -> Optional[Model]:
+    def _convert_to_model(self, row: util.adict) -> Optional[Model]:
         model = self._modelclass()
         for name, value in row.items():
             name = self._aliases.get(name, name)

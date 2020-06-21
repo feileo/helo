@@ -1,16 +1,14 @@
 """
-tests for types module and outside the ``trod.Model``
+tests for types module and outside the ``helo.Model``
 """
 
 from datetime import datetime, date, time, timedelta
 
 import pytest
 
-from trod import err, _helper as helper, types as t
+from helo import err, _builder, _helper, types as t, G
 
-from trod import Trod
-
-db = Trod()
+db = G()
 
 
 def test_exprs():
@@ -20,284 +18,284 @@ def test_exprs():
     lastlogin = t.DateTime(name='lastlogin', default=datetime.now)
 
     e = (age > 20) & True
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '((`age` > %s) AND %s);', (20, True)
     )
     e = True & (age > 10)
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(%s AND (`age` > %s));', (True, 10,)
     )
     e = False | (age > 10)
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(%s OR (`age` > %s));', (False, 10,)
     )
     e = (age > 10) | (name == 'test')
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '((`age` > %s) OR (`name` = %s));', (10, 'test')
     )
     e = (name == 'test') | (age > 10)
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '((`name` = %s) OR (`age` > %s));', ('test', 10)
     )
     theday = datetime(year=2019, month=10, day=10)
     e = (name == 'test') | (lastlogin < theday)
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '((`name` = %s) OR (`lastlogin` < %s));', ('test', theday)
     )
     e = lastlogin <= "2019-10-10"
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`lastlogin` <= %s);', (theday,)
     )
     e = age + 1
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`age` + %s);', (1,)
     )
     e = 1 + age
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(%s + `age`);', (1,)
     )
     e = age + '20'
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`age` + %s);', (20,)
     )
     e = 20 + age
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(%s + `age`);', (20,)
     )
     e = name + 'name'
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`name` || %s);', ('name',)
     )
     e = 'name' + name
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(%s || `name`);', ('name',)
     )
     nickname = t.VarChar(name='nickname')
     e = nickname + name
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`nickname` || `name`);', ()
     )
     e = age - 1
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`age` - %s);', (1,)
     )
     e = 100 - age
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(%s - `age`);', (100,)
     )
     e = age * '2'
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`age` * %s);', (2,)
     )
     e = 2 * age
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(%s * `age`);', (2,)
     )
     e = 1000 / age
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(%s / `age`);', (1000,)
     )
     e = age / 2
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`age` / %s);', (2,)
     )
     e = age ^ name
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`age` # `name`);', ()
     )
     e = 'name' ^ name
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(%s # `name`);', ('name',)
     )
     e = name == 'at7h'
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`name` = %s);', ('at7h',)
     )
     e = name != 'at7h'
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`name` != %s);', ('at7h',)
     )
     e = name <= 'at7h'
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`name` <= %s);', ('at7h',)
     )
     e = name >= 'at7h'
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`name` >= %s);', ('at7h',)
     )
     e = age < 90
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`age` < %s);', (90,)
     )
     e = age > 20
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`age` > %s);', (20,)
     )
     e = name >> None
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`name` IS %s);', (None,)
     )
     e = name << ['at7h', 'mejer']
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`name` IN %s);', (('at7h', 'mejer'),)
     )
     e = name % 'at'
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`name` LIKE BINARY %s);', ('at',)
     )
     e = name ** 'at'
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`name` LIKE %s);', ('at',)
     )
     e = age[slice(20, 30)]
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`age` BETWEEN %s AND %s);', (20, 30,)
     )
     e = age[10]
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`age` = %s);', (10,)
     )
     try:
         e = age[slice(20)]
-        helper.parse(e)
+        _builder.parse(e)
         assert False, "Should raise ValueError"
     except ValueError:
         pass
 
     e = name.concat(10)
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`name` || %s);', ('10',)
     )
     e = name.binand('at7h')
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`name` & %s);', ('at7h',)
     )
     e = name.binor('at7h')
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`name` | %s);', ('at7h',)
     )
     e = name.in_(['at7h', 'mejor'])
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`name` IN %s);', (('at7h', 'mejor'),)
     )
-    e = name.in_(helper.SQL("SELECT * FROM `user`"))
-    assert helper.parse(e) == helper.Query(
+    e = name.in_(_builder.SQL("SELECT * FROM `user`"))
+    assert _builder.parse(e) == _builder.Query(
         '(`name` IN (SELECT * FROM `user`));', ()
     )
     e = name.in_(10)
     try:
-        helper.parse(e)
+        _builder.parse(e)
         assert False, "Should raise TypeError"
     except TypeError:
         pass
     e = name.nin_(['at7h', 'mejor'])
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`name` NOT IN %s);', (('at7h', 'mejor'),)
     )
     e = name.exists(['at7h', 'mejor'])
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`name` EXISTS %s);', (('at7h', 'mejor'),)
     )
     e = name.nexists(['at7h', 'mejor'])
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`name` NOT EXISTS %s);', (('at7h', 'mejor'),)
     )
     e = name.isnull()
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`name` IS %s);', (None,)
     )
     e = name.isnull(False)
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`name` IS NOT %s);', (None,)
     )
     e = name.regexp('at.*')
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`name` REGEXP %s);', ('at.*',)
     )
     e = name.regexp('at.*', i=False)
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`name` REGEXP BINARY %s);', ('at.*',)
     )
     e = password.like(177)
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`password` LIKE %s);', ('177',)
     )
     e = password.like(177, i=False)
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`password` LIKE BINARY %s);', ('177',)
     )
     e = password.contains(7867)
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`password` LIKE %s);', ('%7867%',)
     )
     e = password.contains(7867, i=False)
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`password` LIKE BINARY %s);', ('%7867%',)
     )
     e = name.endswith('7h')
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`name` LIKE %s);', ('%7h',)
     )
     e = name.endswith('7h', i=False)
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`name` LIKE BINARY %s);', ('%7h',)
     )
     e = name.startswith('at')
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`name` LIKE %s);', ('at%',)
     )
     e = name.startswith('at', i=False)
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`name` LIKE BINARY %s);', ('at%',)
     )
     e = age.between(10, 30)
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`age` BETWEEN %s AND %s);', (10, 30)
     )
     e = age.nbetween(10, 30)
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(`age` NOT BETWEEN %s AND %s);', (10, 30)
     )
     e = age.asc()
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '`age` ASC ;', ()
     )
     e = age.desc()
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '`age` DESC ;', ()
     )
     e = age.as_('a')
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '`age` AS `a`;', ()
     )
     e = age.as_('')
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '`age`;', ()
     )
     e = (age > 10) & (name == 'test')
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '((`age` > %s) AND (`name` = %s));', (10, 'test')
     )
     e = (name == 'test') & (age > 10)
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '((`name` = %s) AND (`age` > %s));', ('test', 10)
     )
     e = (age >= '20') & name.in_(['at7h', 'mejor']) | password.startswith('153')
-    assert helper.parse(e) == helper.Query(
+    assert _builder.parse(e) == _builder.Query(
         '(((`age` >= %s) AND (`name` IN %s)) OR (`password` LIKE %s));',
         (20, ('at7h', 'mejor'), '153%')
     )
 
-    # helper
-    sql = helper.SQL("SELECT")
+    # _builder
+    sql = _builder.SQL("SELECT")
     assert repr(sql) == str(sql) == 'SQL(SELECT)'
-    sql = helper.SQL("SELECT * FROM `user` WHERE `id` IN %s", (1, 2, 3))
+    sql = _builder.SQL("SELECT * FROM `user` WHERE `id` IN %s", (1, 2, 3))
     assert repr(sql) == str(sql) == (
         'SQL(SELECT * FROM `user` WHERE `id` IN %s) % (1, 2, 3)')
-    assert helper.parse(sql) == helper.Query(
+    assert _builder.parse(sql) == _builder.Query(
         "SELECT * FROM `user` WHERE `id` IN %s;", (1, 2, 3)
     )
-    q = helper.Query("SELECT")
+    q = _builder.Query("SELECT")
     assert repr(q) == "Query({})".format(str(q))
     try:
         q.r = 1
@@ -305,27 +303,27 @@ def test_exprs():
     except TypeError:
         pass
     try:
-        assert helper.parse((age > 10) | (name == 'test')) == sql
+        assert _builder.parse((age > 10) | (name == 'test')) == sql
         assert False, "Should raise TypeError"
     except TypeError:
         pass
     assert q.r is True
     q.r = False
     assert q.r is False
-    q = helper.Query("SeLeCT FrOm")
+    q = _builder.Query("SeLeCT FrOm")
     assert q.r is True
-    q = helper.Query("SShow")
+    q = _builder.Query("SShow")
     assert q.r is True
-    q = helper.Query("SSow")
+    q = _builder.Query("SSow")
     assert q.r is False
     try:
-        assert helper.Query("SELECT", {1: 1}).params
+        assert _builder.Query("SELECT", {1: 1}).params
         assert False, 'Should raise TypeError'
     except TypeError:
         pass
-    ctx = helper.Context()
+    ctx = _builder.Context()
     ctx.literal("SELECT").values("100")
-    assert helper.parse(ctx) == helper.Query('SELECT;', ("100",))
+    assert _builder.parse(ctx) == _builder.Query('SELECT;', ("100",))
 
 
 def test_fieldbase():
@@ -346,7 +344,7 @@ def test_fieldbase():
 
 
 def parsef(field):
-    return helper.parse(field.__def__()).sql
+    return _builder.parse(field.__def__()).sql
 
 
 def test_tinyint():
@@ -524,9 +522,9 @@ def test_text():
     assert text.py_value(100) == '100'
     assert text.db_value(100) == '100'
     e = text + 'text'
-    assert helper.parse(e) == helper.Query('(`text` || %s);', ('text',))
+    assert _builder.parse(e) == _builder.Query('(`text` || %s);', ('text',))
     e = 'text' + text
-    assert helper.parse(e) == helper.Query('(%s || `text`);', ('text',))
+    assert _builder.parse(e) == _builder.Query('(%s || `text`);', ('text',))
 
 
 def test_char():
@@ -616,7 +614,7 @@ def test_ip():
     except ValueError:
         pass
     for item in [None, '', {}, ]:
-        assert t.validator.is_ipv4(item) is False
+        assert _helper.is_ipv4(item) is False
 
 
 def test_email():
@@ -653,7 +651,7 @@ def test_email():
     except ValueError:
         pass
     for item in [None, '', {}, ]:
-        assert t.validator.is_email(item) is False
+        assert _helper.is_email(item) is False
 
 
 def test_url():
@@ -690,7 +688,7 @@ def test_url():
     except ValueError:
         pass
     for item in [None, '', {}, ]:
-        assert t.validator.is_url(item) is False
+        assert _helper.is_url(item) is False
 
 
 def test_date():
@@ -770,7 +768,7 @@ def test_key():
     assert str(key) == 'KEY `idx_name_age` (`name`, `age`);'
     key = t.UK('uk_password', password, comment='password')
     assert str(key) == "UNIQUE KEY `uk_password` (`password`) COMMENT 'password';"
-    assert repr(key) == "types.UKey(UNIQUE KEY `uk_password` (`password`) COMMENT 'password';)"
+    assert repr(key) == "types.UK(UNIQUE KEY `uk_password` (`password`) COMMENT 'password';)"
     assert hash(key) == hash('uk_password')
     try:
         t.K('idx_name', [1, 2, 4])
@@ -782,10 +780,10 @@ def test_key():
 def test_funs():
     age = t.Int(name='age')
     s = t.F.SUM(age).as_('age_sum')
-    assert helper.parse(s).sql == 'SUM(`age`) AS `age_sum`;'
+    assert _builder.parse(s).sql == 'SUM(`age`) AS `age_sum`;'
 
     m_ = t.F.MAX(age).as_('age_max')
-    assert helper.parse(m_).sql == 'MAX(`age`) AS `age_max`;'
+    assert _builder.parse(m_).sql == 'MAX(`age`) AS `age_max`;'
 
 
 class TypesModel(db.Model):

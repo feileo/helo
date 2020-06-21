@@ -1,3 +1,3 @@
 #!/bin/bash
 
-pytest -svq --color=yes --cov=trod tests/
+pytest -svq --color=yes --cov=helo tests/
