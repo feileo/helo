@@ -1,5 +1,5 @@
 """
-Supplementary tests
+Supplementary tests, g etc.
 """
 import asyncio
 from datetime import datetime
@@ -297,7 +297,7 @@ async def test_helo():
     except err.OperationalError:
         pass
 
-    db.set_env_key("")
+    db.set_env_key(None)
     await db.bind(EnvKey.get())
     assert db.isbound is True
     await db.unbind()

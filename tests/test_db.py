@@ -1,7 +1,6 @@
 """
-tests for db module
+Tests for db module
 """
-
 import datetime
 
 import pytest
@@ -10,9 +9,7 @@ import pytz
 from helo import db, err, util, _builder
 
 TZ = pytz.timezone('Asia/Shanghai')
-
 AUTO_INCREMENT = 26
-
 SETUP_QUERY = _builder.Query(
     "CREATE TABLE IF NOT EXISTS `user` ("
     "`id` int(20) unsigned NOT NULL AUTO_INCREMENT,"
