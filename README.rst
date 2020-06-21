@@ -50,7 +50,7 @@ See the installation_ wiki page for more options.
 Basic Examples
 --------------
 
-First, you should to import the ``Helo`` and instantiate a global variable:
+First, you should to import the ``helo`` module, and use ``helo.G`` to instantiate a global variable:
 
 .. code-block:: python
 
