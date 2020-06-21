@@ -1,48 +1,48 @@
 import asyncio
 from datetime import datetime
 
-from trod import JOINTYPE, types, Trod
+import helo
 
 
-db = Trod()
+db = helo.G()
 
 
 class Person(db.Model):  # type: ignore
-    id = types.BigAuto()
-    name = types.VarChar(length=45, null=False)
+    id = helo.BigAuto()
+    name = helo.VarChar(length=45, null=False)
 
 
 class Employee(Person):
-    department = types.Smallint()
-    salary = types.Float(default=0)
+    department = helo.Smallint()
+    salary = helo.Float(default=0)
 
 
 class User(Person):
-    email = types.Email(default='')
-    password = types.VarChar(length=100, null=False)
-    create_at = types.Timestamp(default=types.ON_CREATE)
+    email = helo.Email(default='')
+    password = helo.VarChar(length=100, null=False)
+    create_at = helo.Timestamp(default=helo.ON_CREATE)
 
     class Meta:
-        indexes = [types.K('idx_ep', ['email', 'password'])]
+        indexes = [helo.K('idx_ep', ['email', 'password'])]
 
 
 class Post(db.Model):  # type: ignore
-    id = types.Auto(comment='auto increment pk')
-    title = types.VarChar(length=100)
-    content = types.Text(encoding=types.ENCODING.utf8mb4)
-    author = types.Int(default=0)
-    create_at = types.Timestamp(default=types.ON_CREATE)
-    update_at = types.Timestamp(default=types.ON_UPDATE)
+    id = helo.Auto(comment='auto increment pk')
+    title = helo.VarChar(length=100)
+    content = helo.Text(encoding=helo.ENCODING.utf8mb4)
+    author = helo.Int(default=0)
+    create_at = helo.Timestamp(default=helo.ON_CREATE)
+    update_at = helo.Timestamp(default=helo.ON_UPDATE)
 
     class Meta:
         indexes = [
-            types.K('idx_title', 'title'),
-            types.K('idx_author', 'author'),
+            helo.K('idx_title', 'title'),
+            helo.K('idx_author', 'author'),
         ]
 
 
 async def basic_example1():
-    # Creating a connection pool, see `trod.db.Pool`
+    # Creating a connection pool, see `helo.db.Pool`
     await db.bind('mysql://user:pwd@127.0.0.1:3306/db')
     print(db.state)
     # {'minsize': 1, 'maxsize': 15, 'size': 1, 'freesize': 1}
@@ -177,7 +177,7 @@ async def ex_for_dml():
     print(ret)  # (2, 5)
 
     # Updating
-    ret = await Post.update(title='Python orm trod').where(
+    ret = await Post.update(title='Python orm helo').where(
         Post.author == 1).do()
     assert ret.affected == 2
     ret = await Employee.update(salary=14000).where(
@@ -209,7 +209,7 @@ async def ex_for_dql():
     users = await User.select().limit(3).offset(2).all()
     print(users)
     # [<User object> at 3, <User object> at 4, <User object> at 5]
-    # Row type using `trod.util.tdict`, not the `Model`
+    # Row type using `helo.util.adict`, not the `Model`
     users = await User.select(User.id, User.name).limit(2).all(wrap=False)
     print(users)
     # [{'id': 1, 'name': 'at7h'}, {'id': 2, 'name': 'bobo'}]
@@ -222,7 +222,7 @@ async def ex_for_dql():
     # {'id': 1, 'name': 'at7h', 'department': 1, 'salary': 15000.0}
 
     salary_sum = await Employee.select(
-        types.F.SUM(Employee.salary).as_('salary_sum')
+        helo.F.SUM(Employee.salary).as_('salary_sum')
     ).scalar()
     print(salary_sum)  # 30000.0
 
@@ -259,9 +259,9 @@ async def ex_for_dql():
     assert users.count == 2
 
     user_posts = await User.select(
-        User.name, types.F.COUNT(types.SQL('1')).as_('posts')
+        User.name, helo.F.COUNT(helo.SQL('1')).as_('posts')
     ).join(
-        Post, JOINTYPE.LEFT, on=(User.id == Post.author)
+        Post, helo.JOINTYPE.LEFT, on=(User.id == Post.author)
     ).group_by(
         User.name
     ).rows(100)

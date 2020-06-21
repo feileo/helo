@@ -1,5 +1,5 @@
 """
-    trod.err
+    helo.err
     ~~~~~~~~
 """
 
@@ -7,7 +7,7 @@
 class Error(Exception):
     """Exception that is the base class of all other error exceptions"""
 
-    description = 'Trod internal error'
+    description = 'Helo internal error'
 
     def __init__(self, msg=None):
         super().__init__(msg or self.description)
@@ -45,7 +45,7 @@ class NoPKError(ProgrammingError):
 
 
 class NotAllowedError(ProgrammingError):
-    """Operation not allowed in trod"""
+    """Operation not allowed in helo"""
 
 
 class DangerousOperation(NotAllowedError):

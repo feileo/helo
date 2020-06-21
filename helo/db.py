@@ -1,13 +1,13 @@
 """
-    trod.db._impl
-    ~~~~~~~~~~~~~
+    helo.db
+    ~~~~~~~
 
     Implements the connection pool and executer of db module.
 """
-
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import sys
 import threading
@@ -19,12 +19,29 @@ from typing import Optional, Any, Union, Callable, Dict, Tuple, Type
 import aiomysql
 import pymysql
 
-from .. import util, err
-from .._helper import Query
-from .log import logger
+from . import util, err, _builder
+
+__all__ = (
+    'binding',
+    'unbinding',
+    'execute',
+    'select_db',
+    'isbound',
+    'state',
+    'FetchResult',
+    'ExecResult',
+    'Binder',
+    'EnvKey',
+)
 
 
-SUPPORTED_SCHEMES = ('mysql',)
+logging.basicConfig(
+    format='[%(asctime)s] [%(process)d] [%(levelname)s] %(message)s',
+)
+logger = logging.getLogger('helo')
+logger.setLevel(logging.INFO)
+
+_SUPPORTED_SCHEMES = ('mysql',)
 
 
 def __ensure__(bound: bool, errfor: bool = True) -> Callable:
@@ -82,12 +99,12 @@ async def binding(
 
 @__ensure__(True)
 async def execute(
-    query: Query, **kwargs: Any
-) -> Union[None, util.tdict, Tuple[Any, ...], FetchResult, ExecResult]:
+    query: _builder.Query, **kwargs: Any
+) -> Union[None, util.adict, Tuple[Any, ...], FetchResult, ExecResult]:
     """A coroutine that execute sql and return the results of its
     execution
     """
-    if not isinstance(query, Query):
+    if not isinstance(query, _builder.Query):
         raise TypeError("Invalid query type")
 
     if not query:
@@ -123,27 +140,6 @@ def isbound() -> bool:
     return bool(Executer.pool)
 
 
-class DefaultURL:
-    """By default, the value of the key "KEY" is taken from
-    the system's environment variable as the url of the database.
-    Of course, you can also change this key with the set method.
-    """
-
-    KEY = 'TROD_DB_URL'
-    USER_KEY = None
-
-    _lock = threading.RLock()
-
-    @classmethod
-    def get(cls) -> Optional[str]:
-        return os.environ.get(cls.USER_KEY or cls.KEY)
-
-    @classmethod
-    def set_key(cls, key: Optional[str]) -> None:
-        with cls._lock:
-            cls.USER_KEY = key
-
-
 class Binder:
     """A auto binder applies to use in scripts
 
@@ -152,7 +148,7 @@ class Binder:
     """
 
     def __init__(self, url: Optional[str] = None, **bindings: Any) -> None:
-        self.url = url or DefaultURL.get()
+        self.url = url or EnvKey.get()
         if not self.url:
             raise ValueError(f"Empty DB url: {self.url}")
         self.initcmd = bindings.pop('init', None)
@@ -175,36 +171,10 @@ class Binder:
             await unbinding()
 
 
-def state() -> Optional[util.tdict]:
+def state() -> Optional[util.adict]:
     """Return the current state of the connection pool"""
 
     return Executer.poolstate()
-
-
-class _ExcAdapter:
-    """Exception adapter for pymysql"""
-
-    _exc_map = {
-        pymysql.err.Error: err.MySQLError,
-        pymysql.err.DatabaseError: err.MySQLError,
-        pymysql.err.MySQLError: err.MySQLError,
-        pymysql.err.InternalError: err.MySQLError,
-        pymysql.err.InterfaceError: err.InterfaceError,
-        pymysql.err.DataError: err.MySQLDataError,
-        pymysql.err.IntegrityError: err.IntegrityError,
-        pymysql.err.NotSupportedError: err.NotSupportedError,
-        pymysql.err.OperationalError: err.OperationalError,
-        pymysql.err.ProgrammingError: err.ProgrammingError,
-        pymysql.err.Warning: err.MySQLWarning,
-    }  # type: Dict[Type[BaseException], Type[BaseException]]
-
-    @classmethod
-    def err(cls) -> BaseException:
-        exc_type, exc_value, _traceback = sys.exc_info()
-        if exc_type is not None:
-            exc_cls = cls._exc_map.get(exc_type, exc_type)
-            return exc_cls(exc_value)
-        return err.ProgrammingError("No Exception info")
 
 
 @util.asyncinit
@@ -221,7 +191,7 @@ class Pool:
         asyncio.get_event_loop() is used if loop is not specified.
     :param conn_kwargs: See `_CONN_KWARGS`.
     """
-    _CONN_KWARGS = util.tdict(
+    _CONN_KWARGS = util.adict(
         host="localhost",        # Host where the database server is located
         user=None,               # Username to log in as
         password="",             # Password to use
@@ -335,10 +305,10 @@ class Pool:
         return self._pool.freesize
 
     @property
-    def connmeta(self) -> util.tdict:
+    def connmeta(self) -> util.adict:
         """Pool connection meta"""
 
-        return util.formattdict(self._connmeta)  # type: ignore
+        return util.formatadict(self._connmeta)  # type: ignore
 
     def acquire(self) -> aiomysql.Connection:
         """Acquice a connectionion from the pool"""
@@ -382,9 +352,9 @@ class Pool:
         return not self._closed
 
 
-class TdictCursor(aiomysql.DictCursor):
+class ADictCursor(aiomysql.DictCursor):
 
-    dict_type = util.tdict
+    dict_type = util.adict
 
 
 class Executer:
@@ -413,8 +383,8 @@ class Executer:
 
     @classmethod
     async def do(
-        cls, query: Query, **kwargs: Any
-    ) -> Union[None, util.tdict, Tuple[Any, ...], FetchResult, ExecResult]:
+        cls, query: _builder.Query, **kwargs: Any
+    ) -> Union[None, util.adict, Tuple[Any, ...], FetchResult, ExecResult]:
         if query.r:
             return await cls._fetch(
                 query.sql, params=query.params, **kwargs,
@@ -424,10 +394,10 @@ class Executer:
         )
 
     @classmethod
-    def poolstate(cls) -> Optional[util.tdict]:
+    def poolstate(cls) -> Optional[util.adict]:
         if cls.pool is None:
             return None
-        return util.tdict(
+        return util.adict(
             minsize=cls.pool.minsize,
             maxsize=cls.pool.maxsize,
             size=cls.pool.size,
@@ -440,14 +410,14 @@ class Executer:
             params: Optional[Union[tuple, list]] = None,
             rows: Optional[int] = None,
             db: Optional[str] = None,
-            tdicts: bool = True
-    ) -> Union[None, util.tdict, Tuple[Any, ...], FetchResult]:
+            adicts: bool = True
+    ) -> Union[None, util.adict, Tuple[Any, ...], FetchResult]:
 
         async with cls.pool.acquire() as connection:  # type: ignore
             if db:
                 await connection.select_db(db)
 
-            cursorclasses = [TdictCursor] if tdicts is True else []
+            cursorclasses = [ADictCursor] if adicts is True else []
             async with connection.cursor(*cursorclasses) as cur:
                 try:
                     await cur.execute(sql, params or ())
@@ -528,7 +498,7 @@ class UrlParser:
     def __init__(self, url: str) -> None:
         self.url = url
 
-    @util.tdictformatter
+    @util.adictformatter
     def parse(self) -> Dict[str, Any]:
         """ do parse database url """
 
@@ -538,7 +508,7 @@ class UrlParser:
         self._register()
         url = urlparse.urlparse(self.url)
 
-        if url.scheme not in SUPPORTED_SCHEMES:
+        if url.scheme not in _SUPPORTED_SCHEMES:
             raise err.NotSupportedError(
                 f'Unsupported scheme {url.scheme}'
             )
@@ -586,7 +556,7 @@ class UrlParser:
     def _register(self) -> None:
         """Register database schemes in URLs"""
 
-        urlparse.uses_netloc.extend(SUPPORTED_SCHEMES)
+        urlparse.uses_netloc.extend(_SUPPORTED_SCHEMES)
 
     def _is_illegal_url(self) -> bool:
         """A bool of is illegal url"""
@@ -595,3 +565,53 @@ class UrlParser:
         if all([url.scheme, url.netloc]):
             return True
         return False
+
+
+class EnvKey:
+    """By default, the value of the key "KEY" is taken from
+    the system's environment variable as the url of the database.
+    Of course, you can also change this key with the set method.
+    """
+
+    KEY = 'HELO_DB_URL'
+    USER_KEY = ''
+
+    _lock = threading.RLock()
+
+    @classmethod
+    def get(cls) -> Optional[str]:
+        return os.environ.get(cls.USER_KEY or cls.KEY)
+
+    @classmethod
+    def set(cls, key: str) -> None:
+        if not isinstance(key, str):
+            raise TypeError(f"Invalid key type({key!r}), must be str")
+
+        with cls._lock:
+            cls.USER_KEY = key
+
+
+class _ExcAdapter:
+    """Exception adapter for pymysql"""
+
+    _exc_map = {
+        pymysql.err.Error: err.MySQLError,
+        pymysql.err.DatabaseError: err.MySQLError,
+        pymysql.err.MySQLError: err.MySQLError,
+        pymysql.err.InternalError: err.MySQLError,
+        pymysql.err.InterfaceError: err.InterfaceError,
+        pymysql.err.DataError: err.MySQLDataError,
+        pymysql.err.IntegrityError: err.IntegrityError,
+        pymysql.err.NotSupportedError: err.NotSupportedError,
+        pymysql.err.OperationalError: err.OperationalError,
+        pymysql.err.ProgrammingError: err.ProgrammingError,
+        pymysql.err.Warning: err.MySQLWarning,
+    }  # type: Dict[Type[BaseException], Type[BaseException]]
+
+    @classmethod
+    def err(cls) -> BaseException:
+        exc_type, exc_value, _traceback = sys.exc_info()
+        if exc_type is not None:
+            exc_cls = cls._exc_map.get(exc_type, exc_type)
+            return exc_cls(exc_value)
+        return err.ProgrammingError("No Exception info")

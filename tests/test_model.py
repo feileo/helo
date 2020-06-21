@@ -1,16 +1,13 @@
 """
-tests for model module
+Tests for model module
 """
-
 import asyncio
 import logging
 from datetime import datetime
 
 import pytest
 
-from trod import db, types as t, err, util, JOINTYPE
-from trod import _helper
-from trod.model import Model
+from helo import db, types as t, err, util, _builder, Model, JOINTYPE
 
 logging.getLogger().setLevel(logging.INFO)
 
@@ -47,7 +44,7 @@ class User(People):
     lastlogin = t.DateTime(default=datetime.now, name='loginat')
 
     class Meta:
-        db = 'trod'
+        db = 'helo'
         name = 'user_'
         indexes = (
             t.K('idx_name', 'name'),
@@ -72,7 +69,7 @@ class TestModel:
     def setup(self):
 
         async def init():
-            await db.binding(db.DefaultURL.get(), echo=True)
+            await db.binding(db.EnvKey.get(), echo=True)
             await People.create()
             await Employee.create()
             await User.create()
@@ -178,7 +175,7 @@ class TestModel:
         assert (await User.show().indexes())[0]['Key_name'] == 'PRIMARY'
         assert (await User.show().indexes())[1]['Key_name'] == 'unidx_nickname'
         assert (await User.show().indexes())[1]['Column_name'] == 'nickname'
-        assert str(User.show()) == '<Show object> for <Table `trod`.`user_`>>'
+        assert str(User.show()) == '<Show object> for <Table `helo`.`user_`>>'
 
     async def for_save_and_remove(self):
         user = User(name='at7h', gender=0, age=25)
@@ -572,7 +569,7 @@ class TestModel:
             User.id.as_('uid'), User.name.as_('username')
         ).where(User.id < 3).all(False)
         assert users.count == 2
-        assert isinstance(users[0], util.tdict)
+        assert isinstance(users[0], util.adict)
         assert users[0].id == 1
         assert users[0].name == 'at7h'
 
@@ -585,7 +582,7 @@ class TestModel:
         users = await User.select().paginate(1, 100, wrap=False)
         assert isinstance(users, db.FetchResult)
         assert users.count == 15
-        assert isinstance(users[-1], util.tdict)
+        assert isinstance(users[-1], util.adict)
         assert users[6].id == 8
         assert users[9].age == 3
         users_ = await User.select().paginate(1, 100, wrap=False)
@@ -614,7 +611,7 @@ class TestModel:
         user = await (User.select()
                       .order_by(User.id.desc())
                       .first(False))
-        assert isinstance(user, util.tdict)
+        assert isinstance(user, util.adict)
         assert user.id == 16
         assert user.name == 'user8forset'
         users = await (User.select()
@@ -623,7 +620,7 @@ class TestModel:
                        .offset(4)
                        .all(False))
         user = users[0]
-        assert isinstance(user, util.tdict)
+        assert isinstance(user, util.adict)
         assert user.id == 12
         assert user.name == 'user4forsave'
         assert user.age == 4
@@ -705,7 +702,7 @@ class TestModel:
             User.gender
         ).all(False)
         assert users.count == 3
-        assert isinstance(users[0], util.tdict)
+        assert isinstance(users[0], util.adict)
         assert users[0].gender is None
         assert users[0].num == 10
         assert users[1].gender == 0
@@ -719,7 +716,7 @@ class TestModel:
             User.gender
         ).all()
         assert users.count == 3
-        assert isinstance(users[0], util.tdict)
+        assert isinstance(users[0], util.adict)
         assert users[0].gender is None
         assert users[0].num == 10
         assert users[1].gender == 0
@@ -859,8 +856,8 @@ class TestModel:
             pass
 
         s = User.select(User.name).where(User.name == 'at7h')
-        q = _helper.Query(
-            'SELECT `t1`.`name` FROM `trod`.`user_` AS `t1` '
+        q = _builder.Query(
+            'SELECT `t1`.`name` FROM `helo`.`user_` AS `t1` '
             'WHERE (`t1`.`name` = %s);',
             params=['at7h']
         )
@@ -1337,7 +1334,7 @@ class TestModel:
 
 
 def test_values():
-    from trod.model._impl import ValuesMatch
+    from helo.model import ValuesMatch
     try:
         ValuesMatch(('1', '2', 3))
         assert False, "Should raise ValueError"
@@ -1346,10 +1343,10 @@ def test_values():
 
 
 def test_model():
-    from trod.model._impl import get_attrs, get_table
+    from helo.model import get_attrs, get_table
 
     assert isinstance(People.id, t.Auto)
-    assert _helper.parse(People.name.__def__()).sql == (
+    assert _builder.parse(People.name.__def__()).sql == (
         '`name` varchar(45) DEFAULT NULL;')
     table = get_table(People)
     assert table.name == 'people'
@@ -1471,8 +1468,8 @@ def test_model():
 
     assert str(get_table(People)) == 'people'
     assert repr(get_table(People)) == '<Table `people`>'
-    assert repr(get_table(User)) == '<Table `trod`.`user_`>'
-    assert hash(User) == hash(User()) == hash('trod.user_')
+    assert repr(get_table(User)) == '<Table `helo`.`user_`>'
+    assert hash(User) == hash(User()) == hash('helo.user_')
     try:
         get_table({})
         assert False, "Should raise err.ProgrammingError"

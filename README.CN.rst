@@ -1,26 +1,26 @@
 ====
-trod
+helo
 ====
 
-.. image:: https://img.shields.io/pypi/v/trod.svg
-        :target: https://pypi.python.org/pypi/trod
+.. image:: https://img.shields.io/pypi/v/helo.svg
+        :target: https://pypi.python.org/pypi/helo
 
-.. image:: https://travis-ci.org/at7h/trod.svg?branch=master
-        :target: https://travis-ci.org/at7h/trod
+.. image:: https://travis-ci.org/at7h/helo.svg?branch=master
+        :target: https://travis-ci.org/at7h/helo
 
-.. image:: https://coveralls.io/repos/github/at7h/trod/badge.svg?branch=master
-        :target: https://coveralls.io/github/at7h/trod?branch=master
+.. image:: https://coveralls.io/repos/github/at7h/helo/badge.svg?branch=master
+        :target: https://coveralls.io/github/at7h/helo?branch=master
 
-.. image:: https://api.codacy.com/project/badge/Grade/24451621f9554f7a8d857c5b3dd6e522
-        :target: https://www.codacy.com/manual/at7h/trod?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=at7h/trod&amp;utm_campaign=Badge_Grade
+.. image:: https://app.codacy.com/project/badge/Grade/c68578653eb546488fadddd95f19939c
+        :target: https://www.codacy.com/manual/at7h_/helo?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=at7h/helo&amp;utm_campaign=Badge_Grade
 
-.. image:: https://img.shields.io/pypi/pyversions/trod
-        :target: https://img.shields.io/pypi/pyversions/trod
+.. image:: https://img.shields.io/pypi/pyversions/helo
+        :target: https://img.shields.io/pypi/pyversions/helo
         :alt: PyPI - Python Version
 
-🌟 **Trod** 是一个小型简单的低级别异步(asyncio_) Python ORM。它非常的直观且容易使用。
+🌟 **Helo** 是一个小型简单的低级别异步(asyncio_) Python ORM。它非常的直观且容易使用。
 
-Trod 可以在你的异步应用中帮助你轻松的构建出富有表达力的常用 SQL 语句，你只需以友好的对象化 API 来操作数据，
+Helo 可以在你的异步应用中帮助你轻松的构建出富有表达力的常用 SQL 语句，你只需以友好的对象化 API 来操作数据，
 而不用关心 SQL 语句编写、数据处理等细节。适合于业务逻辑结构较简单有一定并发量的场景。
 
 * 支持版本: Python 3.7+
@@ -31,7 +31,7 @@ Trod 可以在你的异步应用中帮助你轻松的构建出富有表达力的
 快速上手
 --------
 
-更多信息和上手文档请查看 trod wiki_ 页面。
+更多信息和上手文档请查看 helo wiki_ 页面。
 
 
 安装
@@ -39,7 +39,7 @@ Trod 可以在你的异步应用中帮助你轻松的构建出富有表达力的
 
 .. code-block:: console
 
-    $ pip install trod
+    $ pip install helo
 
 更多安装选项请查看 installation_ 页面。
 
@@ -47,36 +47,34 @@ Trod 可以在你的异步应用中帮助你轻松的构建出富有表达力的
 简单示例
 --------
 
-首先，你需要引入 ``Trod`` 类并实例化一个全局变量，假设(通常)其称为 ``db``:
+首先，你需要引入 ``Helo`` 类并实例化一个全局变量，假设(通常)其称为 ``db``:
 
 .. code-block:: python
 
-    from trod import Trod
+    import helo
 
-    db = Trod()
+    db = helo.G()
 
 
 接下来，声明你的 models:
 
 .. code-block:: python
 
-    from trod import types
-
     class User(db.Model):
-        id = types.BigAuto()
-        name = types.VarChar(length=45, null=False)
-        email = types.Email(default='')
-        password = types.VarChar(length=100, null=False)
-        create_at = types.Timestamp(default=types.ON_CREATE)
+        id = helo.BigAuto()
+        name = helo.VarChar(length=45, null=False)
+        email = helo.Email(default='')
+        password = helo.VarChar(length=100, null=False)
+        create_at = helo.Timestamp(default=helo.ON_CREATE)
 
 
     class Post(db.Model):
-        id = types.Auto()
-        title = types.VarChar(length=100)
-        author = types.Int(default=0)
-        content = types.Text(encoding=types.ENCODING.utf8mb4)
-        create_at = types.Timestamp(default=types.ON_CREATE)
-        update_at = types.Timestamp(default=types.ON_UPDATE)
+        id = helo.Auto()
+        title = helo.VarChar(length=100)
+        author = helo.Int(default=0)
+        content = helo.Text(encoding=helo.ENCODING.utf8mb4)
+        create_at = helo.Timestamp(default=helo.ON_CREATE)
+        update_at = helo.Timestamp(default=helo.ON_UPDATE)
 
 
 下面的脚本展示一些基本的操作示例:
@@ -85,8 +83,6 @@ Trod 可以在你的异步应用中帮助你轻松的构建出富有表达力的
 
     import asyncio
     from datetime import datetime
-
-    from trod import JOINTYPE, types
 
 
     async def show_case():
@@ -128,7 +124,7 @@ Trod 可以在你的异步应用中帮助你轻松的构建出富有表达力的
         ).first()
         print(user) # [<User object> at 1]
 
-        # Using `trod.util.tdict`
+        # Using `helo.adict`
         users = await User.select(
             User.id, User.name
         ).where(
@@ -151,9 +147,9 @@ Trod 可以在你的异步应用中帮助你轻松的构建出富有表达力的
 
         # How many posts each user wrote?
         user_posts = await User.select(
-            User.name, types.F.COUNT(types.SQL('1')).as_('posts')
+            User.name, helo.F.COUNT(helo.SQL('1')).as_('posts')
         ).join(
-            Post, JOINTYPE.LEFT, on=(User.id == Post.author)
+            Post, helo.JOINTYPE.LEFT, on=(User.id == Post.author)
         ).group_by(
             User.name
         ).rows(100)
@@ -176,13 +172,13 @@ Trod 可以在你的异步应用中帮助你轻松的构建出富有表达力的
 感谢 🤝
 -------
 
-* 特别感谢项目 aiomysql_ 和 peewee_, trod 使用了前者(作为 MySQL 连接驱动)，并在设计上参考了后者。
+* 特别感谢项目 aiomysql_ 和 peewee_, helo 使用了前者(作为 MySQL 连接驱动)，并在设计上参考了后者。
 * 如果项目对你有帮助请朝 ⭐️ 猛戳 😉 !
 
 
-.. _wiki: https://github.com/at7h/trod/wiki
-.. _quickstart: https://github.com/at7h/trod/wiki#quickstart
-.. _installation: https://github.com/at7h/trod/wiki#installation
+.. _wiki: https://github.com/at7h/helo/wiki
+.. _quickstart: https://github.com/at7h/helo/wiki#quickstart
+.. _installation: https://github.com/at7h/helo/wiki#installation
 .. _asyncio: https://docs.python.org/3.7/library/asyncio.html
 .. _aiomysql: https://github.com/aio-libs/aiomysql
 .. _peewee: https://github.com/coleifer/peewee
