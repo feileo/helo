@@ -1,7 +1,6 @@
 """
-tests for model module
+Tests for model module
 """
-
 import asyncio
 import logging
 from datetime import datetime

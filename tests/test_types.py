@@ -1,7 +1,6 @@
 """
-tests for types module and outside the ``helo.Model``
+Tests for types module and outside the ``helo.Model``
 """
-
 from datetime import datetime, date, time, timedelta
 
 import pytest

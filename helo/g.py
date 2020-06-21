@@ -13,16 +13,15 @@ from . import db, model, util, _builder
 class G:
     """
     You can specify the default environment variable key name.
-    But it can only work in the ``G.Binder``.
+    But it can only work in the ``Binder``.
     """
 
     def __init__(
         self,
-        env_key: str = '',
+        env_key: Optional[str] = None,
         model_class: Optional[Type[model.Model]] = None,
     ) -> None:
-        if env_key:
-            self.set_env_key(env_key)
+        self.set_env_key(env_key)
         self._mc = model_class or model.Model  # type: Type[model.Model]
 
     @property
@@ -55,9 +54,11 @@ class G:
     # variable and automatically to binding and unbinding.
     Binder = db.Binder
 
-    def set_env_key(self, key: str) -> None:
+    def set_env_key(self, key: Union[None, str]) -> None:
         """Set environment variable key name"""
 
+        if key is None:
+            return key
         return db.EnvKey.set(key)
 
     async def create_tables(
