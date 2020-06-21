@@ -12,10 +12,10 @@ before_install:
   - mysql -h 127.0.0.1 -u root -e 'CREATE DATABASE IF NOT EXISTS helo;' 
   - export HELO_DB_URL=mysql://root@127.0.0.1:3306/helo
   - pip install aiomysql
+  - pip install pylint
   - pip install pytz
   - pip install pytest pytest-asyncio pytest-cov
   - pip install coveralls coverage
-  - pip install pylint
 
 script: 
   - pylint helo --jobs=5 --reports=yes

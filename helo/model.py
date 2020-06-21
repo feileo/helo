@@ -1012,7 +1012,7 @@ class Select(BaseQuery):
         for f in columns:
             if not isinstance(f, types.Column):
                 raise TypeError(
-                    f"Invalid value for group_by field"
+                    f"Invalid value '{f}' for group_by field"
                 )
 
         self._group_by = columns  # type: ignore
@@ -1028,7 +1028,7 @@ class Select(BaseQuery):
         for f in columns:
             if not isinstance(f, types.Column):
                 raise TypeError(
-                    f"Invalid value for order_by field")
+                    f"Invalid value '{f}' for order_by field")
 
         self._order_by = columns  # type: ignore
         return self
@@ -1179,7 +1179,7 @@ class Select(BaseQuery):
             ).sql(_builder.CommaNodeList(self._group_by))
 
         if self._having:
-            ctx.literal(f" HAVING ").sql(self._having)
+            ctx.literal(" HAVING ").sql(self._having)
 
         if self._order_by:
             ctx.literal(
