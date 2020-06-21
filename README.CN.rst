@@ -11,8 +11,8 @@ helo
 .. image:: https://coveralls.io/repos/github/at7h/helo/badge.svg?branch=master
         :target: https://coveralls.io/github/at7h/helo?branch=master
 
-.. image:: https://api.codacy.com/project/badge/Grade/24451621f9554f7a8d857c5b3dd6e522
-        :target: https://www.codacy.com/manual/at7h/helo?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=at7h/helo&amp;utm_campaign=Badge_Grade
+.. image:: https://app.codacy.com/project/badge/Grade/c68578653eb546488fadddd95f19939c
+        :target: https://www.codacy.com/manual/at7h_/helo?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=at7h/helo&amp;utm_campaign=Badge_Grade
 
 .. image:: https://img.shields.io/pypi/pyversions/helo
         :target: https://img.shields.io/pypi/pyversions/helo
