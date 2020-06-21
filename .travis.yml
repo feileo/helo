@@ -14,7 +14,8 @@ before_install:
   - pip install aiomysql
   - pip install pylint
   - pip install pytz
-  - pip install pytest pytest-asyncio pytest-cov
+  - pip install pytest==5.1.3
+  - pip install pytest-asyncio pytest-cov
   - pip install coveralls coverage
 
 script: 
