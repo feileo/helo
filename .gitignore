@@ -32,7 +32,7 @@ dump.rdb
 .installed.cfg
 static/
 bin/
-trod.egg-info/
+helo.egg-info/
 develop-eggs/
 build/
 dist/
