@@ -1,19 +1,18 @@
 """
-    trod.util
+    helo.util
     ~~~~~~~~~
 """
-
 from __future__ import annotations
 
 from collections.abc import Iterable
 from functools import wraps, reduce
 from inspect import iscoroutinefunction, isclass, signature
-from typing import Any, Dict
+from typing import Any, Dict, Callable, Type
 
 
 __all__ = (
-    'tdict',
-    'tdictformatter',
+    'adict',
+    'adictformatter',
     'asyncinit',
     'singleton',
     'singleton_asyncinit',
@@ -24,7 +23,7 @@ __all__ = (
 )
 
 
-class tdict(dict):  # pylint: disable=invalid-name
+class adict(dict):  # pylint: disable=invalid-name
     """ Is a class that makes a dictionary behave like an object,
         with attribute-style access.
     """
@@ -45,44 +44,44 @@ class tdict(dict):  # pylint: disable=invalid-name
             return self[key]
         except KeyError:
             raise AttributeError(
-                f"tdict object has not attribute {key}."
+                f"adict object has not attribute {key}."
             )
 
     def __setattr__(self, key: str, value: Any) -> None:
         self[key] = value
 
-    def __iadd__(self, other: Dict[str, Any]) -> tdict:
+    def __iadd__(self, other: Dict[str, Any]) -> adict:
         self.update(other)
         return self
 
-    def __add__(self, other: Dict[str, Any]) -> tdict:
+    def __add__(self, other: Dict[str, Any]) -> adict:
         td = self.copy()
         td.update(other)
         return td
 
-    def copy(self) -> tdict:
-        return tdict(**super().copy())
+    def copy(self) -> adict:
+        return adict(**super().copy())
 
 
-def tdictformatter(func):
-    """ A function decorator that convert the returned dict object to tdict
+def adictformatter(func: Callable):
+    """ A function decorator that convert the returned dict object to adict
         If it is a list, recursively convert its elements
     """
     if iscoroutinefunction(func):
         @wraps(func)
         async def convert(*args, **kwargs):
             result = await func(*args, **kwargs)
-            return formattdict(result)
+            return formatadict(result)
     else:
         @wraps(func)
         def convert(*args, **kwargs):
             result = func(*args, **kwargs)
-            return formattdict(result)
+            return formatadict(result)
 
     return convert
 
 
-def asyncinit(obj):
+def asyncinit(obj: Type):
     """A class decorator that add async `__init__` functionality."""
 
     if not isclass(obj):
@@ -119,7 +118,7 @@ def asyncinit(obj):
     return obj
 
 
-def singleton(cls):
+def singleton(cls: Type):
     """A singleton decorator of class"""
 
     instances = {}
@@ -133,7 +132,7 @@ def singleton(cls):
     return getinstance
 
 
-def singleton_asyncinit(cls):
+def singleton_asyncinit(cls: Type):
     """A singleton decorator of asyncinit class"""
 
     instances = {}
@@ -147,7 +146,7 @@ def singleton_asyncinit(cls):
     return getinstance
 
 
-def argschecker(*cargs, **ckwargs):
+def argschecker(*cargs: Any, **ckwargs: Any):
 
     def decorator(func):
         # If in optimized mode, disable type checking
@@ -179,11 +178,11 @@ def argschecker(*cargs, **ckwargs):
     return decorator
 
 
-def and_(*exprs):
+def and_(*exprs: Any) -> Any:
     return reduce(lambda a, b: a & b, exprs)
 
 
-def or_(*exprs):
+def or_(*exprs: Any) -> Any:
     return reduce(lambda a, b: a | b, exprs)
 
 
@@ -238,10 +237,10 @@ class FreeObject:
         return c
 
 
-def formattdict(original):
+def formatadict(original: Any):
 
     def do_format(ori_dict):
-        td = tdict()
+        td = adict()
         for key, value in ori_dict.items():
             td[key] = do_format(value) if isinstance(value, dict) else value
         return td
@@ -257,11 +256,10 @@ def formattdict(original):
         for item in original:
             if not isinstance(item, (list, tuple, dict)):
                 raise TypeError(
-                    f"Invalid data type '{original}' to convert `tdict`"
+                    f"Invalid data type '{original}' to convert `adict`"
                 )
-            fmted.append(formattdict(item))
+            fmted.append(formatadict(item))
         return fmted
-    raise TypeError(f"Non-iterable object can not '{original}' to convert `tdict`")
-
-
-del annotations
+    raise TypeError(
+        f"Non-iterable object can not '{original}' to convert `adict`"
+    )

@@ -1,29 +1,29 @@
 ====
-trod
+helo
 ====
 
 🌎 [`English </README.rst>`_] ∙ [`简体中文 </README.CN.rst>`_]
 
-.. image:: https://img.shields.io/pypi/v/trod.svg
-        :target: https://pypi.python.org/pypi/trod
+.. image:: https://img.shields.io/pypi/v/helo.svg
+        :target: https://pypi.python.org/pypi/helo
 
-.. image:: https://travis-ci.org/at7h/trod.svg?branch=master
-        :target: https://travis-ci.org/at7h/trod
+.. image:: https://travis-ci.org/at7h/helo.svg?branch=master
+        :target: https://travis-ci.org/at7h/helo
 
-.. image:: https://coveralls.io/repos/github/at7h/trod/badge.svg?branch=master
-        :target: https://coveralls.io/github/at7h/trod?branch=master
+.. image:: https://coveralls.io/repos/github/at7h/helo/badge.svg?branch=master
+        :target: https://coveralls.io/github/at7h/helo?branch=master
 
 .. image:: https://api.codacy.com/project/badge/Grade/24451621f9554f7a8d857c5b3dd6e522
-        :target: https://www.codacy.com/manual/at7h/trod?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=at7h/trod&amp;utm_campaign=Badge_Grade
+        :target: https://www.codacy.com/manual/at7h/helo?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=at7h/helo&amp;utm_campaign=Badge_Grade
 
-.. image:: https://img.shields.io/pypi/pyversions/trod
-        :target: https://img.shields.io/pypi/pyversions/trod
+.. image:: https://img.shields.io/pypi/pyversions/helo
+        :target: https://img.shields.io/pypi/pyversions/helo
         :alt: PyPI - Python Version
 
-🌟 **Trod** is a simple and small low-level asynchronous ORM using Python asyncio_.
+🌟 **Helo** is a simple and small low-level asynchronous ORM using Python asyncio_.
 It is very intuitive and easy to use.
 
-Trod can help you easily build expressive common SQL statements in your asynchronous applications.
+Helo can help you easily build expressive common SQL statements in your asynchronous applications.
 You only need to use friendly object-oriented APIs to manipulate data without caring about the details of SQL statement writing and data processing. 
 Suitable for scenarios where the business logic structure is relatively simple and has a certain amount of concurrency.
 
@@ -42,7 +42,7 @@ Installation
 
 .. code-block:: console
 
-    $ pip install trod
+    $ pip install helo
 
 See the installation_ wiki page for more options.
 
@@ -50,36 +50,34 @@ See the installation_ wiki page for more options.
 Basic Examples
 --------------
 
-First, you should to import the ``Trod`` and instantiate a global variable:
+First, you should to import the ``Helo`` and instantiate a global variable:
 
 .. code-block:: python
 
-    from trod import Trod
+    import helo
 
-    db = Trod()
+    db = helo.G()
 
 
 Defining models is simple:
 
 .. code-block:: python
 
-    from trod import types
-
     class User(db.Model):
-        id = types.BigAuto()
-        name = types.VarChar(length=45, null=False)
-        email = types.Email(default='')
-        password = types.VarChar(length=100, null=False)
-        create_at = types.Timestamp(default=types.ON_CREATE)
+        id = helo.BigAuto()
+        name = helo.VarChar(length=45, null=False)
+        email = helo.Email(default='')
+        password = helo.VarChar(length=100, null=False)
+        create_at = helo.Timestamp(default=helo.ON_CREATE)
 
 
     class Post(db.Model):
-        id = types.Auto()
-        title = types.VarChar(length=100)
-        author = types.Int(default=0)
-        content = types.Text(encoding=types.ENCODING.utf8mb4)
-        create_at = types.Timestamp(default=types.ON_CREATE)
-        update_at = types.Timestamp(default=types.ON_UPDATE)
+        id = helo.Auto()
+        title = helo.VarChar(length=100)
+        author = helo.Int(default=0)
+        content = helo.Text(encoding=helo.ENCODING.utf8mb4)
+        create_at = helo.Timestamp(default=helo.ON_CREATE)
+        update_at = helo.Timestamp(default=helo.ON_UPDATE)
 
 
 Show some basic examples:
@@ -88,8 +86,6 @@ Show some basic examples:
 
     import asyncio
     from datetime import datetime
-
-    from trod import JOINTYPE, types
 
 
     async def show_case():
@@ -131,7 +127,7 @@ Show some basic examples:
         ).first()
         print(user) # [<User object> at 1]
 
-        # Using `trod.util.tdict`
+        # Using `helo.adict`
         users = await User.select(
             User.id, User.name
         ).where(
@@ -154,9 +150,9 @@ Show some basic examples:
 
         # How many posts each user wrote?
         user_posts = await User.select(
-            User.name, types.F.COUNT(types.SQL('1')).as_('posts')
+            User.name, helo.F.COUNT(helo.SQL('1')).as_('posts')
         ).join(
-            Post, JOINTYPE.LEFT, on=(User.id == Post.author)
+            Post, helo.JOINTYPE.LEFT, on=(User.id == Post.author)
         ).group_by(
             User.name
         ).rows(100)
@@ -178,13 +174,13 @@ report a bug 🐞, give a advice or create a pull request 🙋‍♂️.
 Thanks 🤝
 ---------
 
-* Special thanks to projects aiomysql_ and peewee_, trod uses aiomysql_ (as the MySQL connection driver),
+* Special thanks to projects aiomysql_ and peewee_, helo uses aiomysql_ (as the MySQL connection driver),
   and referenced peewee_ in program design.
 * Please feel free to ⭐️ this repository if this project helped you 😉!
 
-.. _wiki: https://github.com/at7h/trod/wiki
-.. _quickstart: https://github.com/at7h/trod/wiki#quickstart
-.. _installation: https://github.com/at7h/trod/wiki#installation
+.. _wiki: https://github.com/at7h/helo/wiki
+.. _quickstart: https://github.com/at7h/helo/wiki#quickstart
+.. _installation: https://github.com/at7h/helo/wiki#installation
 .. _asyncio: https://docs.python.org/3.7/library/asyncio.html
 .. _aiomysql: https://github.com/aio-libs/aiomysql
 .. _peewee: https://github.com/coleifer/peewee
