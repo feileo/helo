@@ -18,12 +18,12 @@ class G:
 
     def __init__(
         self,
-        model_class: Optional[Type[model.Model]] = None,
         env_key: str = '',
+        model_class: Optional[Type[model.Model]] = None,
     ) -> None:
-        self._mc = model_class or model.Model  # type: Type[model.Model]
         if env_key:
             self.set_env_key(env_key)
+        self._mc = model_class or model.Model  # type: Type[model.Model]
 
     @property
     def Model(self) -> Type[model.Model]:  # pylint: disable=invalid-name
