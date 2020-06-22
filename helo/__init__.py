@@ -62,5 +62,5 @@ from .util import (
 from .g import G
 
 
-__version__ = '0.0.5'
+__version__ = '0.0.51'
 __license__ = 'MIT'
