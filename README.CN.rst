@@ -90,7 +90,6 @@ Helo 可以在你的异步应用中帮助你轻松的构建出富有表达力的
 
 
     async def show_case():
-
         # Binding the database(creating a connection pool)
         await db.bind('mysql://user:password@host:port/db')
         # Creating tables
@@ -161,8 +160,6 @@ Helo 可以在你的异步应用中帮助你轻松的构建出富有表达力的
 
     asyncio.run(show_case())
 
-👉 查看 `更多示例 </examples>`_
-
 
 Quart 项目
 ---------
@@ -197,6 +194,8 @@ Quart 项目
 
     $ curl http://127.0.0.1:5000/api/authors
     [{"email":"g@test.com","id":1,"name":"at7h","password":"xxxx"}]
+
+👉 查看 `更多示例 </examples>`_
 
 
 贡献 👏
