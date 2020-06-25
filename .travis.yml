@@ -10,7 +10,7 @@ services:
 
 before_install: 
   - mysql -h 127.0.0.1 -u root -e 'CREATE DATABASE IF NOT EXISTS helo;' 
-  - export HELO_DB_URL=mysql://root@127.0.0.1:3306/helo
+  - export HELO_DATABASE_URL=mysql://root@127.0.0.1:3306/helo
   - pip install aiomysql
   - pip install pylint
   - pip install pytz

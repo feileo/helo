@@ -23,13 +23,13 @@ helo
 **Helo** is a simple and small low-level asynchronous ORM using Python asyncio_.
 It is very intuitive and easy to use.
 
-**Helo** can help you easily build expressive common SQL statements in your asynchronous applications.
+Helo can help you easily build expressive common SQL statements in your asynchronous applications.
 You only need to use friendly object-oriented APIs to manipulate data without caring about the details of SQL statement writing and data processing.
 
 * Requires: Python 3.7+
 * Now only supports MySQL, and the version is 5.7+
 * Integration with web Framework:
-  - quart_
+  * quart_
 * Not supports table relationship
 
 
