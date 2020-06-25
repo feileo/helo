@@ -2,7 +2,7 @@
 helo
 ====
 
-🌎  [`English </README.rst>`_] ∙ [`简体中文 </README.CN.rst>`_]
+🌎  [English_] ∙ [`简体中文`_]
 
 .. image:: https://img.shields.io/pypi/v/helo.svg
         :target: https://pypi.python.org/pypi/helo
@@ -174,7 +174,7 @@ If you're using quart_ , a minimum application example is:
     import helo
 
     app = quart.Quart(__name__)
-    app.config["HELO_DATABASE_URL"] = "mysql://user:password@127.0.0.1:3306/db"
+    app.config["HELO_DATABASE_URL"] = "mysql://user:password@host:port/db"
 
     db = helo.G(app)
 
@@ -218,6 +218,8 @@ Thanks 🤝
 
 .. _quart: https://github.com/pgjones/quart
 .. _wiki: https://github.com/at7h/helo/wiki/Helo-quick-start-guide
+.. _English: https://github.com/at7h/helo
+.. _简体中文: https://github.com/at7h/helo/blob/master/README.CN.rst
 .. _quickstart: https://github.com/at7h/helo/wiki/Helo-quick-start-guide
 .. _installation: https://github.com/at7h/helo/wiki#installation
 .. _asyncio: https://docs.python.org/3.7/library/asyncio.html
