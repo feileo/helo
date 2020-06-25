@@ -27,12 +27,12 @@ Helo can help you easily build expressive common SQL statements in your asynchro
 You only need to use friendly object-oriented APIs to manipulate data without caring about the details of SQL statement writing and data processing.
 
 * Requires: Python 3.7+
-* Now only supports MySQL, and the version is 5.7+
-* Integration with web Framework:
+* Only supports MySQL now, and the version is 5.7+
+* Integration with web framework:
 
   - quart_, see `with quart <#with-quart>`_
 
-* Not supports table relationship
+* Not supports table relationship now
 
 
 Quickstart
@@ -166,7 +166,7 @@ Show some basic examples:
 With Quart
 ----------
 
-If you're using quart_ , a minimum application example should be:
+If you're using quart_ , a minimum application example is:
 
 .. code-block:: python
 
@@ -190,7 +190,7 @@ If you're using quart_ , a minimum application example should be:
 
     app.run()
 
-Start it:
+Run it:
 
 .. code-block:: bash
 
