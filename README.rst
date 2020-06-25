@@ -2,7 +2,7 @@
 helo
 ====
 
-🌎 [`English </README.rst>`_] ∙ [`简体中文 </README.CN.rst>`_]
+🌎  [`English </README.rst>`_] ∙ [`简体中文 </README.CN.rst>`_]
 
 .. image:: https://img.shields.io/pypi/v/helo.svg
         :target: https://pypi.python.org/pypi/helo
@@ -29,7 +29,9 @@ You only need to use friendly object-oriented APIs to manipulate data without ca
 * Requires: Python 3.7+
 * Now only supports MySQL, and the version is 5.7+
 * Integration with web Framework:
-  * quart_
+
+  - quart_, see `with quart <#with-quart>`_
+
 * Not supports table relationship
 
 
@@ -42,7 +44,7 @@ See the wiki_ page for more information and quickstart_ documentation.
 Installation
 ------------
 
-.. code-block:: console
+.. code-block:: bash
 
     $ pip install helo
 
@@ -182,8 +184,9 @@ If you're using quart_ , a minimum application example should be:
 
     @app.route('/api/authors')
     async def authors():
-
-        await Author.insert(name='at7h', email='g@test.com', password='xxxx').do()
+        await Author.insert(
+            name='at7h', email='g@test.com', password='xxxx'
+        ).do()
         author_list = await Author.select().all(False)
         return quart.jsonify(author_list)
 
@@ -192,9 +195,9 @@ If you're using quart_ , a minimum application example should be:
 
 Start it:
 
-.. code-block:: sh
+.. code-block:: base
 
-    curl http://127.0.0.1:5000/api/authors
+    $ curl http://127.0.0.1:5000/api/authors
     [{"email":"g@test.com","id":1,"name":"at7h","password":"xxxx"}]
 
 
@@ -212,7 +215,7 @@ Thanks 🤝
 
 * Special thanks to projects aiomysql_ and peewee_, helo uses aiomysql_ (as the MySQL connection driver),
   and referenced peewee_ in program design.
-* Please feel free to ⭐️ this repository if this project helped you 😉!
+* Please feel free to ⭐️ this repository if this project helped you 😉 !
 
 .. _wiki: https://github.com/at7h/helo/wiki
 .. _quart: https://github.com/pgjones/quart

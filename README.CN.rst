@@ -26,7 +26,9 @@ Helo 可以在你的异步应用中帮助你轻松的构建出富有表达力的
 * 支持版本: Python 3.7+
 * 目前仅支持 MySQL, 版本 5.7+
 * 与 Web 框架的结合:
-  * quart_
+
+  - quart_, 参见 `quart 项目 <#quart-项目>`_
+
 * 目前不支持表关系操作
 
 
@@ -39,7 +41,7 @@ Helo 可以在你的异步应用中帮助你轻松的构建出富有表达力的
 安装
 ----
 
-.. code-block:: console
+.. code-block:: bash
 
     $ pip install helo
 
@@ -180,8 +182,9 @@ Quart 项目
 
     @app.route('/api/authors')
     async def authors():
-
-        await Author.insert(name='at7h', email='g@test.com', password='xxxx').do()
+        await Author.insert(
+            name='at7h', email='g@test.com', password='xxxx'
+        ).do()
         author_list = await Author.select().all(False)
         return quart.jsonify(author_list)
 
@@ -190,9 +193,9 @@ Quart 项目
 
 启动此服务:
 
-.. code-block:: sh
+.. code-block:: bash
 
-    curl http://127.0.0.1:5000/api/authors
+    $ curl http://127.0.0.1:5000/api/authors
     [{"email":"g@test.com","id":1,"name":"at7h","password":"xxxx"}]
 
 
@@ -209,7 +212,7 @@ Quart 项目
 -------
 
 * 特别感谢项目 aiomysql_ 和 peewee_, helo 使用了前者(作为 MySQL 连接驱动)，并在设计上参考了后者。
-* 如果项目对你有帮助请朝 ⭐️ 猛戳 😉 !
+* 如果项目对你有帮助请朝 ⭐️ 猛戳 😉 ! 十分感谢!
 
 
 .. _wiki: https://github.com/at7h/helo/wiki
