@@ -93,7 +93,6 @@ Show some basic examples:
 
 
     async def show_case():
-
         # Binding the database(creating a connection pool)
         await db.bind('mysql://user:password@host:port/db')
         # Creating tables
@@ -163,8 +162,6 @@ Show some basic examples:
 
     asyncio.run(show_case())
 
-👉 See `more examples </examples>`_
-
 
 With Quart
 ----------
@@ -195,10 +192,12 @@ If you're using quart_ , a minimum application example should be:
 
 Start it:
 
-.. code-block:: base
+.. code-block:: bash
 
     $ curl http://127.0.0.1:5000/api/authors
     [{"email":"g@test.com","id":1,"name":"at7h","password":"xxxx"}]
+
+👉 See `more examples </examples>`_
 
 
 Contributing 👏
