@@ -8,7 +8,7 @@ import datetime
 
 import pytest
 
-from helo import db, err, util, _builder, ENCODING
+from helo import db, err, util, _builder, ENCODING, G
 
 from . import case
 
@@ -29,6 +29,7 @@ SETUP_QUERY = _builder.Query(
 
 @pytest.mark.asyncio
 async def test_connect_pool():
+    g = G()
 
     async with db.Binder(debug=True):
         assert db.isbound() is True
@@ -37,6 +38,9 @@ async def test_connect_pool():
         assert db.state().size == 1
         assert db.state().freesize == 1
         assert db.Executer.record is True
+
+        assert g.state == db.state()
+        assert g.isbound == db.isbound()
 
         async with db.Executer.pool.acquire() as conn:
             assert db.state().size == 1

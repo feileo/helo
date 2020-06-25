@@ -305,3 +305,4 @@ async def test_util():
     o = util.In(['e1', 'e2', 'e3'], 'E')
     assert str(o) == repr(o) == '<E object>'
     assert 'e1' in o
+    assert len(o) == 3

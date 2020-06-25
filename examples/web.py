@@ -3,7 +3,7 @@ import helo
 
 
 app = quart.Quart(__name__)
-app.config["HELO_DATABASE_URL"] = "mysql://root:HELLOgjw123@127.0.0.1:3306/helo"
+app.config["HELO_DATABASE_URL"] = "mysql://user:password@host:port/db"
 
 db = helo.G(app)
 
