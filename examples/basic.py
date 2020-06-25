@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime
+import datetime
 
 import helo
 
@@ -7,7 +7,7 @@ import helo
 db = helo.G()
 
 
-class Person(db.Model):  # type: ignore
+class Person(helo.Model):
     id = helo.BigAuto()
     name = helo.VarChar(length=45, null=False)
 
@@ -26,10 +26,10 @@ class User(Person):
         indexes = [helo.K('idx_ep', ['email', 'password'])]
 
 
-class Post(db.Model):  # type: ignore
+class Post(helo.Model):
     id = helo.Auto(comment='auto increment pk')
     title = helo.VarChar(length=100)
-    content = helo.Text(encoding=helo.ENCODING.utf8mb4)
+    content = helo.Text(encoding=helo.ENCODING.UTF8MB4)
     author = helo.Int(default=0)
     create_at = helo.Timestamp(default=helo.ON_CREATE)
     update_at = helo.Timestamp(default=helo.ON_UPDATE)
@@ -44,8 +44,11 @@ class Post(db.Model):  # type: ignore
 async def basic_example1():
     # Creating a connection pool, see `helo.db.Pool`
     await db.bind('mysql://user:pwd@127.0.0.1:3306/db')
+    print(db.isbound)
+    # True
     print(db.state)
     # {'minsize': 1, 'maxsize': 15, 'size': 1, 'freesize': 1}
+
     await db.create_tables([User, Employee, Post])
 
     # CRUD
@@ -58,21 +61,22 @@ async def basic_example1():
 
 
 async def basic_example2():
-    async with db.Binder():
+    async with db.binder():
         async for post in Post:
             print(post)
-        # <Post object> at 1
-        # <Post object> at 2
-        # <Post object> at 3
-        # <Post object> at 4
+        # <Post object at 1>
+        # <Post object at 2>
+        # <Post object at 3>
+        # <Post object at 4>
+        # <Post object at 5>
 
         users = User.select().where(User.id < 5).order_by(User.id.desc())
         async for user in users:
             print(user)
-        # <User object> at 4
-        # <User object> at 3
-        # <User object> at 2
-        # <User object> at 1
+        # <User object at 4>
+        # <User object at 3>
+        # <User object at 2>
+        # <User object at 1>
 
         await db.drop_tables([User, Employee, Post])
 
@@ -111,7 +115,7 @@ async def ex_for_short():
     users = await User.mget(uid_list)
     assert users.count == 3
     print(users)
-    # [<User object> at 1, <User object> at 2, <User object> at 3]
+    # [<User object at 1>, <User object at 2>, <User object at 3>]
 
     # Specify columns
     users = await User.mget(uid_list, columns=[User.id, User.name])
@@ -120,7 +124,7 @@ async def ex_for_short():
     # Or by query
     users = await User.mget((User.id < 2) | (User.name == 'mingz'))
     print(users)
-    # [<User object> at 1, <User object> at 3]
+    # [<User object at 1>, <User object at 3>]
 
     # Setting the value of a row with the primary key
     email = 'z@hello.com'
@@ -161,7 +165,7 @@ async def ex_for_dml():
     # Specify row tuples columns the tuple values correspond to
     posts = [
         ('post3', 3),
-        ('post3', 4),
+        ('post4', 4),
         ('post5', 1),
     ]
     ret = await Post.minsert(
@@ -194,7 +198,7 @@ async def ex_for_dml():
 
     # Deleting
     ret = await Post.delete().where(
-        Post.create_at < datetime(2019, 1, 1)
+        Post.create_at < datetime.datetime(2019, 1, 1)
     ).limit(
         100
     ).do()
@@ -208,7 +212,8 @@ async def ex_for_dql():
 
     users = await User.select().limit(3).offset(2).all()
     print(users)
-    # [<User object> at 3, <User object> at 4, <User object> at 5]
+    # [<User object at 3>, <User object at 4>, <User object at 5>]
+
     # Row type using `helo.util.adict`, not the `Model`
     users = await User.select(User.id, User.name).limit(2).all(wrap=False)
     print(users)
@@ -227,7 +232,7 @@ async def ex_for_dql():
     print(salary_sum)  # 30000.0
 
     posts = await Post.select().where(
-        Post.create_at >= datetime(2019, 7, 1),
+        Post.create_at >= datetime.datetime(2019, 7, 1),
         Post.title.contains('Python')
     ).order_by(
         Post.create_at.desc()

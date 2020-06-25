@@ -20,16 +20,18 @@ helo
         :target: https://img.shields.io/pypi/pyversions/helo
         :alt: PyPI - Python Version
 
-🌟 **Helo** is a simple and small low-level asynchronous ORM using Python asyncio_.
+**Helo** is a simple and small low-level asynchronous ORM using Python asyncio_.
 It is very intuitive and easy to use.
 
-Helo can help you easily build expressive common SQL statements in your asynchronous applications.
-You only need to use friendly object-oriented APIs to manipulate data without caring about the details of SQL statement writing and data processing. 
-Suitable for scenarios where the business logic structure is relatively simple and has a certain amount of concurrency.
+**Helo** can help you easily build expressive common SQL statements in your asynchronous applications.
+You only need to use friendly object-oriented APIs to manipulate data without caring about the details of SQL statement writing and data processing.
 
 * Requires: Python 3.7+
-* Now only supports MySQL
+* Now only supports MySQL, and the version is 5.7+
+* Integration with web Framework:
+  - quart_
 * Not supports table relationship
+
 
 Quickstart
 ----------
@@ -63,7 +65,7 @@ Defining models is simple:
 
 .. code-block:: python
 
-    class User(db.Model):
+    class Author(helo.Model):
         id = helo.BigAuto()
         name = helo.VarChar(length=45, null=False)
         email = helo.Email(default='')
@@ -71,11 +73,11 @@ Defining models is simple:
         create_at = helo.Timestamp(default=helo.ON_CREATE)
 
 
-    class Post(db.Model):
+    class Post(helo.Model):
         id = helo.Auto()
         title = helo.VarChar(length=100)
         author = helo.Int(default=0)
-        content = helo.Text(encoding=helo.ENCODING.utf8mb4)
+        content = helo.Text(encoding=helo.ENCODING.UTF8MB4)
         create_at = helo.Timestamp(default=helo.ON_CREATE)
         update_at = helo.Timestamp(default=helo.ON_UPDATE)
 
@@ -85,28 +87,28 @@ Show some basic examples:
 .. code-block:: python
 
     import asyncio
-    from datetime import datetime
+    import datetime
 
 
     async def show_case():
 
         # Binding the database(creating a connection pool)
-        # and create the table:
         await db.bind('mysql://user:password@host:port/db')
-        await db.create_tables([User, Post])
+        # Creating tables
+        await db.create_tables([Author, Post])
 
         # Inserting few rows:
 
-        user = User(name='at7h', password='1111')
-        user_id = await user.save()
-        print(user_id)  # 1
+        author = Author(name='at7h', password='1111')
+        author_id = await author.save()
+        print(author_id)  # 1
 
-        users = await User.get(user_id)
-        print(user.id, user.name)  # 1, at7h
+        authors = await Author.get(author_id)
+        print(author.id, author.name)  # 1, at7h
 
-        await User.update(email='g@gmail.com').where(User.id == user_id).do()
+        await Author.update(email='g@gmail.com').where(Author.id == author_id).do()
 
-        ret = await User.insert(name='pope', password='2222').do()
+        ret = await Author.insert(name='pope', password='2222').do()
         posts = [
             {'title': 'Python', 'author': 1},
             {'title': 'Golang', 'author': 2},
@@ -116,50 +118,84 @@ Show some basic examples:
 
         # Supports expressive and composable queries:
 
-        count = await User.select().count()
+        count = await Author.select().count()
         print(count) # 2
 
-        # Last gmail user
-        user = await User.select().where(
-            User.email.endswith('gmail.com')
+        # Last gmail author
+        author = await Author.select().where(
+            Author.email.endswith('gmail.com')
         ).order_by(
-            User.create_at.desc()
+            Author.create_at.desc()
         ).first()
-        print(user) # [<User object> at 1]
+        print(author) # [<Author object at 1>]
 
         # Using `helo.adict`
-        users = await User.select(
-            User.id, User.name
+        authors = await Author.select(
+            Author.id, Author.name
         ).where(
-            User.id < 2
+            Author.id < 2
         ).all(wrap=False)
-        print(user)  # [{'id': 1, 'name': 'at7h'}]
+        print(author)  # [{'id': 1, 'name': 'at7h'}]
 
-        # Paginate get users who wrote Python posts this year
-        users = await User.select().where(
-            User.id.in_(
+        # Paginate get authors who wrote Python posts this year
+        authors = await Author.select().where(
+            Author.id.in_(
                 Post.select(Post.author).where(
-                    Post.update_at > datetime(2019, 1, 1),
+                    Post.update_at > datetime.datetime(2019, 1, 1),
                     Post.title.contains('Python')
                 ).order_by(
                     Post.update_at.desc()
                 )
             )
         ).paginate(1, 10)
-        print(users) # [<User object> at 1]
+        print(authors) # [<Author object at 1>]
 
-        # How many posts each user wrote?
-        user_posts = await User.select(
-            User.name, helo.F.COUNT(helo.SQL('1')).as_('posts')
+        # How many posts each author wrote?
+        author_posts = await Author.select(
+            Author.name, helo.F.COUNT(helo.SQL('1')).as_('posts')
         ).join(
-            Post, helo.JOINTYPE.LEFT, on=(User.id == Post.author)
+            Post, helo.JOINTYPE.LEFT, on=(Author.id == Post.author)
         ).group_by(
-            User.name
+            Author.name
         ).rows(100)
 
     asyncio.run(show_case())
 
 👉 See `more examples </examples>`_
+
+
+With Quart
+----------
+
+If you're using quart_ , a minimum application example should be:
+
+.. code-block:: python
+
+    import quart
+    import helo
+
+    app = quart.Quart(__name__)
+    app.config["HELO_DATABASE_URL"] = "mysql://user:password@127.0.0.1:3306/db"
+
+    db = helo.G(app)
+
+
+    @app.route('/api/authors')
+    async def authors():
+
+        await Author.insert(name='at7h', email='g@test.com', password='xxxx').do()
+        author_list = await Author.select().all(False)
+        return quart.jsonify(author_list)
+
+
+    app.run()
+
+Start it:
+
+.. code-block:: sh
+
+    curl http://127.0.0.1:5000/api/authors
+    [{"email":"g@test.com","id":1,"name":"at7h","password":"xxxx"}]
 
 
 Contributing 👏
@@ -179,6 +215,7 @@ Thanks 🤝
 * Please feel free to ⭐️ this repository if this project helped you 😉!
 
 .. _wiki: https://github.com/at7h/helo/wiki
+.. _quart: https://github.com/pgjones/quart
 .. _quickstart: https://github.com/at7h/helo/wiki#quickstart
 .. _installation: https://github.com/at7h/helo/wiki#installation
 .. _asyncio: https://docs.python.org/3.7/library/asyncio.html

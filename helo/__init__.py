@@ -58,9 +58,10 @@ from .util import (
     argschecker,
     and_,
     or_,
+    In,
 )
 from .g import G
 
 
-__version__ = '0.0.51'
+__version__ = '0.0.6'
 __license__ = 'MIT'

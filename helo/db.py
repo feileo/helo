@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import os
 import sys
 import threading
@@ -19,7 +18,7 @@ from typing import Optional, Any, Union, Callable, Dict, Tuple, Type
 import aiomysql
 import pymysql
 
-from . import util, err, _builder
+from . import util, err, _builder, _logging
 
 __all__ = (
     'binding',
@@ -34,14 +33,9 @@ __all__ = (
     'EnvKey',
 )
 
-
-logging.basicConfig(
-    format='[%(asctime)s] [%(process)d] [%(levelname)s] %(message)s',
-)
-logger = logging.getLogger('helo')
-logger.setLevel(logging.INFO)
-
 _SUPPORTED_SCHEMES = ('mysql',)
+
+logger = _logging.create_logger()
 
 
 def __ensure__(bound: bool, errfor: bool = True) -> Callable:
@@ -89,12 +83,13 @@ async def binding(
     more parameters, see ``Pool` and ``Pool.from_url``
     """
 
+    debug = kwargs.pop('debug', False)
     if url is not None:
         pool = await Pool.from_url(url, **kwargs)
     else:
         pool = await Pool(**kwargs)  # type: ignore
 
-    Executer.activate(pool)
+    Executer.activate(pool, debug)
 
 
 @__ensure__(True)
@@ -104,13 +99,12 @@ async def execute(
     """A coroutine that execute sql and return the results of its
     execution
     """
+
     if not isinstance(query, _builder.Query):
-        raise TypeError("Invalid query type")
+        raise TypeError("invalid query type")
 
     if not query:
-        raise ValueError("No query to execute")
-
-    logger.debug(query)
+        raise ValueError("no query to execute")
 
     return await Executer.do(query, **kwargs)
 
@@ -150,7 +144,7 @@ class Binder:
     def __init__(self, url: Optional[str] = None, **bindings: Any) -> None:
         self.url = url or EnvKey.get()
         if not self.url:
-            raise ValueError(f"Empty DB url: {self.url}")
+            raise ValueError(f"empty database url: {self.url}")
         self.initcmd = bindings.pop('init', None)
         self.clearcmd = bindings.pop('clear', None)
         self.bindings = bindings
@@ -183,7 +177,6 @@ class Pool:
 
     :param int minsize: Minimum sizes of the pool
     :param int maxsize: Maximum sizes of the pool
-    :param bool echo: Executed log SQL queryes
     :param int pool_recycle: Connection reset period, default -1,
         indicating that the connectionion will be reclaimed after a given time,
         be careful not to exceed MySQL default time of 8 hours
@@ -197,7 +190,7 @@ class Pool:
         password="",             # Password to use
         db=None,                 # Database to use, None to not use a particular one
         port=3306,               # MySQL port to use
-        charset='utf8',              # Charset you want to use
+        charset='utf8',          # Charset you want to use
         unix_socket=None,        # You can use a unix socket rather than TCP/IP
         read_default_file=None,  # Specifies my.cnf file to read these parameters
         use_unicode=None,        # Whether or not to default to unicode strings
@@ -210,7 +203,7 @@ class Pool:
         program_name='',         # Program name string to provide
         server_public_key=None,  # SHA256 authentication plugin public key value
     )
-    _POOL_KWARGS = ('minsize', 'maxsize', 'echo', 'pool_recycle', 'loop')
+    _POOL_KWARGS = ('minsize', 'maxsize', 'pool_recycle', 'loop')
 
     __slots__ = ('_pool', '_connmeta', '_closed')
 
@@ -218,7 +211,6 @@ class Pool:
             self,
             minsize: int = 1,
             maxsize: int = 15,
-            echo: bool = False,
             pool_recycle: int = -1,
             loop: Optional[asyncio.AbstractEventLoop] = None,
             **conn_kwargs: Any
@@ -227,9 +219,8 @@ class Pool:
         conn_kwargs = self._check_conn_kwargs(conn_kwargs)
         try:
             self._pool = await aiomysql.create_pool(
-                minsize=minsize, maxsize=maxsize, echo=echo,
-                pool_recycle=pool_recycle, loop=loop,
-                **conn_kwargs
+                minsize=minsize, maxsize=maxsize, pool_recycle=pool_recycle,
+                loop=loop, **conn_kwargs
             )
         except Exception:
             raise _ExcAdapter.err()
@@ -245,8 +236,9 @@ class Pool:
 
         :returns: ``Pool`` instance
         """
+
         if not url:
-            raise ValueError('Database url cannot be empty')
+            raise ValueError('database url cannot be empty')
 
         params = UrlParser(url).parse()
         params.update(kwargs)
@@ -272,12 +264,6 @@ class Pool:
                 f'unexpected keyword argument "{exarg}"'
             )
         return ret_kwargs
-
-    @property
-    def echo(self) -> bool:
-        """Pool echo mode"""
-
-        return self._pool.echo
 
     @property
     def minsize(self) -> int:
@@ -363,10 +349,12 @@ class Executer:
     __slots__ = ()
 
     pool = None  # type: Optional[Pool]
+    record = False
 
     @classmethod
-    def activate(cls, connpool: Pool) -> None:
+    def activate(cls, connpool: Pool, record: bool = False) -> None:
         cls.pool = connpool
+        cls.record = record
 
     @classmethod
     async def death(cls) -> bool:
@@ -385,6 +373,10 @@ class Executer:
     async def do(
         cls, query: _builder.Query, **kwargs: Any
     ) -> Union[None, util.adict, Tuple[Any, ...], FetchResult, ExecResult]:
+
+        if cls.record:
+            logger.info(query)
+
         if query.r:
             return await cls._fetch(
                 query.sql, params=query.params, **kwargs,
@@ -503,14 +495,14 @@ class UrlParser:
         """ do parse database url """
 
         if not self._is_illegal_url():
-            raise err.InvalidValueError(f'Invalid db url {self.url}')
+            raise err.InvalidValueError(f'invalid database url {self.url}')
 
         self._register()
         url = urlparse.urlparse(self.url)
 
         if url.scheme not in _SUPPORTED_SCHEMES:
             raise err.NotSupportedError(
-                f'Unsupported scheme {url.scheme}'
+                f'unsupported scheme {url.scheme}'
             )
 
         path, query = url.path[1:], url.query
@@ -568,27 +560,27 @@ class UrlParser:
 
 
 class EnvKey:
-    """By default, the value of the key "KEY" is taken from
+    """By default, the value of the key "DFT" is taken from
     the system's environment variable as the url of the database.
     Of course, you can also change this key with the set method.
     """
 
-    KEY = 'HELO_DB_URL'
-    USER_KEY = ''
+    DFT = 'HELO_DATABASE_URL'
+    USER = ''
 
     _lock = threading.RLock()
 
     @classmethod
     def get(cls) -> Optional[str]:
-        return os.environ.get(cls.USER_KEY or cls.KEY)
+        return os.environ.get(cls.USER or cls.DFT)
 
     @classmethod
     def set(cls, key: str) -> None:
         if not isinstance(key, str):
-            raise TypeError(f"Invalid key type({key!r}), must be str")
+            raise TypeError(f"invalid key type({key!r}), must be str")
 
         with cls._lock:
-            cls.USER_KEY = key
+            cls.USER = key
 
 
 class _ExcAdapter:

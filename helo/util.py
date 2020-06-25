@@ -19,6 +19,7 @@ __all__ = (
     'argschecker',
     'and_',
     'or_',
+    'In',
     'FreeObject',
 )
 
@@ -67,6 +68,7 @@ def adictformatter(func: Callable):
     """ A function decorator that convert the returned dict object to adict
         If it is a list, recursively convert its elements
     """
+
     if iscoroutinefunction(func):
         @wraps(func)
         async def convert(*args, **kwargs):
@@ -85,7 +87,7 @@ def asyncinit(obj: Type):
     """A class decorator that add async `__init__` functionality."""
 
     if not isclass(obj):
-        raise ValueError("Decorated object must be a class")
+        raise ValueError("decorated object must be a class")
 
     async def nnew(cls, *_args, **_kwargs):
         return object.__new__(cls)
@@ -167,11 +169,11 @@ def argschecker(*cargs: Any, **ckwargs: Any):
                 if name in bound_args:
                     if not isinstance(value, bound_args[name]):
                         raise TypeError(
-                            f"Argument {name} must be {bound_args[name]}, "
+                            f"argument {name} must be {bound_args[name]}, "
                             f"now got {type(value)}"
                         )
                     if not nullable and not value:
-                        raise ValueError(f"Arguments {name} cannot be empty")
+                        raise ValueError(f"arguments {name} cannot be empty")
             return func(*args, **kwargs)
         return wrapper
 
@@ -184,6 +186,32 @@ def and_(*exprs: Any) -> Any:
 
 def or_(*exprs: Any) -> Any:
     return reduce(lambda a, b: a | b, exprs)
+
+
+class In:
+
+    def __init__(self, data, source):
+        self._set = set(data)
+        self._for = source
+
+    def __str__(self):
+        return f'<{self._for} object>'
+
+    __repr__ = __str__
+
+    def __len__(self):
+        return len(self._set)
+
+    def __contains__(self, name: str):
+        return name.lower() in self._set
+
+    def __getattr__(self, name: str):
+        key = name.lower()
+        if key in self._set:
+            return key
+        raise AttributeError(
+            f"{self._for} object has not attribute {name}."
+        )
 
 
 class FreeObject:
@@ -256,10 +284,10 @@ def formatadict(original: Any):
         for item in original:
             if not isinstance(item, (list, tuple, dict)):
                 raise TypeError(
-                    f"Invalid data type '{original}' to convert `adict`"
+                    f"invalid data type '{original}' to convert `adict`"
                 )
             fmted.append(formatadict(item))
         return fmted
     raise TypeError(
-        f"Non-iterable object can not '{original}' to convert `adict`"
+        f"non-iterable object can not '{original}' to convert `adict`"
     )

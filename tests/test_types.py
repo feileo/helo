@@ -1,3 +1,5 @@
+#  type: ignore
+#  pylint: disable=too-many-statements
 """
 Tests for types module and outside the ``helo.Model``
 """
@@ -5,7 +7,7 @@ from datetime import datetime, date, time, timedelta
 
 import pytest
 
-from helo import err, _builder, _helper, types as t, G
+from helo import err, _builder, _helper, types as t, G, Model
 
 db = G()
 
@@ -360,7 +362,7 @@ def test_tinyint():
         pass
     tinyint = t.Tinyint(name="ty")
     assert tinyint.column == "`ty`"
-    assert repr(tinyint) == "types.Tinyint object 'ty'"
+    assert repr(tinyint) == "<types.Tinyint object 'ty'>"
     assert str(tinyint) == "ty"
     assert parsef(tinyint) == "`ty` tinyint(4) DEFAULT NULL;"
 
@@ -389,7 +391,7 @@ def test_smllint():
     smallint = t.Smallint(name='sl', comment="sl")
     assert smallint.py_value('1') == 1
     assert smallint.db_value('2') == 2
-    assert repr(smallint) == "types.Smallint object 'sl'"
+    assert repr(smallint) == "<types.Smallint object 'sl'>"
     assert str(smallint) == "sl"
     assert parsef(smallint) == "`sl` smallint(6) DEFAULT NULL COMMENT 'sl';"
     smallint = t.Smallint(
@@ -767,7 +769,7 @@ def test_key():
     assert str(key) == 'KEY `idx_name_age` (`name`, `age`);'
     key = t.UK('uk_password', password, comment='password')
     assert str(key) == "UNIQUE KEY `uk_password` (`password`) COMMENT 'password';"
-    assert repr(key) == "types.UK(UNIQUE KEY `uk_password` (`password`) COMMENT 'password';)"
+    assert repr(key) == "<types.UK(UNIQUE KEY `uk_password` (`password`) COMMENT 'password';)>"
     assert hash(key) == hash('uk_password')
     try:
         t.K('idx_name', [1, 2, 4])
@@ -785,14 +787,14 @@ def test_funs():
     assert _builder.parse(m_).sql == 'MAX(`age`) AS `age_max`;'
 
 
-class TypesModel(db.Model):
+class TypesModel(Model):
 
     id = t.Auto(comment='primary_key')
     tinyint = t.Tinyint(1, unsigned=True, zerofill=True, comment='tinyint')
     smallint = t.Smallint(null=False, default=0, comment='smallint')
     int_ = t.Int(unsigned=True, null=False, default=0, comment='int')
     bigint = t.Bigint(45, null=False, default=0, comment='bigint')
-    text = t.Text(encoding=t.ENCODING.utf8mb4, null=False, comment='text')
+    text = t.Text(encoding=t.ENCODING.UTF8MB4, null=False, comment='text')
     char = t.Char(45, null=False, default='', comment='char')
     varchar = t.VarChar(45, null=False, default='', comment='varchar')
     uuid = t.UUID(comment='uuid test')
@@ -822,35 +824,20 @@ class TypesModel(db.Model):
 @pytest.mark.asyncio
 async def test_types():
 
-    async with db.Binder():
+    async with db.binder():
         await TypesModel.create()
-        assert await TypesModel.show().create_syntax() == (
+        create = await TypesModel.show().create_syntax()
+        assert (
             "CREATE TABLE `test_types_table` (\n"
             "  `id` int(11) NOT NULL AUTO_INCREMENT COMMENT 'primary_key',\n"
             "  `tinyint` tinyint(1) unsigned zerofill DEFAULT NULL COMMENT 'tinyint',\n"
             "  `smallint` smallint(6) NOT NULL DEFAULT '0' COMMENT 'smallint',\n"
             "  `int_` int(11) unsigned NOT NULL DEFAULT '0' COMMENT 'int',\n"
             "  `bigint` bigint(45) NOT NULL DEFAULT '0' COMMENT 'bigint',\n"
-            "  `text` text CHARACTER SET utf8mb4 NOT NULL COMMENT 'text',\n"
-            "  `char` char(45) NOT NULL DEFAULT '' COMMENT 'char',\n"
-            "  `varchar` varchar(45) NOT NULL DEFAULT '' COMMENT 'varchar',\n"
-            "  `uuid` varchar(40) NOT NULL COMMENT 'uuid test',\n"
-            "  `float_` float(3,3) DEFAULT '0.000' COMMENT 'float',\n"
-            "  `double_` double(4,4) unsigned DEFAULT '0.0000' COMMENT 'double',\n"
-            "  `decimal` decimal(10,2) unsigned DEFAULT '0.00' COMMENT 'decimal',\n"
-            "  `ip` bigint(20) DEFAULT '0',\n"
-            "  `email` varchar(100) DEFAULT '',\n"
-            "  `url` varchar(254) DEFAULT '',\n"
-            "  `time_` time DEFAULT NULL COMMENT 'time',\n"
-            "  `date_` date DEFAULT NULL COMMENT 'date',\n"
-            "  `datetime_` datetime DEFAULT NULL COMMENT 'datetime',\n"
-            "  `now_ts` timestamp NULL DEFAULT NULL COMMENT 'now ts',\n"
-            "  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'created_at',\n"
-            "  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON"
-            " UPDATE CURRENT_TIMESTAMP COMMENT 'updated_at',\n"
-            "  PRIMARY KEY (`id`),\n"
+        ) in create
+        assert (
+            "PRIMARY KEY (`id`),\n"
             "  UNIQUE KEY `ukey` (`varchar`) COMMENT 'unique key test',\n"
             "  KEY `key` (`tinyint`,`datetime_`) COMMENT 'key test'\n"
-            ") ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='type case table'"
-        )
+        ) in create
         await TypesModel.drop()

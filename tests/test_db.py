@@ -1,15 +1,19 @@
+#  type: ignore
+#  pylint: disable=too-many-statements
 """
 Tests for db module
 """
+
 import datetime
 
 import pytest
-import pytz
 
-from helo import db, err, util, _builder
+from helo import db, err, util, _builder, ENCODING
 
-TZ = pytz.timezone('Asia/Shanghai')
+from . import case
+
 AUTO_INCREMENT = 26
+TEARDOWN_QUERY = _builder.Query("DROP TABLE `user`;")
 SETUP_QUERY = _builder.Query(
     "CREATE TABLE IF NOT EXISTS `user` ("
     "`id` int(20) unsigned NOT NULL AUTO_INCREMENT,"
@@ -21,27 +25,25 @@ SETUP_QUERY = _builder.Query(
     f") ENGINE=InnoDB AUTO_INCREMENT={AUTO_INCREMENT} "
     "DEFAULT CHARSET=utf8 COMMENT='user info table';"
 )
-TEARDOWN_QUERY = _builder.Query("DROP TABLE `user`;")
 
 
 @pytest.mark.asyncio
 async def test_connect_pool():
 
-    async with db.Binder(echo=True):
+    async with db.Binder(debug=True):
         assert db.isbound() is True
-
         assert db.state().minsize == 1
         assert db.state().maxsize == 15
         assert db.state().size == 1
         assert db.state().freesize == 1
-        assert db.Executer.pool.echo is True
+        assert db.Executer.record is True
 
         async with db.Executer.pool.acquire() as conn:
             assert db.state().size == 1
             assert db.state().freesize == 0
-            assert conn.echo is True
+            assert conn.echo is False
             assert conn.db == 'helo'
-            assert conn.charset == 'utf8'
+            assert conn.charset == ENCODING.UTF8
 
             async with db.Executer.pool.acquire() as conn:
                 assert db.state().size == 2
@@ -96,27 +98,28 @@ async def test_connect_pool():
 
 
 @pytest.mark.asyncio
-async def test_mul():
+async def test_muldb():
 
-    t1 = 'helo1'
+    h1 = 'helo1'
 
     async def init():
-        await db.execute(_builder.Query(f'CREATE DATABASE `{t1}`;'))
+        await db.execute(_builder.Query(f'CREATE DATABASE `{h1}`;'))
 
     async def clear():
-        await db.execute(_builder.Query(f'DROP DATABASE `{t1}`;'))
+        await db.execute(_builder.Query(f'DROP DATABASE `{h1}`;'))
 
-    async with db.Binder(init=init, clear=clear):
+    async with db.Binder(init=init, clear=clear, debug=True):
+        assert db.Executer.record is True
         async with db.Executer.pool.acquire() as conn:
             assert db.state().size == 1
             assert db.state().freesize == 0
             assert conn.echo is False
             assert conn.db == 'helo'
-            assert conn.charset == 'utf8'
+            assert conn.charset == ENCODING.UTF8
 
-        await db.select_db(t1)
+        await db.select_db(h1)
         async with db.Executer.pool.acquire() as conn:
-            assert conn.db == t1
+            assert conn.db == h1
         await db.execute(SETUP_QUERY)
 
         await db.execute(
@@ -175,7 +178,7 @@ async def test_execute():
     async def clear():
         await db.execute(TEARDOWN_QUERY)
 
-    async with db.Binder(init=init, clear=clear, echo=True):
+    async with db.Binder(init=init, clear=clear, debug=True):
         try:
             result = await db.execute('')
             assert False, 'Should raise TypeError'
@@ -319,7 +322,7 @@ async def test_execute():
         users = await db.execute(
             _builder.Query(
                 "SELECT * FROM `user` WHERE `created_at` <= %s ;",
-                params=[datetime.datetime.now(TZ)+datetime.timedelta(minutes=1)]
+                params=[case.deltanow(1)]
             )
         )
         assert isinstance(users, db.FetchResult)
@@ -332,7 +335,7 @@ async def test_execute():
         users = await db.execute(
             _builder.Query(
                 "SELECT * FROM `user` WHERE `created_at` >= %s ;",
-                params=[datetime.datetime.now(TZ)+datetime.timedelta(minutes=1)]
+                params=[case.deltanow(1)]
             )
         )
         assert isinstance(users, db.FetchResult)
@@ -341,7 +344,7 @@ async def test_execute():
         users = await db.execute(
             _builder.Query(
                 "SELECT * FROM `user` WHERE `created_at` >= %s ;",
-                params=[datetime.datetime.now(TZ)+datetime.timedelta(minutes=1)]
+                params=[case.deltanow(1)]
             ),
             rows=1
         )
@@ -422,9 +425,11 @@ async def test_from_url():
 
     async with db.Binder(
         (db.EnvKey.get() +
-         "?charset=utf8mb4&maxsize=20&connect_timeout=15&echo=True&autocommit=False"
+         "?charset=utf8mb4&maxsize=20&connect_timeout=15&autocommit=False"
          ),
+        debug=True,
     ):
+        assert db.Executer.record is True
         connmeta = db.Executer.pool.connmeta
         assert connmeta.unix_socket is None
         assert connmeta.read_default_file is None
@@ -432,7 +437,7 @@ async def test_from_url():
         assert connmeta.connect_timeout == 15
         assert connmeta.local_infile is False
         assert connmeta.ssl is None
-        assert connmeta.charset == 'utf8mb4'
+        assert connmeta.charset == ENCODING.UTF8MB4
         assert connmeta.auth_plugin == ''
         assert connmeta.program_name == ''
         assert connmeta.server_public_key is None

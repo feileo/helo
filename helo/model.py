@@ -29,14 +29,13 @@ JOINTYPE = util.adict(
     LEFT='LEFT',
     RIGHT='RIGHT',
 )
-
-_BUILTIN_NAMES = ("ModelBase", "Model")
 _TABLENAME_REGEX = re.compile(r'([a-z]|\d)([A-Z])')
+_BUILTIN_MODEL_NAMES = ("ModelBase", "Model")
 
 
 class ModelType(type):
 
-    def __new__(cls, name: str, bases: Tuple[type, ...], attrs: dict) -> type:
+    def __new__(cls, name: str, bases: Tuple[type, ...], attrs: dict) -> ModelType:
 
         def __prepare__():
             model_fields, model_attrs = {}, {}
@@ -65,17 +64,17 @@ class ModelType(type):
 
             indexes = getattr(metaclass, 'indexes', [])
             if indexes and not isinstance(indexes, (tuple, list)):
-                raise TypeError("Table.indexes type must be `tuple` or `list`")
+                raise TypeError("the Table.indexes type must be `tuple` or `list`")
             for index in indexes:
                 if not isinstance(index, types.IndexBase):
-                    raise TypeError(f"Invalid index type {index!r}")
+                    raise TypeError(f"invalid index type {index!r}")
 
             primary = util.adict(auto=False, field=None, attr=None, begin=None)
             for attr_name, field in model_fields.items():
                 if getattr(field, 'primary_key', None):
                     if primary.field is not None:
                         raise err.DuplicatePKError(
-                            "Duplicate primary key found for field "
+                            "duplicate primary key found for field "
                             f"{field.name}"
                         )
                     primary.field = field
@@ -106,10 +105,10 @@ class ModelType(type):
             return attrs
 
         attrs['__table__'] = None
-        if name not in _BUILTIN_NAMES:
+        if name not in _BUILTIN_MODEL_NAMES:
             attrs = __prepare__()
 
-        return type.__new__(cls, name, bases, attrs)
+        return type.__new__(cls, name, bases, attrs)  # type: ignore
 
     def __getattr__(cls, name: str) -> Any:
         if name in cls.__table__.fields_dict:
@@ -160,7 +159,7 @@ def get_attrs(m: Union[Type[Model], Model]) -> Dict[str, Any]:
     try:
         return m.__attrs__
     except AttributeError:
-        raise err.ProgrammingError("Must be ModelType")
+        raise err.ProgrammingError("must be ModelType")
 
 
 class ModelBase:
@@ -171,7 +170,7 @@ class ModelBase:
 
     def __repr__(self) -> str:
         id_ = getattr(self, self.__table__.primary.attr, None)
-        return f"<{self.__class__.__name__} object> at {id_}"
+        return f"<{self.__class__.__name__} object at {id_}>"
 
     __str__ = __repr__
 
@@ -226,7 +225,7 @@ class Model(_helper.with_metaclass(ModelType, ModelBase)):  # type: ignore
 
     >>> import helo
     >>>
-    >>> class User(Model):
+    >>> class User(helo.Model):
     ...     id = helo.Auto()
     ...     nickname = helo.VarChar(length=45)
     ...     password = helo.VarChar(length=100)
@@ -282,11 +281,11 @@ class Model(_helper.with_metaclass(ModelType, ModelBase)):  # type: ignore
         or simple query expression
 
         >>> await User.mget([1, 2, 3])
-        [<User object> at 1, <User object> at 2, <User object> at 3]
+        [<User object at 1>, <User object at 2>, <User object at 3>]
         """
 
         if not by:
-            raise ValueError("No condition to mget")
+            raise ValueError("no condition to mget")
         return await ApiProxy.get_many(cls, by, columns=columns)
 
     @classmethod
@@ -308,7 +307,7 @@ class Model(_helper.with_metaclass(ModelType, ModelBase)):  # type: ignore
 
         row = __row or values
         if not row:
-            raise ValueError("No data to add")
+            raise ValueError("no data to add")
         return await ApiProxy.add(cls, row)
 
     @classmethod
@@ -332,7 +331,7 @@ class Model(_helper.with_metaclass(ModelType, ModelBase)):  # type: ignore
         """
 
         if not rows:
-            raise ValueError("No data to madd")
+            raise ValueError("no data to madd")
         return await ApiProxy.add_many(cls, rows)
 
     @classmethod
@@ -350,7 +349,7 @@ class Model(_helper.with_metaclass(ModelType, ModelBase)):  # type: ignore
         """
 
         if not values:
-            raise ValueError('No _id or values to set')
+            raise ValueError('no _id or values to set')
         return await ApiProxy.set(cls, _id, values)
 
     # API that translates directly from SQL statements(DQL, DML).
@@ -381,7 +380,7 @@ class Model(_helper.with_metaclass(ModelType, ModelBase)):  # type: ignore
 
         row = __row or values
         if not row:
-            raise ValueError("No data to insert")
+            raise ValueError("no data to insert")
         return ApiProxy.insert(cls, row)
 
     @classmethod
@@ -412,7 +411,7 @@ class Model(_helper.with_metaclass(ModelType, ModelBase)):  # type: ignore
         """
 
         if not rows:
-            raise ValueError("No data to minsert {}")
+            raise ValueError("no data to minsert {}")
         return ApiProxy.insert_many(cls, rows, columns=columns)
 
     @classmethod
@@ -442,7 +441,7 @@ class Model(_helper.with_metaclass(ModelType, ModelBase)):  # type: ignore
         ExecResult(affected: 1, last_id: 0)
         """
         if not values:
-            raise ValueError("No data to update")
+            raise ValueError("no data to update")
         return ApiProxy.update(cls, values)
 
     @classmethod
@@ -462,7 +461,7 @@ class Model(_helper.with_metaclass(ModelType, ModelBase)):  # type: ignore
 
         row = __row or values
         if not row:
-            raise ValueError("No data to replace")
+            raise ValueError("no data to replace")
         return ApiProxy.replace(cls, row)
 
     @classmethod
@@ -474,7 +473,7 @@ class Model(_helper.with_metaclass(ModelType, ModelBase)):  # type: ignore
         """MySQL REPLACE, similar to ``minsert``"""
 
         if not rows:
-            raise ValueError("No data to mreplace")
+            raise ValueError("no data to mreplace")
         return ApiProxy.replace_many(cls, rows, columns=columns)
 
     # instance
@@ -509,7 +508,7 @@ class ApiProxy:
     ) -> db.ExecResult:
         """Do create table"""
 
-        if m.__name__ in _BUILTIN_NAMES:
+        if m.__name__ in _BUILTIN_MODEL_NAMES:
             raise err.NotAllowedError(f"{m.__name__} is built-in model name")
 
         return await Create(get_table(m), **options).do()
@@ -520,7 +519,7 @@ class ApiProxy:
     ) -> db.ExecResult:
         """Do drop table"""
 
-        if m.__name__ in _BUILTIN_NAMES:
+        if m.__name__ in _BUILTIN_MODEL_NAMES:
             raise err.NotAllowedError(f"{m.__name__} is built-in model name")
 
         return await Drop(get_table(m), **options).do()
@@ -539,8 +538,7 @@ class ApiProxy:
         where = by
         if not isinstance(where, types.Expression):
             where = get_table(m).primary.field == where
-        return (await Select([_builder.SQL("*")], [m])  # type: ignore
-                .where(where)
+        return (await Select([_builder.SQL("*")], [m]).where(where)  # type: ignore
                 .get())
 
     @classmethod
@@ -556,9 +554,7 @@ class ApiProxy:
         if isinstance(where, types.SEQUENCE):
             where = get_table(m).primary.field.in_(by)
         return await (
-            Select(columns or [_builder.SQL("*")], [m]).where(  # type: ignore
-                where
-            ).all()
+            Select(columns or [_builder.SQL("*")], [m]).where(where).all()  # type: ignore
         )
 
     @classmethod
@@ -589,7 +585,7 @@ class ApiProxy:
             elif isinstance(row, dict):
                 addrows.append(cls._gen_insert_row(m, row))
             else:
-                raise ValueError(f"Invalid data {row!r} to add")
+                raise ValueError(f"invalid data {row!r} to add")
 
         return (
             await Insert(get_table(m), ValuesMatch(addrows), many=True).do()
@@ -701,7 +697,7 @@ class ApiProxy:
         table = get_table(mo)
         primary_value = getattr(mo, table.primary.attr, None)
         if not primary_value:
-            raise RuntimeError("Remove object has no primary key value")
+            raise RuntimeError("remove object has no primary key value")
 
         ret = await Delete(
             table
@@ -736,17 +732,17 @@ class ApiProxy:
             if value is None and not field.null:
                 if not for_replace:
                     raise ValueError(
-                        f"Invalid data(None) for not null attribute {name}"
+                        f"invalid data(None) for not null attribute {name}"
                     )
             try:
                 toinserts[field.name] = field.db_value(value)
             except (ValueError, TypeError):
-                raise ValueError(f'Invalid data({value}) for {name}')
+                raise ValueError(f'invalid data({value}) for {name}')
 
         for attr in row_data:
             if not for_replace and attr == get_table(m).primary.attr:
                 raise err.NotAllowedError(
-                    f"Auto field {attr!r} not allowed to set"
+                    f"auto field {attr!r} not allowed to set"
                 )
             raise ValueError(f"'{m!r}' has no attribute {attr}")
 
@@ -765,11 +761,11 @@ class ApiProxy:
 
         if columns:
             if not isinstance(columns, list):
-                raise ValueError("Specify columns must be list")
+                raise ValueError("specify columns must be list")
             mattrs = get_attrs(m)
             for c in columns:
                 if not isinstance(c, types.FieldBase):
-                    raise TypeError(f"Invalid type of columns element {c}")
+                    raise TypeError(f"invalid type of columns element {c}")
 
                 if c.name not in mattrs:
                     raise ValueError(f"{m!r} has no attribute {c.name}")
@@ -777,10 +773,10 @@ class ApiProxy:
 
             for row in rows:
                 if not isinstance(row, types.SEQUENCE):
-                    raise ValueError(f"Invalid data {row!r} for specify columns")
+                    raise ValueError(f"invalid data {row!r} for specify columns")
                 row = dict(zip(columns, row))  # type: ignore
                 if len(row) != len(columns):
-                    raise ValueError("No enough data for columns")
+                    raise ValueError("no enough data for columns")
 
                 cleaned_rows.append(cls._gen_insert_row(m, row, for_replace))
         else:
@@ -819,7 +815,7 @@ class ValuesMatch(_builder.Node):
             columns = list(rows[0].keys())
             self._values = tuple([tuple(r.values()) for r in rows])
         else:
-            raise ValueError("Invalid data unpack to values")
+            raise ValueError("invalid data unpack to values")
 
         self._columns, self._params = [], []  # type: List[_builder.Node], List[_builder.Node]
         for col in columns:
@@ -1008,11 +1004,11 @@ class Select(BaseQuery):
 
     def group_by(self, *columns: types.Column) -> Select:
         if not columns:
-            raise ValueError("Group by clause cannot be empty")
+            raise ValueError("group by clause cannot be empty")
         for f in columns:
             if not isinstance(f, types.Column):
                 raise TypeError(
-                    f"Invalid value '{f}' for group_by field"
+                    f"invalid value '{f}' for group_by field"
                 )
 
         self._group_by = columns  # type: ignore
@@ -1024,11 +1020,11 @@ class Select(BaseQuery):
 
     def order_by(self, *columns: types.Column):
         if not columns:
-            raise ValueError("Order by clause cannot be empty")
+            raise ValueError("order by clause cannot be empty")
         for f in columns:
             if not isinstance(f, types.Column):
                 raise TypeError(
-                    f"Invalid value '{f}' for order_by field")
+                    f"invalid value '{f}' for order_by field")
 
         self._order_by = columns  # type: ignore
         return self
@@ -1039,7 +1035,7 @@ class Select(BaseQuery):
 
     def offset(self, offset: Optional[int] = 0) -> Select:
         if self._limit is None:
-            raise err.ProgrammingError("Offset clause has no limit")
+            raise err.ProgrammingError("offset clause has no limit")
         self._offset = offset
         return self
 
@@ -1080,7 +1076,7 @@ class Select(BaseQuery):
         """
         self.limit(rows).offset(start)
         if rows <= 0:
-            raise ValueError(f"Invalid select rows: {rows}")
+            raise ValueError(f"invalid select rows: {rows}")
         return await self.__do__(wrap=wrap)
 
     async def paginate(
@@ -1094,7 +1090,7 @@ class Select(BaseQuery):
         ``helo.util.adict`` is used
         """
         if page < 0 or size <= 0:
-            raise ValueError("Invalid page or size")
+            raise ValueError("invalid page or size")
         if page > 0:
             page -= 1
         self._limit = size
@@ -1329,7 +1325,7 @@ class Delete(WriteQuery):
             ).sql(self._where)
         elif not self._force:
             raise err.DangerousOperation(
-                "Delete is too dangerous as no where clause"
+                "delete is too dangerous as no where clause"
             )
         if self._limit is not None:
             ctx.literal(f" LIMIT {self._limit}")
@@ -1353,7 +1349,7 @@ class Show(BaseQuery):
         self._key = None  # type: Optional[str]
 
     def __repr__(self) -> str:
-        return f"<Show object> for {self._table!r}>"
+        return f"<Show object for {self._table!r}>"
 
     __str__ = __repr__
 
