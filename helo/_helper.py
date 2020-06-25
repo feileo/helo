@@ -2,10 +2,10 @@ import re
 import struct
 import socket
 from datetime import datetime
-from typing import Any, Optional, List, Union, Callable
+from typing import Any, Optional, List, Union, Callable, Type
 
 
-def with_metaclass(meta, *bases):
+def with_metaclass(meta: Type, *bases: Type) -> Type:
 
     class MetaClass(type):
 
@@ -50,7 +50,7 @@ def iptoint(value: str) -> int:
     try:
         return struct.unpack('!I', socket.inet_aton(value))[0]
     except OSError:
-        raise ValueError(f"Illegal IP address({value}) for IP Field")
+        raise ValueError(f"illegal IP address({value}) for IP Field")
 
 
 def iptostr(value: int) -> str:

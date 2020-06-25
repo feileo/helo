@@ -3,6 +3,7 @@
     ~~~~~~
 """
 
+import warnings
 from types import ModuleType
 from typing import Any, Optional, Type, Union, List, Tuple
 
@@ -11,22 +12,31 @@ from . import db, model, util, _builder
 
 @util.singleton
 class G:
-    """
-    You can specify the default environment variable key name.
-    But it can only work in the ``Binder``.
+    """ The entry class of helo
+
+    >>> import helo
+    >>>
+    >>> db = helo.G()
+
+    :param app: Web application like Quart app
+    :param debug: Record the executed SQL statement if true
+    :param env_key: Environment variable key name of helo database url
     """
 
     def __init__(
         self,
+        app: Optional[Any] = None,
+        debug: bool = False,
         env_key: Optional[str] = None,
-        model_class: Optional[Type[model.Model]] = None,
     ) -> None:
+        self.init_app(app)
+        self.debug = debug
         self.set_env_key(env_key)
-        self._mc = model_class or model.Model  # type: Type[model.Model]
 
-    @property
-    def Model(self) -> Type[model.Model]:  # pylint: disable=invalid-name
-        return self._mc
+    def __repr__(self):
+        return f"<helo.G object, debug: {self.debug}>"
+
+    __str__ = __repr__
 
     @property
     def isbound(self) -> bool:
@@ -36,23 +46,44 @@ class G:
     def state(self) -> Optional[util.adict]:
         return db.state()
 
-    async def bind(self, url: Optional[str] = None, **kwargs: Any) -> bool:
-        """
-        A coroutine that binding a database.
+    def init_app(self, app) -> None:
+        if not app:
+            return None
 
-        Kwargs: see ``db.Pool``
+        self.app = app
+        self.app.db = self
+
+        url = self.app.config.get(db.EnvKey.DFT, '')
+        if not url:
+            warnings.warn(f"The '{db.EnvKey.DFT}' not set for app, "
+                          "getting from environment variable")
+
+        @self.app.before_request
+        async def _first():
+            if not self.isbound:
+                await self.bind(url)
+
+        return None
+
+    async def bind(self, url: Optional[str] = None, **kwargs: Any) -> None:
+        """A coroutine that binding a database.
+
+        :param url: Database url
+        :param kwargs: see ``db.Pool``
         """
 
-        return await db.binding(url, **kwargs)
+        url = url or db.EnvKey.get()
+        return await db.binding(url, debug=self.debug, **kwargs)
 
     async def unbind(self) -> bool:
         """A coroutine that to unbind the database"""
 
         return await db.unbinding()
 
-    # By default, the database url is looked up from the environment
-    # variable and automatically to binding and unbinding.
-    Binder = db.Binder
+    def binder(self, url: Optional[str] = None, **kwargs: Any) -> db.Binder:
+        """Handling of bound context"""
+
+        return db.Binder(url, debug=self.debug, **kwargs)
 
     def set_env_key(self, key: Union[None, str]) -> None:
         """Set environment variable key name"""
@@ -78,7 +109,7 @@ class G:
 
         return await self.create_tables(
             [m for _, m in vars(module).items()
-             if isinstance(m, type) and issubclass(m, self.Model) and m is not self.Model
+             if isinstance(m, type) and issubclass(m, model.Model) and m is not model.Model
              ],
             **options
         )
@@ -98,7 +129,7 @@ class G:
 
         return await self.drop_tables(
             [m for _, m in vars(module).items()
-             if isinstance(m, type) and issubclass(m, self.Model) and m is not self.Model
+             if isinstance(m, type) and issubclass(m, model.Model) and m is not model.Model
              ]
         )
 

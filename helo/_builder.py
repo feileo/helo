@@ -7,23 +7,24 @@ from . import util
 
 class Context:
 
-    __slots__ = ('_sql', '_values', '_sources', 'stack',
-                 'aliases', 'state', 'props',
-                 )
+    __slots__ = (
+        '_sql', '_values', '_sources', 'stack',
+        'aliases', 'state', 'props',
+    )
 
-    _semi = ';'
-    _multi_types = (tuple, list)
+    _SEMI = ';'
+    _MULTI_TYPES = (tuple, list)
 
     def __init__(self, **settings: Any) -> None:
-        self._sql = []      # type: List[str]
-        self._values = []   # type: List[Any]
-        self._sources = []  # type: List[str]
-        self.stack = []     # type: List[Dict[str, Any]]
-        self.aliases = {}   # type: Dict[str, Any]
+        self._sql = []              # type: List[str]
+        self._values = []           # type: List[Any]
+        self._sources = []          # type: List[str]
+        self.stack = []             # type: List[Dict[str, Any]]
+        self.aliases = {}           # type: Dict[str, Any]
         self.state = settings
         self.props = util.adict()
 
-    def __sql__(self, ctx) -> Context:
+    def __sql__(self, ctx: Context) -> Context:
         ctx._sql.extend(self._sql)  # pylint: disable=protected-access
         ctx.values(self._values)
         return ctx
@@ -72,7 +73,7 @@ class Context:
     def values(self, value: Any) -> Context:
         converter = self.state.get('converter')
         if value is not None and converter:
-            if isinstance(value, self._multi_types):
+            if isinstance(value, self._MULTI_TYPES):
                 value = tuple(map(converter, value))
             else:
                 value = converter(value)
@@ -80,7 +81,7 @@ class Context:
         if self.state.get('params'):
             self.literal('%s')
 
-        if isinstance(value, self._multi_types):
+        if isinstance(value, self._MULTI_TYPES):
             if not self.state.get('nesting'):
                 self._values.extend(value)
                 return self
@@ -88,8 +89,8 @@ class Context:
         return self
 
     def query_of(self) -> Query:
-        if self._sql[-1] != self._semi:
-            self.literal(self._semi)
+        if self._sql[-1] != self._SEMI:
+            self.literal(self._SEMI)
         return Query(''.join(self._sql), params=tuple(self._values))
 
 
@@ -122,7 +123,7 @@ class Query:
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Query):
             raise TypeError(
-                f"Unsupported operation: 'Query' == {other}"
+                f"unsupported operation: 'Query' == {other}"
             )
         return self.sql == other.sql and self.params == other.params
 
@@ -133,7 +134,7 @@ class Query:
     @property
     def params(self) -> Tuple[Any, ...]:
         if not isinstance(self._params, (tuple, list)):
-            raise TypeError("Invalid query params")
+            raise TypeError("invalid query params")
         return tuple(self._params)
 
     @property
@@ -149,7 +150,7 @@ class Query:
     @r.setter
     def r(self, isr: Optional[bool]) -> None:
         if isr is not None and not isinstance(isr, bool):
-            raise TypeError(f'Invalid value {isr!r} to set')
+            raise TypeError(f'invalid value {isr!r} to set')
         self._fread = isr
 
 

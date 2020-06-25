@@ -1,75 +1,27 @@
+#  type: ignore
+#  pylint: disable=too-many-statements,too-many-branches,unused-variable
 """
 Tests for model module
 """
+
 import asyncio
-import logging
-from datetime import datetime
+import datetime
 
 import pytest
 
-from helo import db, types as t, err, util, _builder, Model, JOINTYPE
+from helo import (
+    db, types as t, err, util, _builder,
+    Model, JOINTYPE, ENCODING, ENGINE
+)
 
-logging.getLogger().setLevel(logging.INFO)
-
-
-class People(Model):
-
-    id = t.Auto()
-    name = t.VarChar(length=45)
-    gender = t.Tinyint(length=1, unsigned=True)
-    age = t.Tinyint(unsigned=True)
-    create_at = t.Timestamp(default=t.ON_CREATE)
-    update_at = t.Timestamp(default=t.ON_UPDATE)
-
-    class Meta:
-        indexes = [t.K('idx_name', 'name')]
-
-
-class Employee(People):
-
-    salary = t.Float()
-    departmentid = t.Int()
-    phone = t.VarChar(default='')
-    email = t.Email(length=100, default='')
-
-    class Meta:
-        indexes = [t.K('idx_age_salary', ['age', 'salary'])]
-
-
-class User(People):
-
-    nickname = t.VarChar(length=100)
-    password = t.VarChar(name='pwd')
-    role = t.Int(default=0)
-    lastlogin = t.DateTime(default=datetime.now, name='loginat')
-
-    class Meta:
-        db = 'helo'
-        name = 'user_'
-        indexes = (
-            t.K('idx_name', 'name'),
-            t.UK('unidx_nickname', 'nickname')
-        )
-
-
-class Role(Model):
-
-    id = t.Int(primary_key=True, auto=True)
-    name = t.VarChar(length=50)
-    is_deleted = t.Bool(default=False)
-    create_at = t.Timestamp(default=t.ON_CREATE)
-    update_at = t.Timestamp(default=t.ON_UPDATE)
-
-    class Meta:
-        name = 'role_'
+from .case import People, Employee, User, Role, deltanow
 
 
 class TestModel:
 
     def setup(self):
-
         async def init():
-            await db.binding(db.EnvKey.get(), echo=True)
+            await db.binding(db.EnvKey.get(), debug=True)
             await People.create()
             await Employee.create()
             await User.create()
@@ -78,7 +30,6 @@ class TestModel:
         asyncio.get_event_loop().run_until_complete(init())
 
     def teardown(self):
-
         async def clear():
             await People.drop()
             await Employee.drop()
@@ -120,47 +71,24 @@ class TestModel:
             pass
 
         csql = await People.show().create_syntax()
-        assert csql == (
+        assert (
             "CREATE TABLE `people` (\n"
             "  `id` int(11) NOT NULL AUTO_INCREMENT,\n"
             "  `name` varchar(45) DEFAULT NULL,\n"
             "  `gender` tinyint(1) unsigned DEFAULT NULL,\n"
             "  `age` tinyint(4) unsigned DEFAULT NULL,\n"
-            "  `create_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n"
-            "  `update_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP"
-            " ON UPDATE CURRENT_TIMESTAMP,\n"
-            "  PRIMARY KEY (`id`),\n"
-            "  KEY `idx_name` (`name`)\n"
-            ") ENGINE=InnoDB DEFAULT CHARSET=utf8"
-        )
+        ) in csql
         csql = await Employee.show().create_syntax()
-        assert csql == (
-            "CREATE TABLE `employee` (\n"
-            "  `id` int(11) NOT NULL AUTO_INCREMENT,\n"
-            "  `name` varchar(45) DEFAULT NULL,\n"
-            "  `gender` tinyint(1) unsigned DEFAULT NULL,\n"
-            "  `age` tinyint(4) unsigned DEFAULT NULL,\n"
-            "  `create_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n"
-            "  `update_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP"
-            " ON UPDATE CURRENT_TIMESTAMP,\n"
+        assert (
             "  `salary` float DEFAULT NULL,\n"
             "  `departmentid` int(11) DEFAULT NULL,\n"
             "  `phone` varchar(254) DEFAULT '',\n"
             "  `email` varchar(100) DEFAULT '',\n"
             "  PRIMARY KEY (`id`),\n"
             "  KEY `idx_age_salary` (`age`,`salary`)\n"
-            ") ENGINE=InnoDB DEFAULT CHARSET=utf8"
-        )
+        ) in csql
         csql = await User.show().create_syntax()
-        assert csql == (
-            "CREATE TABLE `user_` (\n"
-            "  `id` int(11) NOT NULL AUTO_INCREMENT,\n"
-            "  `name` varchar(45) DEFAULT NULL,\n"
-            "  `gender` tinyint(1) unsigned DEFAULT NULL,\n"
-            "  `age` tinyint(4) unsigned DEFAULT NULL,\n"
-            "  `create_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n"
-            "  `update_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP"
-            " ON UPDATE CURRENT_TIMESTAMP,\n"
+        assert (
             "  `nickname` varchar(100) DEFAULT NULL,\n"
             "  `pwd` varchar(254) DEFAULT NULL,\n"
             "  `role` int(11) DEFAULT '0',\n"
@@ -168,14 +96,13 @@ class TestModel:
             "  PRIMARY KEY (`id`),\n"
             "  UNIQUE KEY `unidx_nickname` (`nickname`),\n"
             "  KEY `idx_name` (`name`)\n"
-            ") ENGINE=InnoDB DEFAULT CHARSET=utf8"
-        )
+        ) in csql
         assert (await User.show().columns())[0]['Field'] == 'id'
         assert len(await User.show().indexes()) == 3
         assert (await User.show().indexes())[0]['Key_name'] == 'PRIMARY'
         assert (await User.show().indexes())[1]['Key_name'] == 'unidx_nickname'
         assert (await User.show().indexes())[1]['Column_name'] == 'nickname'
-        assert str(User.show()) == '<Show object> for <Table `helo`.`user_`>>'
+        assert str(User.show()) == '<Show object for <Table `helo`.`user_`>>'
 
     async def for_save_and_remove(self):
         user = User(name='at7h', gender=0, age=25)
@@ -188,7 +115,7 @@ class TestModel:
         user = User(
             name='mejor', gender=1, age=22,
             password='xxxx', nickname='huhu',
-            lastlogin=datetime.now()
+            lastlogin=datetime.datetime.now()
         )
         uid = await user.save()
         assert uid == 2
@@ -196,7 +123,7 @@ class TestModel:
         assert user.age == 22
         assert user.nickname == 'huhu'
         assert user.password == 'xxxx'
-        assert isinstance(user.lastlogin, datetime)
+        assert isinstance(user.lastlogin, datetime.datetime)
 
         user.age = 18
         user.gender = 0
@@ -213,7 +140,7 @@ class TestModel:
             user = User(
                 id=3, name='mejor', gender=1, age=22,
                 password='xxxx', nickname='huhu',
-                lastlogin=datetime.now()
+                lastlogin=datetime.datetime.now()
             )
             assert False, "Should raise err.NotAllowedError"
         except err.NotAllowedError:
@@ -222,7 +149,7 @@ class TestModel:
         user = User(
             name='keyoxu', gender=1, age=28,
             password='mmmm', nickname='jiajia',
-            lastlogin=datetime.now()
+            lastlogin=datetime.datetime.now()
         )
         uid = await user.save()
         assert uid == 3
@@ -247,7 +174,7 @@ class TestModel:
         user = User(
             name='keyoxu', gender=1, age=28,
             password='mmmm', nickname='jiajia',
-            lastlogin=datetime.now()
+            lastlogin=datetime.datetime.now()
         )
         uid = await user.save()
         assert uid == 4
@@ -258,8 +185,8 @@ class TestModel:
         assert user.age == 28
         assert user.password == 'mmmm'
         assert user.nickname == 'jiajia'
-        assert isinstance(user.lastlogin, datetime)
-        assert isinstance(user.create_at, datetime)
+        assert isinstance(user.lastlogin, datetime.datetime)
+        assert isinstance(user.create_at, datetime.datetime)
         user = await User.get(User.id == uid)
         assert isinstance(user, User)
         assert user.name == user.name
@@ -267,8 +194,8 @@ class TestModel:
         assert user.age == user.age
         assert user.password == user.password
         assert user.nickname == user.nickname
-        assert isinstance(user.lastlogin, datetime)
-        assert isinstance(user.create_at, datetime)
+        assert isinstance(user.lastlogin, datetime.datetime)
+        assert isinstance(user.create_at, datetime.datetime)
         user = await User.get(User.name == user.name)
         assert user.name == 'keyoxu'
         try:
@@ -302,24 +229,24 @@ class TestModel:
         users = await User.mget(user_ids)
         assert isinstance(users, db.FetchResult)
         assert repr(users) == (
-            "[<User object> at 1, <User object> at 2, <User object> at 4]")
+            "[<User object at 1>, <User object at 2>, <User object at 4>]")
         assert users.count == 3
         assert isinstance(users[0], User)
         assert isinstance(users[2], User)
         assert users[0].id == 1
         assert users[0].name == 'at7h'
         assert users[0].age == 25
-        assert isinstance(users[0].update_at, datetime)
+        assert isinstance(users[0].update_at, datetime.datetime)
         assert users[1].id == 2
         assert users[1].name == 'mejor'
         assert users[1].nickname == 'huhu'
         assert users[1].gender == 0
         assert users[1].age == 18
-        assert isinstance(users[1].create_at, datetime)
+        assert isinstance(users[1].create_at, datetime.datetime)
         assert users[2].name == 'keyoxu'
         assert users[2].password == 'mmmm'
         assert users[2].nickname == 'jiajia'
-        assert isinstance(users[2].lastlogin, datetime)
+        assert isinstance(users[2].lastlogin, datetime.datetime)
 
         users = await User.mget(
             user_ids,
@@ -391,9 +318,9 @@ class TestModel:
         assert user.name == 'add'
         assert user.age == 45
         assert user.nickname == 'passadd'
-        assert isinstance(user.lastlogin, datetime)
-        assert isinstance(user.create_at, datetime)
-        assert isinstance(user.update_at, datetime)
+        assert isinstance(user.lastlogin, datetime.datetime)
+        assert isinstance(user.create_at, datetime.datetime)
+        assert isinstance(user.update_at, datetime.datetime)
 
         user.name = 'add1'
         user.nickname = 'addn1'
@@ -542,8 +469,8 @@ class TestModel:
         assert users[2].id == 4
         assert users[2].name == 'keyoxu'
         assert users[11].name == 'user5'
-        assert repr(users[10]) == '<User object> at 12'
-        assert str(users[10]) == '<User object> at 12'
+        assert repr(users[10]) == '<User object at 12>'
+        assert str(users[10]) == '<User object at 12>'
         assert users[14].name == 'user8forset'
 
         users = await User.select(
@@ -662,7 +589,7 @@ class TestModel:
         assert user.name == 'user8forset'
 
         users = await User.select().where(
-            User.lastlogin < datetime.now(),
+            User.lastlogin < deltanow(1),
             User.age < 25,
             User.name != 'at7h'
         ).order_by(
@@ -703,12 +630,13 @@ class TestModel:
         ).all(False)
         assert users.count == 3
         assert isinstance(users[0], util.adict)
-        assert users[0].gender is None
-        assert users[0].num == 10
-        assert users[1].gender == 0
-        assert users[1].num == 2
-        assert users[2].gender == 1
-        assert users[2].num == 3
+        for user in users:
+            if user.gender is None:
+                assert user.num == 10
+            elif user.gender == 0:
+                assert user.num == 2
+            elif user.gender == 1:
+                assert user.num == 3
 
         users = await User.select(
             User.gender, t.F.count(t.SQL('1')).as_('num')
@@ -717,12 +645,6 @@ class TestModel:
         ).all()
         assert users.count == 3
         assert isinstance(users[0], util.adict)
-        assert users[0].gender is None
-        assert users[0].num == 10
-        assert users[1].gender == 0
-        assert users[1].num == 2
-        assert users[2].gender == 1
-        assert users[2].num == 3
 
         users = await User.select(
             User.age, t.F.count(t.SQL('*')).as_('num')
@@ -732,13 +654,11 @@ class TestModel:
             User.age >= 10
         ).all()
         assert users.count == 5
-        assert users == [
-            {'age': 18, 'num': 1},
-            {'age': 25, 'num': 1},
-            {'age': 28, 'num': 1},
-            {'age': 45, 'num': 2},
-            {'age': 90, 'num': 1}
-        ]
+        for user in users:
+            if user.age in (18, 25, 28, 90):
+                assert user.num == 1
+            elif user.age == 45:
+                assert user.num == 2
 
         users = await User.select().order_by(
             User.name).limit(10).offset(7).all()
@@ -927,7 +847,7 @@ class TestModel:
         assert ret.last_id == 17
         user = await User.get(ret.last_id)
         assert user.password == 'ppp1'
-        assert isinstance(user.lastlogin, datetime)
+        assert isinstance(user.lastlogin, datetime.datetime)
 
         employee = {
             'name': 'eee1', 'gender': 1, 'age': 40,
@@ -1133,14 +1053,14 @@ class TestModel:
             People.id == 6
         ).do()
         people = await People.get(6)
-        assert people.create_at == datetime.strptime(dt, dtpformat)
+        assert people.create_at == datetime.datetime.strptime(dt, dtpformat)
         ret = await User.update(
             lastlogin=dt
         ).where(
             User.id == 1
         ).do()
         user = await User.get(1)
-        assert user.lastlogin == datetime.strptime(dt, dtpformat)
+        assert user.lastlogin == datetime.datetime.strptime(dt, dtpformat)
 
         try:
             ret = await Employee.update().do()
@@ -1355,8 +1275,8 @@ def test_model():
     assert table.indexes[0].name == 'idx_name'
     assert table.db is None
     assert table.auto_increment == 1
-    assert table.engine == 'InnoDB'
-    assert table.charset == 'utf8'
+    assert table.engine == ENGINE.innodb
+    assert table.charset == ENCODING.UTF8MB4
     assert table.comment == ''
     assert table.primary.auto is True
     assert get_attrs(People) == ({
@@ -1494,8 +1414,8 @@ def test_model_instance():
     user = User(name='at7h', age=20)
     assert user
     assert not User()
-    assert repr(user) == '<User object> at None'
-    assert str(user) == "<User object> at None"
+    assert repr(user) == '<User object at None>'
+    assert str(user) == "<User object at None>"
     assert user.name == 'at7h'
     assert user.age == 20
     assert user.id is None
@@ -1533,7 +1453,7 @@ def test_model_instance():
 
     user.age = '30'
     user.password = 'XXXX'
-    create_at = datetime(2020, 1, 1, 0, 0, 0)
+    create_at = datetime.datetime(2020, 1, 1, 0, 0, 0)
     user.create_at = create_at
     assert user.__self__ == {
         'name': 'at7h', 'age': 30, 'password': "XXXX",

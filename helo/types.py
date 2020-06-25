@@ -11,7 +11,7 @@ import uuid
 import warnings
 from typing import Any, Optional, Union, Callable, List, Tuple, Dict
 
-from . import util, err, _helper, _builder
+from . import util, err, _helper, _builder, _const
 
 __all__ = (
     "Tinyint",
@@ -44,215 +44,173 @@ __all__ = (
     "ON_UPDATE",
 )
 
-ENGINE = util.adict(
-    innodb="InnoDB",
-    myisam="MyISAM",
-)
-ENCODING = util.adict(
-    utf8="utf8",
-    utf16="utf16",
-    utf32="utf32",
-    utf8mb4="utf8mb4",
-    gbk="gbk",
-    gb2312="gb2312",
-)
 SEQUENCE = (list, tuple, set, frozenset)
 ID = Union[int, str]
 NULL = 'null'
 SQL = _builder.SQL
-ON_CREATE = SQL("CURRENT_TIMESTAMP")
-ON_UPDATE = SQL("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
+ON_CREATE = SQL('CURRENT_TIMESTAMP')
+ON_UPDATE = SQL('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')
+ENCODING = util.In(_const.ENCODINGS, 'Encoding')
+ENGINE = _const.MYSQL_ENGINE
+OPERATOR = _const.OPERATOR
 
 
 class _ColumnBase(_builder.Node):
 
     __slots__ = ()
 
-    OPERATOR = util.adict(
-        AND='AND',
-        OR='OR',
-        ADD='+',
-        SUB='-',
-        MUL='*',
-        DIV='/',
-        BIN_AND='&',
-        BIN_OR='|',
-        XOR='#',
-        MOD='%',
-        EQ='=',
-        LT='<',
-        LTE='<=',
-        GT='>',
-        GTE='>=',
-        NE='!=',
-        IN='IN',
-        NOT_IN='NOT IN',
-        IS='IS',
-        IS_NOT='IS NOT',
-        LIKE='LIKE BINARY',
-        ILIKE='LIKE',
-        EXISTS='EXISTS',
-        NEXISTS='NOT EXISTS',
-        BETWEEN='BETWEEN',
-        NBETWEEN='NOT BETWEEN',
-        REGEXP='REGEXP BINARY',
-        IREGEXP='REGEXP',
-        BITWISE_NEGATION='~',
-        CONCAT='||',
-    )
-
     def __sql__(self, ctx: _builder.Context):
         raise NotImplementedError
 
     def __and__(self, rhs: Any) -> Expression:
-        return Expression(self, self.OPERATOR.AND, rhs)
+        return Expression(self, OPERATOR.AND, rhs)
 
     def __rand__(self, lhs: Any) -> Expression:
-        return Expression(lhs, self.OPERATOR.AND, self)
+        return Expression(lhs, OPERATOR.AND, self)
 
     def __or__(self, rhs: Any) -> Expression:
-        return Expression(self, self.OPERATOR.OR, rhs)
+        return Expression(self, OPERATOR.OR, rhs)
 
     def __ror__(self, lhs: Any) -> Expression:
-        return Expression(lhs, self.OPERATOR.OR, self)
+        return Expression(lhs, OPERATOR.OR, self)
 
     def __add__(self, rhs: Any) -> Expression:
-        return Expression(self, self.OPERATOR.ADD, rhs)
+        return Expression(self, OPERATOR.ADD, rhs)
 
     def __radd__(self, lhs: Any) -> Expression:
-        return Expression(lhs, self.OPERATOR.ADD, self)
+        return Expression(lhs, OPERATOR.ADD, self)
 
     def __sub__(self, rhs: Any) -> Expression:
-        return Expression(self, self.OPERATOR.SUB, rhs)
+        return Expression(self, OPERATOR.SUB, rhs)
 
     def __rsub__(self, lhs: Any) -> Expression:
-        return Expression(lhs, self.OPERATOR.SUB, self)
+        return Expression(lhs, OPERATOR.SUB, self)
 
     def __mul__(self, rhs: Any) -> Expression:
-        return Expression(self, self.OPERATOR.MUL, rhs)
+        return Expression(self, OPERATOR.MUL, rhs)
 
     def __rmul__(self, lhs: Any) -> Expression:
-        return Expression(lhs, self.OPERATOR.MUL, self)
+        return Expression(lhs, OPERATOR.MUL, self)
 
     def __div__(self, rhs: Any) -> Expression:
-        return Expression(self, self.OPERATOR.DIV, rhs)
+        return Expression(self, OPERATOR.DIV, rhs)
 
     def __rdiv__(self, lhs: Any) -> Expression:
-        return Expression(lhs, self.OPERATOR.DIV, self)
+        return Expression(lhs, OPERATOR.DIV, self)
 
     __truediv__ = __div__
     __rtruediv__ = __rdiv__
 
     def __xor__(self, rhs: Any) -> Expression:
-        return Expression(self, self.OPERATOR.XOR, rhs)
+        return Expression(self, OPERATOR.XOR, rhs)
 
     def __rxor__(self, lhs: Any) -> Expression:
-        return Expression(lhs, self.OPERATOR.XOR, self)
+        return Expression(lhs, OPERATOR.XOR, self)
 
     def __eq__(self, rhs: Any) -> Expression:  # type: ignore
-        op = self.OPERATOR.IS if rhs is None else self.OPERATOR.EQ
+        op = OPERATOR.IS if rhs is None else OPERATOR.EQ
         return Expression(self, op, rhs)
 
     def __ne__(self, rhs: Any) -> Expression:  # type: ignore
-        op = self.OPERATOR.IS_NOT if rhs is None else self.OPERATOR.NE
+        op = OPERATOR.IS_NOT if rhs is None else OPERATOR.NE
         return Expression(self, op, rhs)
 
     def __lt__(self, rhs: Any) -> Expression:
-        return Expression(self, self.OPERATOR.LT, rhs)
+        return Expression(self, OPERATOR.LT, rhs)
 
     def __le__(self, rhs: Any) -> Expression:
-        return Expression(self, self.OPERATOR.LTE, rhs)
+        return Expression(self, OPERATOR.LTE, rhs)
 
     def __gt__(self, rhs: Any) -> Expression:
-        return Expression(self, self.OPERATOR.GT, rhs)
+        return Expression(self, OPERATOR.GT, rhs)
 
     def __ge__(self, rhs: Any) -> Expression:
-        return Expression(self, self.OPERATOR.GTE, rhs)
+        return Expression(self, OPERATOR.GTE, rhs)
 
     def __lshift__(self, rhs: Any) -> Expression:
-        return Expression(self, self.OPERATOR.IN, rhs)
+        return Expression(self, OPERATOR.IN, rhs)
 
     def __rshift__(self, rhs: Any):
-        return Expression(self, self.OPERATOR.IS, rhs)
+        return Expression(self, OPERATOR.IS, rhs)
 
     def __mod__(self, rhs: Any) -> Expression:
-        return Expression(self, self.OPERATOR.LIKE, rhs)
+        return Expression(self, OPERATOR.LIKE, rhs)
 
     def __pow__(self, rhs: Any) -> Expression:
-        return Expression(self, self.OPERATOR.ILIKE, rhs)
+        return Expression(self, OPERATOR.ILIKE, rhs)
 
     def __getitem__(self, item: slice) -> Expression:
         if isinstance(item, slice):
             if item.start is None or item.stop is None:
                 raise ValueError(
-                    'BETWEEN range must have both a start and end-point.'
+                    'the BETWEEN range must have both a start and end-point.'
                 )
             return self.between(item.start, item.stop)
         return self == item
 
     def concat(self, rhs: Any) -> StrExpression:
-        return StrExpression(self, self.OPERATOR.CONCAT, rhs)
+        return StrExpression(self, OPERATOR.CONCAT, rhs)
 
     def binand(self, rhs: Any) -> Expression:
-        return Expression(self, self.OPERATOR.BIN_AND, rhs)
+        return Expression(self, OPERATOR.BIN_AND, rhs)
 
     def binor(self, rhs: Any) -> Expression:
-        return Expression(self, self.OPERATOR.BIN_OR, rhs)
+        return Expression(self, OPERATOR.BIN_OR, rhs)
 
     def in_(self, rhs: Any) -> Expression:
-        return Expression(self, self.OPERATOR.IN, rhs)
+        return Expression(self, OPERATOR.IN, rhs)
 
     def nin_(self, rhs: Any) -> Expression:
-        return Expression(self, self.OPERATOR.NOT_IN, rhs)
+        return Expression(self, OPERATOR.NOT_IN, rhs)
 
     def exists(self, rhs: Any) -> Expression:
-        return Expression(self, self.OPERATOR.EXISTS, rhs)
+        return Expression(self, OPERATOR.EXISTS, rhs)
 
     def nexists(self, rhs: Any) -> Expression:
-        return Expression(self, self.OPERATOR.NEXISTS, rhs)
+        return Expression(self, OPERATOR.NEXISTS, rhs)
 
     def isnull(self, is_null: bool = True) -> Expression:
-        op = self.OPERATOR.IS if is_null else self.OPERATOR.IS_NOT
+        op = OPERATOR.IS if is_null else OPERATOR.IS_NOT
         return Expression(self, op, None)
 
     def regexp(self, rhs: Any, i: bool = True) -> Expression:
         if i:
-            return Expression(self, self.OPERATOR.IREGEXP, rhs)
-        return Expression(self, self.OPERATOR.REGEXP, rhs)
+            return Expression(self, OPERATOR.IREGEXP, rhs)
+        return Expression(self, OPERATOR.REGEXP, rhs)
 
     def like(self, rhs: Any, i: bool = True) -> Expression:
         if i:
-            return Expression(self, self.OPERATOR.ILIKE, rhs)
-        return Expression(self, self.OPERATOR.LIKE, rhs)
+            return Expression(self, OPERATOR.ILIKE, rhs)
+        return Expression(self, OPERATOR.LIKE, rhs)
 
     def contains(self, rhs: Any, i: bool = True) -> Expression:
         if i:
-            return Expression(self, self.OPERATOR.ILIKE, f"%{rhs}%")
-        return Expression(self, self.OPERATOR.LIKE, f"%{rhs}%")
+            return Expression(self, OPERATOR.ILIKE, f"%{rhs}%")
+        return Expression(self, OPERATOR.LIKE, f"%{rhs}%")
 
     def startswith(self, rhs: Any, i: bool = True) -> Expression:
         if i:
-            return Expression(self, self.OPERATOR.ILIKE, f"{rhs}%")
-        return Expression(self, self.OPERATOR.LIKE, f"{rhs}%")
+            return Expression(self, OPERATOR.ILIKE, f"{rhs}%")
+        return Expression(self, OPERATOR.LIKE, f"{rhs}%")
 
     def endswith(self, rhs: Any, i: bool = True) -> Expression:
         if i:
-            return Expression(self, self.OPERATOR.ILIKE, f"%{rhs}")
-        return Expression(self, self.OPERATOR.LIKE, f"%{rhs}")
+            return Expression(self, OPERATOR.ILIKE, f"%{rhs}")
+        return Expression(self, OPERATOR.LIKE, f"%{rhs}")
 
     def between(self, low: Any, hig: Any) -> Expression:
         return Expression(
-            self, self.OPERATOR.BETWEEN,
+            self, OPERATOR.BETWEEN,
             _builder.NodeList(
-                [_builder.Value(low), self.OPERATOR.AND, _builder.Value(hig)]
+                [_builder.Value(low), OPERATOR.AND, _builder.Value(hig)]
             )
         )
 
     def nbetween(self, low: Any, hig: Any) -> Expression:
         return Expression(
-            self, self.OPERATOR.NBETWEEN,
+            self, OPERATOR.NBETWEEN,
             _builder.NodeList(
-                [_builder.Value(low), self.OPERATOR.AND, _builder.Value(hig)]
+                [_builder.Value(low), OPERATOR.AND, _builder.Value(hig)]
             )
         )
 
@@ -301,7 +259,7 @@ class _Alias(Column):
         if isinstance(self.node, Column):
             realname = getattr(self.node, 'name', None) or self.alias
             if self.alias in ctx.aliases:
-                raise err.ProgrammingError(f"Ambiguous alias: {self.alias}")
+                raise err.ProgrammingError(f"ambiguous alias: {self.alias}")
             ctx.aliases[self.alias] = realname
         return ctx
 
@@ -326,13 +284,13 @@ class Expression(Column):
         elif isinstance(self.rhs, FieldBase):
             overrides['converter'] = self.rhs.db_value
 
-        if self.op in (self.OPERATOR.IN,
-                       self.OPERATOR.NOT_IN,
-                       self.OPERATOR.EXISTS,
-                       self.OPERATOR.NEXISTS):
+        if self.op in (OPERATOR.IN,
+                       OPERATOR.NOT_IN,
+                       OPERATOR.EXISTS,
+                       OPERATOR.NEXISTS):
             if not isinstance(self.rhs, (SEQUENCE, _builder.Node)):
                 raise TypeError(
-                    f"Invalid values {self.rhs} for operator '{self.op}'")
+                    f"invalid values {self.rhs} for operator '{self.op}'")
             if isinstance(self.rhs, _builder.Node):
                 self.rhs = _builder.EnclosedNodeList([self.rhs])
             else:
@@ -357,7 +315,7 @@ class StrExpression(Expression):
         return self.concat(rhs)
 
     def __radd__(self, lhs: Any) -> StrExpression:
-        return StrExpression(lhs, self.OPERATOR.CONCAT, self)
+        return StrExpression(lhs, OPERATOR.CONCAT, self)
 
 
 class _FieldDef:
@@ -485,7 +443,7 @@ class FieldBase(Column):
                 py_types = [self.py_type, SQL]
             if not (isinstance(default, tuple(py_types)) or callable(default)):
                 raise TypeError(
-                    f"Invalid {self.__class__.__name__} default value ({default})"
+                    f"invalid {self.__class__.__name__} default value ({default})"
                 )
 
         self.null = null
@@ -500,7 +458,7 @@ class FieldBase(Column):
         return _FieldDef(self).parse()
 
     def __repr__(self) -> str:
-        return f"types.{self.__class__.__name__} object '{self.name}'"
+        return f"<types.{self.__class__.__name__} object '{self.name}'>"
 
     def __str__(self) -> str:
         return self.name
@@ -529,7 +487,7 @@ class FieldBase(Column):
             return self.py_type(value)  # pylint: disable=not-callable
         except ValueError:
             raise ValueError(
-                f"Iillegal value {value!r} for "
+                f"illegal value {value!r} for "
                 f"{self.__class__.__name__} Field"
             )
 
@@ -615,10 +573,10 @@ class Int(Tinyint):
         if self.primary_key is True:
             null = False
             if default is not None:
-                raise err.ProgrammingError("Primary key field not allow set default")
+                raise err.ProgrammingError("primary key field not allow set default")
         elif self.auto:
             raise err.ProgrammingError(
-                "'AUTO_INCREMENT' cannot be set for non-primary key fields",
+                "the 'AUTO_INCREMENT' cannot be set for non-primary key fields",
             )
 
         super().__init__(
@@ -724,7 +682,7 @@ class Float(FieldBase):
             if isinstance(length, SEQUENCE) and len(length) == 2:
                 self.length = tuple(length)  # type: ignore
             else:
-                raise TypeError(f"Invalid `Float` length type({length})")
+                raise TypeError(f"invalid `Float` length type({length})")
         self.unsigned = unsigned
         super().__init__(
             null=null,
@@ -762,7 +720,7 @@ class Decimal(FieldBase):
     ) -> None:
         if length:
             if not isinstance(length, tuple) or len(length) != 2:
-                raise TypeError("`Decimal` length"
+                raise TypeError("the `Decimal` length"
                                 "type must be tuple or list")
         self.length = tuple(length or self.default_md)
         self.unsigned = unsigned
@@ -807,7 +765,7 @@ class Text(FieldBase):
             name: str = ''
     ) -> None:
         if encoding and encoding not in ENCODING:
-            raise ValueError(f"Unsupported encoding '{encoding}'")
+            raise ValueError(f"unsupported encoding '{encoding}'")
         self.encoding = encoding
         self.null = null
         self.comment = comment
@@ -815,10 +773,10 @@ class Text(FieldBase):
         self.table = None
 
     def __add__(self, other: Any) -> StrExpression:
-        return StrExpression(self, self.OPERATOR.CONCAT, other)
+        return StrExpression(self, OPERATOR.CONCAT, other)
 
     def __radd__(self, other: Any) -> StrExpression:
-        return StrExpression(other, self.OPERATOR.CONCAT, self)
+        return StrExpression(other, OPERATOR.CONCAT, self)
 
 
 class Char(FieldBase):
@@ -840,17 +798,17 @@ class Char(FieldBase):
     ) -> None:
         self.length = length or self.default_length
         if encoding and encoding not in ENCODING:
-            raise ValueError(f"Unsupported encoding '{encoding}'")
+            raise ValueError(f"unsupported encoding '{encoding}'")
         self.encoding = encoding
         super().__init__(
             null=null, default=default, comment=comment, name=name
         )
 
     def __add__(self, other: Any) -> StrExpression:
-        return StrExpression(self, self.OPERATOR.CONCAT, other)
+        return StrExpression(self, OPERATOR.CONCAT, other)
 
     def __radd__(self, other: Any) -> StrExpression:
-        return StrExpression(other, self.OPERATOR.CONCAT, self)
+        return StrExpression(other, OPERATOR.CONCAT, self)
 
 
 class VarChar(Char):
@@ -876,7 +834,7 @@ class UUID(FieldBase):
     ) -> None:
         self.primary_key = primary_key
         if self.primary_key is True and default is not None:
-            raise err.ProgrammingError("Primary key field not allow set default")
+            raise err.ProgrammingError("primary key field not allow set default")
         super().__init__(
             null=False, default=default, comment=comment, name=name
         )
@@ -925,7 +883,7 @@ class IP(Bigint):
             if isinstance(value, int):
                 return _helper.iptostr(value)
             if not isinstance(value, str):
-                raise TypeError(f"Invalid type({value!r}) for IP Field")
+                raise TypeError(f"invalid type({value!r}) for IP Field")
             if not _helper.is_ipv4(value):
                 raise ValueError(IP.VALUEERR_MSG.format(value, "IP"))
         return value
@@ -1174,7 +1132,7 @@ class IndexBase(_builder.Node):
             elif isinstance(f, FieldBase):
                 self.fields.append(f.column)
             else:
-                raise TypeError(f"Invalid field type: {f}")
+                raise TypeError(f"invalid field type: {f}")
 
     def __def__(self) -> _builder.NodeList:
         nl = _builder.NodeList([
@@ -1191,7 +1149,7 @@ class IndexBase(_builder.Node):
 
     def __repr__(self) -> str:
         ddl_def = _builder.parse(self.__def__()).sql
-        return f"types.{self.__class__.__name__}({ddl_def})"
+        return f"<types.{self.__class__.__name__}({ddl_def})>"
 
     def __str__(self) -> str:
         return _builder.parse(self.__def__()).sql
@@ -1224,7 +1182,7 @@ class Table(_builder.Node):
     _DFT_META = util.adict(
         auto_increment=1,
         engine=ENGINE.innodb,
-        charset=ENCODING.utf8,
+        charset=ENCODING.UTF8MB4,
         comment='',
     )
 
@@ -1254,7 +1212,7 @@ class Table(_builder.Node):
 
         if not self.primary.field:
             raise err.NoPKError(
-                f"Primary key not found for table {self.table_name}"
+                f"primary key not found for table {self.table_name}"
             )
 
     @property
