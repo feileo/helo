@@ -45,7 +45,7 @@ Helo 可以在你的异步应用中帮助你轻松的构建出富有表达力的
 快速上手
 ========
 
-更多信息和 `上手文档 <https://github.com/at7h/helo/wiki/Helo-%E5%BF%AB%E9%80%9F%E4%B8%8A%E6%89%8B%E6%8C%87%E5%8D%97>`_ 请查看 helo wiki_ 页面。
+更多信息和 `上手文档`_ 请查看 helo wiki_ 页面。
 
 
 简单示例
@@ -172,7 +172,7 @@ Quart 项目
     import helo
 
     app = quart.Quart(__name__)
-    app.config["HELO_DATABASE_URL"] = "mysql://user:password@127.0.0.1:3306/db"
+    app.config["HELO_DATABASE_URL"] = "mysql://user:password@host:port/db"
 
     db = helo.G(app)
 
@@ -217,6 +217,7 @@ Quart 项目
 .. _quart: https://github.com/pgjones/quart
 .. _wiki: https://github.com/at7h/helo/wiki/Helo-%E5%BF%AB%E9%80%9F%E4%B8%8A%E6%89%8B%E6%8C%87%E5%8D%97
 .. _installation: https://github.com/at7h/helo/wiki#installation
+.. _上手文档: https://github.com/at7h/helo/wiki/Helo-%E5%BF%AB%E9%80%9F%E4%B8%8A%E6%89%8B%E6%8C%87%E5%8D%97
 .. _asyncio: https://docs.python.org/3.7/library/asyncio.html
 .. _aiomysql: https://github.com/aio-libs/aiomysql
 .. _peewee: https://github.com/coleifer/peewee
