@@ -32,14 +32,8 @@ Helo 可以在你的异步应用中帮助你轻松的构建出富有表达力的
 * 目前不支持表关系操作
 
 
-快速上手
---------
-
-更多信息和上手文档请查看 helo wiki_ 页面。
-
-
 安装
-----
+====
 
 .. code-block:: bash
 
@@ -48,8 +42,14 @@ Helo 可以在你的异步应用中帮助你轻松的构建出富有表达力的
 更多安装选项请查看 installation_ 页面。
 
 
+快速上手
+========
+
+更多信息和 `上手文档 <https://github.com/at7h/helo/wiki/Helo-%E5%BF%AB%E9%80%9F%E4%B8%8A%E6%89%8B%E6%8C%87%E5%8D%97>`_ 请查看 helo wiki_ 页面。
+
+
 简单示例
---------
+========
 
 首先，你需要引入 ``helo`` 并使用 ``helo.G`` 实例化一个全局变量，假定称其为 ``db``:
 
@@ -164,7 +164,7 @@ Helo 可以在你的异步应用中帮助你轻松的构建出富有表达力的
 Quart 项目
 ---------
 
-如果你正在使用 quart_, 一个最小的应用示例应该是这样的:
+如果你正在使用 quart_, 一个最小的应用示例应该是:
 
 .. code-block:: python
 
@@ -199,7 +199,7 @@ Quart 项目
 
 
 贡献 👏
--------
+=======
 
 希望感兴趣的同学可以参与进来，群策群力。
 
@@ -208,15 +208,14 @@ Quart 项目
 
 
 感谢 🤝
--------
+=======
 
 * 特别感谢项目 aiomysql_ 和 peewee_, helo 使用了前者(作为 MySQL 连接驱动)，并在设计上参考了后者。
 * 如果项目对你有帮助请朝 ⭐️ 猛戳 😉 ! 十分感谢!
 
 
-.. _wiki: https://github.com/at7h/helo/wiki
 .. _quart: https://github.com/pgjones/quart
-.. _quickstart: https://github.com/at7h/helo/wiki#quickstart
+.. _wiki: https://github.com/at7h/helo/wiki/Helo-%E5%BF%AB%E9%80%9F%E4%B8%8A%E6%89%8B%E6%8C%87%E5%8D%97
 .. _installation: https://github.com/at7h/helo/wiki#installation
 .. _asyncio: https://docs.python.org/3.7/library/asyncio.html
 .. _aiomysql: https://github.com/aio-libs/aiomysql

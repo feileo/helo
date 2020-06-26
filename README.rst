@@ -35,14 +35,8 @@ You only need to use friendly object-oriented APIs to manipulate data without ca
 * Not supports table relationship now
 
 
-Quickstart
-----------
-
-See the wiki_ page for more information and quickstart_ documentation.
-
-
 Installation
-------------
+============
 
 .. code-block:: bash
 
@@ -51,8 +45,14 @@ Installation
 See the installation_ wiki page for more options.
 
 
+Quickstart
+==========
+
+See the wiki_ page for more information and quickstart_ documentation.
+
+
 Basic Examples
---------------
+==============
 
 First, you should to import ``helo`` and instantiate a global variable with ``helo.G``
 
@@ -201,7 +201,7 @@ Run it:
 
 
 Contributing 👏
----------------
+===============
 
 I hope those who are interested can join in and work together.
 
@@ -210,15 +210,15 @@ report a bug 🐞, give a advice or create a pull request 🙋‍♂️.
 
 
 Thanks 🤝
----------
+=========
 
 * Special thanks to projects aiomysql_ and peewee_, helo uses aiomysql_ (as the MySQL connection driver),
   and referenced peewee_ in program design.
 * Please feel free to ⭐️ this repository if this project helped you 😉 !
 
-.. _wiki: https://github.com/at7h/helo/wiki
 .. _quart: https://github.com/pgjones/quart
-.. _quickstart: https://github.com/at7h/helo/wiki#quickstart
+.. _wiki: https://github.com/at7h/helo/wiki/Helo-quick-start-guide
+.. _quickstart: https://github.com/at7h/helo/wiki/Helo-quick-start-guide
 .. _installation: https://github.com/at7h/helo/wiki#installation
 .. _asyncio: https://docs.python.org/3.7/library/asyncio.html
 .. _aiomysql: https://github.com/aio-libs/aiomysql
