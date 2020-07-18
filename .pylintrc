@@ -229,6 +229,7 @@ logging-format-style=old
 # function parameter format.
 logging-modules=logging
 
+
 # try to find bugs in the code using type inference
 [TYPECHECK]
 
