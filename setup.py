@@ -15,6 +15,7 @@ else:
 with open('README.rst', 'r', encoding='utf-8') as readme_file:
     HELO_README = readme_file.read().strip()
 
+
 setup(
     name=helo.__name__,
     version=helo.__version__,
@@ -23,7 +24,7 @@ setup(
     author_email='g@at7h.com',
     url='https://github.com/at7h/helo',
     description=(
-        'Helo is a simple and small low-level asynchronous ORM using Python asyncio.'
+        'Helo is a simple and small low-level asynchronous ORM using Python asyncio'
     ),
     long_description=HELO_README,
     packages=find_packages(),
