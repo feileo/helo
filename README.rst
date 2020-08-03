@@ -206,14 +206,13 @@ Contributing 👏
 I hope those who are interested can join in and work together.
 
 Any kind of contribution is expected:
-report a bug 🐞, give a advice or create a pull request 🙋‍♂️.
+**report a bug 🐞, give a advice or create a pull request 🙋‍♂️**
 
 
 Thanks 🤝
 =========
 
-* Special thanks to projects aiomysql_ and peewee_, helo uses aiomysql_ (as the MySQL connection driver),
-  and referenced peewee_ in program design.
+* Helo used aiomysql_ and was inspired by peewee_ in programming. Thank you very much for both!
 * Please feel free to ⭐️ this repository if this project helped you 😉 !
 
 .. _quart: https://github.com/pgjones/quart
