@@ -1,4 +1,4 @@
-.. image:: /helo.png
+.. image:: http://cdn.at7h.com/helo.png
 
 ====
 helo
