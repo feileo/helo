@@ -77,15 +77,15 @@ class AssignmentPair(_sql.ClauseElement):
                 self._value
             )
         elif isinstance(self._value, ttype.Expression):
-            query = _sql.query(self._value)
-            # ctx.sql(
-            #   self._value
-            # )
-            ctx.literal(
-                query.sql
-            ).values(
-                query.params
+            # query = _sql.query(self._value)
+            ctx.sql(
+                self._value
             )
+            # ctx.literal(
+            #     query.sql
+            # ).values(
+            #     query.params
+            # )
         else:
             ctx.sql(
                 _sql.Value(self._value)
@@ -635,52 +635,54 @@ class Delete(Executor):
         return ctx
 
 
-class Show(Fetcher):
+# class Show(Fetcher):
 
-    __slots__ = ("_key",)
+#     __slots__ = ("_key",)
 
-    _options = {
-        "create": "SHOW CREATE TABLE ",
-        "columns": "SHOW FULL COLUMNS FROM ",
-        "indexes": "SHOW INDEX FROM ",
-    }
+#     _options = {
+#         "create": "SHOW CREATE TABLE ",
+#         "columns": "SHOW FULL COLUMNS FROM ",
+#         "indexes": "SHOW INDEX FROM ",
+#     }
 
-    def __init__(self, model: mtype.ModelType) -> None:
-        super().__init__(model)
-        self._key = None  # type: Optional[str]
+#     def __init__(self, model: mtype.ModelType) -> None:
+#         super().__init__(model)
+#         self._key = None  # type: Optional[str]
 
-    def __repr__(self) -> str:
-        return f"<Show object for {self._model.__table__!r}>"
+#     def __repr__(self) -> str:
+#         return f"<Show object for {self._model.__table__!r}>"
 
-    __str__ = __repr__
+#     __str__ = __repr__
 
-    async def create_syntax(self) -> Optional[util.adict]:
-        self._key = "create"
-        return (await self.__do__(rows=1)).get("Create Table")
+#     async def create_syntax(self) -> Optional[util.adict]:
+#         self._key = "create"
+#         return (await self.__do__(rows=1)).get("Create Table")
 
-    async def columns(self) -> List[Any]:
-        self._key = "columns"
-        return await self.__do__()
+#     async def columns(self) -> List[Any]:
+#         self._key = "columns"
+#         return await self.__do__()
 
-    async def indexes(self) -> List[Any]:
-        self._key = "indexes"
-        return await self.__do__()
+#     async def indexes(self) -> List[Any]:
+#         self._key = "indexes"
+#         return await self.__do__()
 
-    def __sql__(self, ctx: _sql.Context) -> _sql.Context:
-        if self._key is not None:
-            ctx.literal(
-                self._options[self._key]
-            ).sql(
-                self._model.__table__
-            )
-        return ctx
+#     def __sql__(self, ctx: _sql.Context) -> _sql.Context:
+#         if self._key is not None:
+#             ctx.literal(
+#                 self._options[self._key]
+#             ).sql(
+#                 self._model.__table__
+#             )
+#         return ctx
 
 
 class Create(Executor):
 
     __slots__ = ('_options',)
 
-    def __init__(self, model: mtype.ModelType, **options: Any) -> None:
+    def __init__(
+        self, model: mtype.ModelType, **options: Dict[str, Any]
+    ) -> None:
         super().__init__(model)
         self._options = options
 

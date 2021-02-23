@@ -3,17 +3,18 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any, Dict, Optional, List, Union, Tuple
 
-from helo import db
-from helo import util
-from helo import err
-from helo import _sql
-from helo.orm import core
-from helo.orm import typ as mtype
-from helo.types import core as types
+from .. import db
+from .. import util
+from .. import err
+from .. import _sql
+from ..types import core as types
+from . import core
+from . import typ as mtype
 
 
 class Model(metaclass=mtype.ModelType):
     """From Model defining your model is easy
+
     >>> import helo
     >>>
     >>> db = helo.Helo()
@@ -73,31 +74,17 @@ class Model(metaclass=mtype.ModelType):
     def __self__(self) -> Dict[str, Any]:
         return deepcopy(self.__dict__)
 
-    # @property
-    # def adict(self):
-    #     ad = util.adict(self.__dict__)
-    #     join = ad.pop("__join__", None)
-    #     if join:
-    #         ad.update(join)
-    #     return ad
-
     @classmethod
-    async def create(cls, **options: Any) -> db.ExeResult:
+    async def create(cls, **options: Dict[str, Any]) -> db.ExeResult:
         """Create a table in the database from the model"""
 
         return await create_table(cls, **options)
 
     @classmethod
-    async def drop(cls, **options: Any) -> db.ExeResult:
+    async def drop(cls, **options: Dict[str, Any]) -> db.ExeResult:
         """Drop a table in the database from the model"""
 
         return await drop_table(cls, **options)
-
-    @classmethod
-    def show(cls) -> core.Show:
-        """Show information about table"""
-
-        return show(cls)
 
     #
     # Simple API for short
@@ -112,7 +99,13 @@ class Model(metaclass=mtype.ModelType):
 
         >>> user = await User.get(1)
         >>> user
-        <User objetc> at 1
+        <User objetc 1>
+        >>> user.nickname
+        'at7h'
+        >>>
+        >>> user = await User.get(User.nickname=='at7h')
+        >>> user
+        <User objetc 1>
         >>> user.nickname
         'at7h'
         """
@@ -351,7 +344,7 @@ class Model(metaclass=mtype.ModelType):
 
 
 async def create_table(
-    m: mtype.ModelType, **options: Any
+    m: mtype.ModelType, **options: Dict[str, Any]
 ) -> db.ExeResult:
     if m.__name__ == mtype.BUILTIN_MODEL_NAME:
         raise err.NotAllowedOperation(f"{m.__name__} is built-in model name")
@@ -360,7 +353,7 @@ async def create_table(
 
 
 async def drop_table(
-    m: mtype.ModelType, **options: Any
+    m: mtype.ModelType, **options: Dict[str, Any]
 ) -> db.ExeResult:
     if m.__name__ == mtype.BUILTIN_MODEL_NAME:
         raise err.NotAllowedOperation(f"{m.__name__} is built-in model name")
@@ -368,20 +361,18 @@ async def drop_table(
     return await core.Drop(m, **options).do()
 
 
-def show(m: mtype.ModelType) -> core.Show:
-    return core.Show(m)
-
-
 async def get(
-    m: mtype.ModelType,
-    by: Union[types.ID, types.Expression],
+    m: mtype.ModelType, by: Union[types.ID, types.Expression],
 ) -> Union[None, util.adict, Model]:
-    where = by
-    if not isinstance(where, types.Expression):
-        where = m.__table__.primary.field == where
+    if not isinstance(by, types.Expression):
+        where = m.__table__.primary.field == by
+    else:
+        where = by
     return (
         await core.Select([m]).where(where).get()
     )
+
+# $$$$$$$$$$$$$$$$$$
 
 
 @util.argschecker(by=(types.SEQUENCE, types.Expression))
