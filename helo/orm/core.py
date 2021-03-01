@@ -235,6 +235,7 @@ class Fetcher(_sql.ClauseElement):
         return await database.execute(self.query(), **self._props)
 
     def query(self) -> _sql.Query:
+        # TODO
         ctx = _sql.Context.from_clause(
             self, is_mysql=self._model.__db__.scheme == "mysql"
         )
@@ -286,10 +287,6 @@ class Select(Fetcher):
         self._offset = None    # type: Optional[int]
         self._inline_model = None if len(froms) < 2 else froms[1]
         self._wrap = self._model.__rowtype__ == mtype.ROWTYPE.MODEL
-
-    def adict(self) -> Select:
-        self._wrap = False
-        return self
 
     def join(
         self,
@@ -353,6 +350,8 @@ class Select(Fetcher):
         self._offset = offset
         return self
 
+    ########################
+
     async def get(self) -> Union[None, util.adict, mtype.Model]:
         return await self.__do__(rows=self._SINGLE)
 
@@ -383,8 +382,9 @@ class Select(Fetcher):
         self._offset = page * size
         return await self.__do__()
 
+    @property
     def all(self) -> Union[List[util.adict], List[mtype.Model]]:
-        return self.__do__()
+        return self
 
     async def scalar(self) -> Union[int, Dict[str, int]]:
         row = await super().__do__()
@@ -399,15 +399,23 @@ class Select(Fetcher):
     async def exist(self) -> bool:
         return bool(await self.limit(self._SINGLE).count())
 
+    def adict(self) -> Select:
+        self._wrap = False
+        return self()
+
+    async def __call__(self, **props):
+        kwargs = await self.__do__(**props)
+        return Loader(**kwargs)()
+
     async def __do__(self, **props) -> Any:
-        return Loader(**{
-            "data": await super().__do__(**props),
+        return {
+            "data": await (super().__do__(**props)),
             "model": self._model,
             "inline_model": self._inline_model,
             "aliases": self._aliases,
             "sources": self._sources,
             "wrap": self._wrap
-        })()
+        }
 
     async def __aiter__(self) -> Any:
         database = self._model.__db__
@@ -484,7 +492,7 @@ class Insert(Executor):
     def __init__(
         self,
         model: mtype.ModelType,
-        values: Union[Dict[str, Any], List[ttype.Field]],
+        values: Union[Dict[str, Any], List[Dict[str, Any]], List[ttype.Field]],
         many: bool = False
     ) -> None:
         super().__init__(model)
@@ -507,11 +515,9 @@ class Insert(Executor):
             self._model.__table__
         )
 
-        if isinstance(self._values, dict):
-            ctx.sql(
-                ValuesMatch(self._values)
-            )
-        elif isinstance(self._values, list):
+        if self._from is not None:
+            ctx.sql(ValuesMatch(self._values))
+        else:
             for i, f in enumerate(self._values):
                 if isinstance(f, str):
                     self._values[i] = _sql.EscapedElement(f)
@@ -533,7 +539,7 @@ class Replace(Executor):
     def __init__(
         self,
         model: mtype.ModelType,
-        values: Union[Dict[str, Any]],
+        values: Union[Dict[str, Any], List[Dict[str, Any]]],
         many: bool = False
     ) -> None:
         super().__init__(model)
@@ -546,7 +552,7 @@ class Replace(Executor):
             "REPLACE INTO "
         ).sql(self._model.__table__)
 
-        ctx.sql(ValuesMatch(self._values))
+        ctx.sql(self._values)
         return ctx
 
 
@@ -555,7 +561,9 @@ class Update(Executor):
     __slots__ = ('_values', '_from', '_where')
 
     def __init__(
-        self, model: mtype.ModelType, values: Dict[str, Any]
+        self,
+        model: mtype.ModelType,
+        values: Dict[str, Any]
     ) -> None:
         super().__init__(model)
         self._values = values
@@ -806,6 +814,7 @@ class Loader:
             model.__dict__["__join__"] = {
                 self._inline_model_cls.__name__.lower(): join_model
             }
+        model.__dict__['__saved__'] = True
         return model
 
     def _get_field(self, name: str) -> Tuple[str, ttype.Field, bool]:

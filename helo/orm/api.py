@@ -7,7 +7,7 @@ from .. import db
 from .. import util
 from .. import err
 from .. import _sql
-from ..types import core as types
+from ..types import core as ttype
 from . import core
 from . import typ as mtype
 
@@ -32,8 +32,8 @@ class Model(metaclass=mtype.ModelType):
             setattr(self, attr, kwargs[attr])
 
     def __repr__(self) -> str:
-        id_ = getattr(self, self.__table__.primary.attr, None)
-        return f"<{self.__class__.__name__} object {id_}>"
+        pk = getattr(self, self.__table__.primary.attr, None)
+        return f"<{self.__class__.__name__} object {pk}>"
 
     def __str__(self) -> str:
         return f"{self.__class__.__name__}({self.__dict__})"
@@ -92,8 +92,8 @@ class Model(metaclass=mtype.ModelType):
     @classmethod
     async def get(
         cls,
-        by: Union[types.ID, types.Expression]
-    ) -> Union[None, Model]:
+        by: Union[ttype.ID, ttype.Expression]
+    ) -> Union[None, util.adict, Model]:
         """Getting a row by the primary key
         or simple query expression
 
@@ -117,10 +117,10 @@ class Model(metaclass=mtype.ModelType):
     @classmethod
     async def mget(
         cls,
-        by: Union[List[types.ID], types.Expression],
+        by: Union[List[ttype.ID], ttype.Expression],
         *,
-        columns: Optional[List[types.Column]] = None,
-    ) -> List[Model]:
+        columns: Optional[List[ttype.Column]] = None,
+    ) -> Union[List[util.adict], List[Model]]:
         """Getting rows by the primary key list
         or simple query expression
 
@@ -137,7 +137,7 @@ class Model(metaclass=mtype.ModelType):
         cls,
         __row: Optional[Dict[str, Any]] = None,
         **values: Any
-    ) -> types.ID:
+    ) -> ttype.ID:
         """Adding a row, simple and shortcut of ``insert``
 
         # Using keyword arguments:
@@ -178,28 +178,28 @@ class Model(metaclass=mtype.ModelType):
             raise ValueError("no data to madd")
         return await add_many(cls, rows)
 
-    @classmethod
-    async def set(cls, _id: types.ID, **values: Any) -> int:
-        """Setting the value of a row with the primary key
+    # @classmethod
+    # async def set(cls, pk: ttype.ID, **values: Any) -> int:
+    #     """Setting the value of a row with the primary key
 
-        >>> user = await User.get(1)
-        >>> user.password
-        777
-        >>> await User.set(1, password='888')
-        1
-        >>> user = await User.get(1)
-        >>> user.password
-        888
-        """
+    #     >>> user = await User.get(1)
+    #     >>> user.password
+    #     777
+    #     >>> await User.set(1, password='888')
+    #     1
+    #     >>> user = await User.get(1)
+    #     >>> user.password
+    #     888
+    #     """
 
-        if not values:
-            raise ValueError('no _id or values to set')
-        return await set(cls, _id, values)
+    #     if not values:
+    #         raise ValueError("no 'pk' or 'values' to set")
+    #     return await set(cls, pk, values)
 
     # API that translates directly from SQL statements(DQL, DML).
     # You have to explicitly execute them via methods like `do()`.
     @classmethod
-    def select(cls, *columns: types.Column) -> core.Select:
+    def select(cls, *columns: ttype.Column) -> core.Select:
         """Select Query, see ``Select``"""
 
         return select(cls, *columns)
@@ -231,7 +231,7 @@ class Model(metaclass=mtype.ModelType):
     def minsert(
         cls,
         rows: List[Union[Dict[str, Any], Tuple[Any, ...]]],
-        columns: Optional[List[types.Field]] = None
+        columns: Optional[List[ttype.Field]] = None
     ) -> core.Insert:
         """Inserting multiple
 
@@ -260,7 +260,7 @@ class Model(metaclass=mtype.ModelType):
 
     @classmethod
     def insert_from(
-        cls, from_: core.Select, columns: List[types.Field]
+        cls, from_: core.Select, columns: List[ttype.Field]
     ) -> core.Insert:
         """Inserting from select clause
 
@@ -312,7 +312,7 @@ class Model(metaclass=mtype.ModelType):
     def mreplace(
         cls,
         rows: List[Union[Dict[str, Any], Tuple[Any, ...]]],
-        columns: Optional[List[types.Field]] = None
+        columns: Optional[List[ttype.Field]] = None
     ) -> core.Replace:
         """MySQL REPLACE, similar to ``minsert``"""
 
@@ -322,7 +322,7 @@ class Model(metaclass=mtype.ModelType):
 
     # instance
 
-    async def save(self) -> types.ID:
+    async def save(self) -> ttype.ID:
         """Write objects in memory to database
 
         >>> user = User(nickname='at7h',password='777')
@@ -362,9 +362,9 @@ async def drop_table(
 
 
 async def get(
-    m: mtype.ModelType, by: Union[types.ID, types.Expression],
+    m: mtype.ModelType, by: Union[ttype.ID, ttype.Expression],
 ) -> Union[None, util.adict, Model]:
-    if not isinstance(by, types.Expression):
+    if not isinstance(by, ttype.Expression):
         where = m.__table__.primary.field == by
     else:
         where = by
@@ -372,17 +372,15 @@ async def get(
         await core.Select([m]).where(where).get()
     )
 
-# $$$$$$$$$$$$$$$$$$
 
-
-@util.argschecker(by=(types.SEQUENCE, types.Expression))
+@util.argschecker(by=(ttype.SEQUENCE, ttype.Expression))
 async def get_many(
     m: mtype.ModelType,
-    by: Union[List[types.ID], types.Expression],
-    columns: Union[Tuple[types.Column, ...], List[types.Column]],
+    by: Union[List[ttype.ID], ttype.Expression],
+    columns: Union[Tuple[ttype.Column, ...], List[ttype.Column]],
 ) -> Union[List[util.adict], List[Model]]:
     where = by
-    if isinstance(where, types.SEQUENCE):
+    if isinstance(where, ttype.SEQUENCE):
         where = m.__table__.primary.field.in_(by)
     return await (
         core.Select([m], columns=columns).where(where).all()  # type: ignore
@@ -393,7 +391,7 @@ async def get_many(
 async def add(
     m: mtype.ModelType,
     row: Dict[str, Any]
-) -> types.ID:
+) -> ttype.ID:
     addrow = _gen_insert_row(m, row)
     return (
         await core.Insert(m, addrow).do()
@@ -419,32 +417,32 @@ async def add_many(
     ).affected
 
 
-@util.argschecker(values=dict, nullable=False)
-async def set(
-    m: mtype.ModelType,
-    id_: types.ID,
-    values: Any
-) -> int:
-    table = m.__table__
-    values = _normalize_update_values(m, values)
-    return (
-        await core.Update(
-            m, values
-        ).where(
-            table.primary.field == id_
-        ).do()
-    ).affected
+# @util.argschecker(values=dict, nullable=False)
+# async def set(
+#     m: mtype.ModelType,
+#     pk: ttype.ID,
+#     values: Any
+# ) -> int:
+#     table = m.__table__
+#     values = _normalize_update_values(m, values)
+#     return (
+#         await core.Update(
+#             m, values
+#         ).where(
+#             table.primary.field == pk
+#         ).do()
+#     ).affected
 
 
 def select(
-    m: mtype.ModelType, *columns: types.Column
+    m: mtype.ModelType, *columns: ttype.Column
 ) -> core.Select:
     return core.Select([m], columns=columns)
 
 
 def insert(
     m: mtype.ModelType,
-    row: Union[Dict[str, Any], List[types.Field]],
+    row: Union[Dict[str, Any], List[ttype.Field]],
     from_select: Optional[core.Select] = None
 ) -> core.Insert:
     if isinstance(row, dict):
@@ -457,11 +455,11 @@ def insert(
     return core.Insert(m, row).from_(from_select)
 
 
-@util.argschecker(rows=types.SEQUENCE)
+@util.argschecker(rows=ttype.SEQUENCE)
 def insert_many(
     m: mtype.ModelType,
-    rows: List[Union[Dict[str, Any], Tuple[Any, ...]]],
-    columns: Optional[List[types.Field]] = None
+    rows: List[Union[Dict[str, Any], Tuple[Dict[str, Any], ...]]],
+    columns: Optional[List[ttype.Field]] = None
 ) -> core.Insert:
     normalize_rows = _normalize_insert_rows(m, rows, columns)
     return core.Insert(m, normalize_rows, many=True)
@@ -484,21 +482,25 @@ def replace(m: mtype.ModelType, row: Dict[str, Any]) -> core.Replace:
 def replace_many(
     m: mtype.ModelType,
     rows: List[Union[Dict[str, Any], Tuple[Any, ...]]],
-    columns: Optional[List[types.Field]] = None
+    columns: Optional[List[ttype.Field]] = None
 ) -> core.Replace:
     normalize_rows = _normalize_insert_rows(m, rows, columns, for_replace=True)
     return core.Replace(m, normalize_rows, many=True)
 
 
-async def save(mo: Model) -> types.ID:
+async def save(mo: Model) -> ttype.ID:
     has_id = False
     pk_attr = mo.__table__.primary.attr
     if pk_attr in mo.__self__:
         has_id = True
 
     row = _gen_insert_row(mo, mo.__self__, for_replace=has_id)
-    result = await core.Replace(mo.__class__, row).do()
+    if getattr(mo, '__saved__', False):
+        result = await core.Update(mo.__class__, row).do()
+    else:
+        result = await core.Replace(mo.__class__, row).do()
     mo.__setattr__(pk_attr, result.last_id)
+    mo.__dict__['__saved__'] = True
     return result.last_id
 
 
@@ -562,7 +564,7 @@ def _gen_insert_row(
 def _normalize_insert_rows(
     m: mtype.ModelType,
     rows: List[Union[Dict[str, Any], Tuple[Any, ...]]],
-    columns: Optional[List[types.Field]] = None,
+    columns: Optional[List[ttype.Field]] = None,
     for_replace: bool = False,
 ) -> List[Dict[str, Any]]:
     cleaned_rows = []  # type: List[Dict[str, Any]]
@@ -572,7 +574,7 @@ def _normalize_insert_rows(
             raise ValueError("specify columns must be list")
         mattrs = m.__attrs__
         for c in columns:
-            if not isinstance(c, types.Field):
+            if not isinstance(c, ttype.Field):
                 raise TypeError(f"invalid type of columns element {c}")
 
             if c.name not in mattrs:
@@ -580,7 +582,7 @@ def _normalize_insert_rows(
             c = mattrs[c.name]
 
         for row in rows:
-            if not isinstance(row, types.SEQUENCE):
+            if not isinstance(row, ttype.SEQUENCE):
                 raise ValueError(f"invalid data {row!r} for specify columns")
             row = dict(zip(columns, row))  # type: ignore
             if len(row) != len(columns):
