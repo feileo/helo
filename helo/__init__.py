@@ -62,3 +62,4 @@ from helo.util import (
     or_,
     # In,
 )
+from ._sql import Query

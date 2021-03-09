@@ -1,5 +1,5 @@
 from contextvars import ContextVar
-from typing import Optional, Any, List, Union, Callable, AsyncGenerator
+from typing import Any, List, Union, Callable, AsyncGenerator
 from functools import wraps
 
 from . import logging, interface
@@ -10,6 +10,9 @@ from .._sql import Query
 from ..util import import_object, adict
 
 
+logger = logging.create_logger()
+
+
 def __ensure__(func: Callable) -> Callable:
     @wraps(func)
     def wrapper(self, *arg, **kwargs):
@@ -17,9 +20,6 @@ def __ensure__(func: Callable) -> Callable:
             raise err.UnconnectedError()
         return func(self, *arg, **kwargs)
     return wrapper
-
-
-logger = logging.create_logger()
 
 
 class Database:

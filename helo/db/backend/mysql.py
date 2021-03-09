@@ -33,7 +33,6 @@ class Backend(interface.Backend):
         'minsize',
         'maxsize',
         'pool_recycle',
-        'loop',
     )
 
     def __init__(
@@ -70,11 +69,6 @@ class Backend(interface.Backend):
             value = self._options.get(arg) or self._url.options.get(arg)
             if value is None:
                 continue
-            if arg == "loop" and not isinstance(value, asyncio.AbstractEventLoop):
-                raise TypeError(
-                    "Invalid type for 'loop'. "
-                    f"Expected 'asyncio.AbstractEventLoop', got {type(value)}"
-                )
             kwargs[arg] = int(value)
         return kwargs
 

@@ -219,18 +219,13 @@ class Fetcher(_sql.ClauseElement):
     def __str__(self) -> str:
         return str(self.query())
 
-    async def __do__(
-        self, **props: Any
-    ) -> Union[None, util.adict, List[util.adict]]:
+    async def __do__(self) -> Union[None, util.adict, List[util.adict]]:
         database = self._model.__db__
         if database is None:
             raise err.UnconnectedError(
                 "Database is not connected yet, "
                 "please call `connect` before"
             )
-
-        if props:
-            self._props.update(props)
 
         return await database.execute(self.query(), **self._props)
 
@@ -350,14 +345,24 @@ class Select(Fetcher):
         self._offset = offset
         return self
 
-    ########################
+    # row type
+    #
+
+    def adict(self) -> Select:
+        self._wrap = False
+        return self
+
+    # go
+    #
 
     async def get(self) -> Union[None, util.adict, mtype.Model]:
-        return await self.__do__(rows=self._SINGLE)
+        self._props.rows = self._SINGLE
+        return await self()
 
     async def first(self) -> Union[None, util.adict, mtype.Model]:
         self.limit(self._SINGLE)
-        return await self.__do__(rows=self._SINGLE)
+        self._props.rows = self._SINGLE
+        return await self()
 
     async def rows(
         self,
@@ -367,7 +372,7 @@ class Select(Fetcher):
         self.limit(rows).offset(start)
         if rows <= 0:
             raise ValueError(f"invalid select rows: {rows}")
-        return await self.__do__()
+        return await self()
 
     async def paginate(
         self,
@@ -380,14 +385,15 @@ class Select(Fetcher):
             page -= 1
         self._limit = size
         self._offset = page * size
-        return await self.__do__()
+        return await self()
 
-    @property
-    def all(self) -> Union[List[util.adict], List[mtype.Model]]:
-        return self
+    async def all(self) -> Select:
+        return await self()
+
+    # scalar
 
     async def scalar(self) -> Union[int, Dict[str, int]]:
-        row = await super().__do__()
+        row = await self.__do__()
         if not row:
             return 0
         return tuple(row.values())[0] if len(row) == 1 else row
@@ -399,23 +405,16 @@ class Select(Fetcher):
     async def exist(self) -> bool:
         return bool(await self.limit(self._SINGLE).count())
 
-    def adict(self) -> Select:
-        self._wrap = False
-        return self()
-
-    async def __call__(self, **props):
-        kwargs = await self.__do__(**props)
-        return Loader(**kwargs)()
-
-    async def __do__(self, **props) -> Any:
-        return {
-            "data": await (super().__do__(**props)),
-            "model": self._model,
-            "inline_model": self._inline_model,
-            "aliases": self._aliases,
-            "sources": self._sources,
-            "wrap": self._wrap
-        }
+    async def __call__(self) -> Any:
+        rows = await (self.__do__())
+        return Loader(
+            data=rows,
+            model=self._model,
+            aliases=self._aliases,
+            sources=self._sources,
+            wrap=self._wrap,
+            inline_model=self._inline_model
+        ).do()
 
     async def __aiter__(self) -> Any:
         database = self._model.__db__
@@ -427,14 +426,14 @@ class Select(Fetcher):
 
         query = self.query()
         async for row in database.iterate(query):
-            yield Loader(**{
-                "data": row,
-                "model": self._model,
-                "inline_model": self._inline_model,
-                "aliases": self._aliases,
-                "sources": self._sources,
-                "wrap": self._wrap,
-            })()
+            yield Loader(
+                data=row,
+                model=self._model,
+                aliases=self._aliases,
+                sources=self._sources,
+                wrap=self._wrap,
+                inline_model=self._inline_model
+            ).do()
 
     def __sql__(self, ctx: _sql.Context) -> _sql.Context:
         ctx.props.assigning = True
@@ -745,11 +744,7 @@ class Loader:
             self._imattrs = inline_model.__attrs__
             self._imfields = inline_model.__table__.fields_dict
 
-    def adict(self) -> Any:
-        self._wrap = False
-        return self()
-
-    def __call__(self) -> Any:
+    def do(self) -> Any:
         print(self._data)
         print(self._aliases)
         print(self._sources)
